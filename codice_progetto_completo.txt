@@ -1,0 +1,2313 @@
+PROGETTO: shashgui_mobile
+==================================================
+
+
+
+================================================================================
+FILE: analysis_options.yaml
+================================================================================
+
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints.
+#
+# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
+# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
+# invoked from the command line by running `flutter analyze`.
+
+# The following line activates a set of recommended lints for Flutter apps,
+# packages, and plugins designed to encourage good coding practices.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  # The lint rules applied to this project can be customized in the
+  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
+  # included above or to enable additional rules. A list of all available lints
+  # and their documentation is published at https://dart.dev/lints.
+  #
+  # Instead of disabling a lint rule for the entire project in the
+  # section below, it can also be suppressed for a single line of code
+  # or a specific dart file by using the `// ignore: name_of_lint` and
+  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
+  # producing the lint.
+  rules:
+    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
+    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+
+# Additional information about this file can be found at
+# https://dart.dev/guides/language/analysis-options
+
+
+
+================================================================================
+FILE: pubspec.yaml
+================================================================================
+
+name: shashgui_mobile
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  flutter_chess_board: ^1.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  assets:
+    - assets/demo/
+    - assets/images/
+    - assets/engine/
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
+
+
+
+================================================================================
+FILE: android\build.gradle.kts
+================================================================================
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
+}
+
+
+
+================================================================================
+FILE: android\settings.gradle.kts
+================================================================================
+
+pluginManagement {
+    val flutterSdkPath =
+        run {
+            val properties = java.util.Properties()
+            file("local.properties").inputStream().use { properties.load(it) }
+            val flutterSdkPath = properties.getProperty("flutter.sdk")
+            require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
+            flutterSdkPath
+        }
+
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id("dev.flutter.flutter-plugin-loader") version "1.0.0"
+    id("com.android.application") version "8.11.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+}
+
+include(":app")
+
+
+
+================================================================================
+FILE: android\app\build.gradle.kts
+================================================================================
+
+plugins {
+    id("com.android.application")
+    id("kotlin-android")
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("dev.flutter.flutter-gradle-plugin")
+}
+
+android {
+    namespace = "com.example.shashgui_mobile"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    // ECCO LA MAGIA: Forziamo l'estrazione fisica di libshashchess.so
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.example.shashgui_mobile"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            // TODO: Add your own signing config for the release build.
+            // Signing with the debug keys for now, so `flutter run --release` works.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+
+================================================================================
+FILE: android\app\src\main\AndroidManifest.xml
+================================================================================
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:label="shashgui_mobile"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:extractNativeLibs="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\drawable\launch_background.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modify this file to customize your launch splash screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
+
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/launch_image" />
+    </item> -->
+</layer-list>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\drawable-v21\launch_background.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modify this file to customize your launch splash screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
+
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/launch_image" />
+    </item> -->
+</layer-list>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\values\styles.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\values-night\styles.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is on -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+
+
+
+================================================================================
+FILE: ios\Runner\GeneratedPluginRegistrant.h
+================================================================================
+
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GeneratedPluginRegistrant_h
+#define GeneratedPluginRegistrant_h
+
+#import <Flutter/Flutter.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface GeneratedPluginRegistrant : NSObject
++ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry;
+@end
+
+NS_ASSUME_NONNULL_END
+#endif /* GeneratedPluginRegistrant_h */
+
+
+
+================================================================================
+FILE: ios\Runner\Runner-Bridging-Header.h
+================================================================================
+
+#import "GeneratedPluginRegistrant.h"
+
+
+
+================================================================================
+FILE: lib\main.dart
+================================================================================
+
+import 'core/logic/shashin_logic.dart';
+import 'core/orchestrators/shashin_fsm.dart';
+import 'core/orchestrators/crossed_eval.dart';
+import 'core/orchestrators/play_orchestrator.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
+import 'core/engine/engine_manager.dart';
+
+void main() {
+  runApp(const ShashGuiApp());
+}
+
+class ShashGuiApp extends StatelessWidget {
+  const ShashGuiApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ShashGui MVP',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2b2b2b),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      home: const MainNavigationWrapper(),
+    );
+  }
+}
+
+// --- IL WRAPPER DELLA NAVIGAZIONE ---
+class MainNavigationWrapper extends StatefulWidget {
+  const MainNavigationWrapper({super.key});
+
+  @override
+  State<MainNavigationWrapper> createState() => _MainNavigationWrapperState();
+}
+
+class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
+  int _selectedIndex = 0;
+
+  // Le due pagine principali
+  final List<Widget> _pages = [
+    const EngineTestScreen(), // Indice 0: Il Laboratorio (Locale)
+    const PremiumShowcaseScreen(), // Indice 1: La Vetrina (Cloud/Mockup)
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(index: _selectedIndex, children: _pages),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: Colors.orangeAccent,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: const Color(0xFF1e1e1e),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.science),
+            label: 'Laboratorio',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Premium'),
+        ],
+      ),
+    );
+  }
+}
+
+// --- IL TUO ENGINE TEST SCREEN (ESTESO E COMPLETO) ---
+class EngineTestScreen extends StatefulWidget {
+  const EngineTestScreen({super.key});
+
+  @override
+  State<EngineTestScreen> createState() => _EngineTestScreenState();
+}
+
+class _EngineTestScreenState extends State<EngineTestScreen> {
+  final EngineManager _engineManager = EngineManager();
+
+  ShashinFsm? _fsm;
+  CrossedEvalOrchestrator? _crossedFsm;
+  PlayOrchestrator? _playFsm;
+
+  final List<String> _outputLines = [];
+  final ChessBoardController _boardController = ChessBoardController();
+  final ScrollController _scrollController = ScrollController();
+
+  bool _isEngineRunning = false;
+  bool _isPlayingMode = false;
+
+  ShashinZone _currentZone = ShashinZone("In attesa...", "-", Colors.grey);
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _startEngine() async {
+    setState(() {
+      _outputLines.clear();
+      _outputLines.add("Accensione motore ShashChess...");
+    });
+
+    try {
+      await _engineManager.initEngine('shashchess', [
+        'nn-c288c895ea92.nnue',
+        'nn-37f18f62d772.nnue',
+      ]);
+
+      setState(() {
+        _isEngineRunning = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+      _startNormalAnalysis();
+    } catch (e) {
+      setState(() {
+        _outputLines.add("ERRORE FATALE: $e");
+      });
+    }
+  }
+
+  void _stopAllOrchestrators() {
+    _fsm?.stop();
+    _crossedFsm?.stop();
+    _playFsm?.stop();
+
+    _fsm?.dispose();
+    _crossedFsm?.dispose();
+    _playFsm?.dispose();
+
+    _fsm = null;
+    _crossedFsm = null;
+    _playFsm = null;
+
+    _isPlayingMode = false;
+  }
+
+  void _startNormalAnalysis() {
+    if (!_isEngineRunning) return;
+    _stopAllOrchestrators();
+
+    _fsm = ShashinFsm(
+      engineManager: _engineManager,
+      onLog: (line) {
+        setState(() {
+          _outputLines.add(line);
+        });
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onZoneChanged: (zone) {
+        setState(() {
+          _currentZone = zone;
+        });
+      },
+      onStateChanged: (state) {},
+    );
+
+    _fsm!.startAnalysis(_boardController.getFen());
+  }
+
+  void _startCrossedAnalysis() {
+    if (!_isEngineRunning) return;
+    _stopAllOrchestrators();
+
+    _crossedFsm = CrossedEvalOrchestrator(
+      engineManager: _engineManager,
+      onLog: (line) {
+        setState(() {
+          _outputLines.add(line);
+        });
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+        _showCrossedEvalReport(
+          studentMove,
+          studentZone,
+          masterMove,
+          masterZone,
+        );
+      },
+    );
+
+    int simulatedElo = 1200;
+    _crossedFsm!.startCrossedEval(_boardController.getFen(), simulatedElo);
+  }
+
+  void _startPlayMode() {
+    if (!_isEngineRunning) return;
+    _stopAllOrchestrators();
+
+    setState(() {
+      _isPlayingMode = true;
+      _currentZone = ShashinZone("Modalità Gioco", "⚔️", Colors.orange);
+    });
+
+    _playFsm = PlayOrchestrator(
+      engineManager: _engineManager,
+      boardController: _boardController,
+      onLog: (line) {
+        setState(() {
+          _outputLines.add(line);
+        });
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onStateChanged: (state) {},
+    );
+
+    _playFsm!.startGame();
+  }
+
+  void _showCrossedEvalReport(
+    String sMove,
+    ShashinZone sZone,
+    String mMove,
+    ShashinZone mZone,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        bool isMatch = sZone.name == mZone.name;
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2b2b2b),
+          title: const Row(
+            children: [
+              Icon(Icons.school, color: Colors.blueAccent),
+              SizedBox(width: 10),
+              Text(
+                "Verdetto del Maestro",
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "🧑‍🎓 L'idea dell'Allievo:",
+                style: TextStyle(color: Colors.grey[400]),
+              ),
+              Text(
+                "Mossa: $sMove",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              Text(
+                "Porta in Zona: ${sZone.name} ${sZone.symbol}",
+                style: TextStyle(
+                  color: sZone.color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Divider(color: Colors.grey),
+              ),
+
+              Text(
+                "🧙‍♂️ L'idea del Maestro:",
+                style: TextStyle(color: Colors.grey[400]),
+              ),
+              Text(
+                "Mossa: $mMove",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              Text(
+                "Porta in Zona: ${mZone.name} ${mZone.symbol}",
+                style: TextStyle(
+                  color: mZone.color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isMatch
+                      ? Colors.green.withValues(alpha: 0.2)
+                      : Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isMatch ? Colors.green : Colors.orange,
+                  ),
+                ),
+                child: Text(
+                  isMatch
+                      ? "✅ Eccellente! Il piano dell'Allievo mantiene la tensione termodinamica corretta."
+                      : "❌ Attenzione! L'idea dell'Allievo cambia radicalmente la natura della posizione rispetto al piano ideale.",
+                  style: TextStyle(
+                    color: isMatch ? Colors.greenAccent : Colors.orangeAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _startNormalAnalysis();
+              },
+              child: const Text("Ho capito"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _stopEngine() {
+    _stopAllOrchestrators();
+    _engineManager.dispose();
+
+    setState(() {
+      _isEngineRunning = false;
+      _currentZone = ShashinZone("Motore Spento", "-", Colors.grey);
+      _outputLines.add("--- MOTORE SPENTO ---");
+    });
+    Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+  }
+
+  @override
+  void dispose() {
+    _stopAllOrchestrators();
+    _engineManager.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ShashGui Laboratorio'),
+        backgroundColor: const Color(0xFF1e1e1e),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          // 1. SCACCHIERA
+          Expanded(
+            flex: 5,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ChessBoard(
+                  controller: _boardController,
+                  boardColor: BoardColor.brown,
+                  boardOrientation: PlayerColor.white,
+                  onMove: () {
+                    if (_isPlayingMode) {
+                      _playFsm?.onUserMoved();
+                    } else {
+                      _startNormalAnalysis();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ),
+
+          // 2. TERMOMETRO SHASHIN
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            color: _currentZone.color.withValues(alpha: 0.2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _currentZone.symbol,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: _currentZone.color,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Text(
+                  _currentZone.name.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _currentZone.color,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 3. PULSANTI ESTESI CON ICONE
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Wrap(
+              spacing: 8.0,
+              runSpacing: 8.0,
+              alignment: WrapAlignment.center,
+              children: [
+                if (!_isEngineRunning)
+                  ElevatedButton.icon(
+                    onPressed: _startEngine,
+                    icon: const Icon(Icons.power, size: 18),
+                    label: const Text(
+                      'Accendi',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                    ),
+                  )
+                else ...[
+                  ElevatedButton.icon(
+                    onPressed: _startNormalAnalysis,
+                    icon: const Icon(Icons.search, size: 16),
+                    label: const Text(
+                      'Analizza',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _startCrossedAnalysis,
+                    icon: const Icon(Icons.school, size: 16),
+                    label: const Text(
+                      'Cross Eval',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _startPlayMode,
+                    icon: const Icon(Icons.videogame_asset, size: 16),
+                    label: const Text('Gioca', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _stopEngine,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[700],
+                      foregroundColor: Colors.white,
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(12),
+                    ),
+                    child: const Icon(Icons.stop),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // 4. TERMINALE ESTESO
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: const Color(0xFF111111),
+              width: double.infinity,
+              padding: const EdgeInsets.all(8.0),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _outputLines.length,
+                itemBuilder: (context, index) {
+                  return Text(
+                    _outputLines[index],
+                    style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- LA SCHERMATA VETRINA (MOCKUP) ---
+class PremiumShowcaseScreen extends StatelessWidget {
+  const PremiumShowcaseScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("ShashGui Premium ✨"),
+        backgroundColor: const Color(0xFF1e1e1e),
+        centerTitle: true,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            "FUNZIONALITÀ CLOUD (COMING SOON)",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.orangeAccent,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildPremiumCard(
+            title: "ChessBeauty Analyzer",
+            desc:
+                "Valutazione estetica e qualimetrica della tua partita tramite algoritmi batch in remoto.",
+            icon: Icons.auto_awesome,
+            color: Colors.pinkAccent,
+          ),
+          _buildPremiumCard(
+            title: "Nuggets Explorer",
+            desc:
+                "Accedi a migliaia di pepite tattiche estratte dai database storici dei grandi campioni.",
+            icon: Icons.savings,
+            color: Colors.amber,
+          ),
+          _buildPremiumCard(
+            title: "Dossier Divergenze XAI",
+            desc:
+                "Scopri esattamente dove la Rete Neurale e i Grandi Maestri Umani non sono d'accordo.",
+            icon: Icons.psychology,
+            color: Colors.cyanAccent,
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Qui andrà l'integrazione con gli acquisti In-App
+            },
+            icon: const Icon(Icons.workspace_premium),
+            label: const Text(
+              "SBLOCCA TUTTO (9.99€/mese)",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumCard({
+    required String title,
+    required String desc,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      color: const Color(0xFF2b2b2b),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.2),
+            radius: 25,
+            child: Icon(icon, color: color, size: 28),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(desc, style: TextStyle(color: Colors.grey[400])),
+          ),
+          trailing: const Icon(Icons.lock_outline, color: Colors.grey),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+================================================================================
+FILE: lib\core\engine\engine_manager.dart
+================================================================================
+
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+
+class EngineManager {
+  static const platform = MethodChannel('com.shashgui.engine/native');
+  Process? _process;
+
+  // --- FIX: Salviamo il flusso broadcast in una variabile ---
+  Stream<String>? _broadcastOutput;
+
+  // Il getter ora restituisce semplicemente la "Radio" già sintonizzata
+  Stream<String>? get engineOutput => _broadcastOutput;
+
+  Future<void> initEngine(String engineName, List<String> nnueFiles) async {
+    print("Inizializzazione motore $engineName in corso...");
+    final String libDir = await platform.invokeMethod('getNativeLibDir');
+    final String enginePath = p.join(libDir, 'lib$engineName.so');
+
+    final docDir = await getApplicationDocumentsDirectory();
+
+    for (String nnue in nnueFiles) {
+      final file = File(p.join(docDir.path, nnue));
+      final byteData = await rootBundle.load('assets/engine/$nnue');
+
+      // FIX ANTI-CORRUZIONE: Estrae la rete se non esiste o se il peso in byte è sbagliato!
+      bool needsExtraction = !await file.exists();
+      if (!needsExtraction) {
+        final size = await file.length();
+        if (size != byteData.lengthInBytes) {
+          print("Rete $nnue corrotta ($size bytes). Re-estrazione forzata...");
+          needsExtraction = true;
+        }
+      }
+
+      if (needsExtraction) {
+        print("Estrazione rete neurale: $nnue...");
+        await file.writeAsBytes(
+          byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          ),
+          flush: true, // Assicura che la scrittura sul disco sia completata
+        );
+      }
+    }
+
+    _process = await Process.start(enginePath, []);
+
+    // --- FIX CRITICO: Trasformiamo lo stdout in Broadcast UNA SOLA VOLTA ---
+    _broadcastOutput = _process!.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .asBroadcastStream();
+
+    sendCommand('uci');
+    if (nnueFiles.isNotEmpty) {
+      sendCommand(
+        'setoption name EvalFile value ${p.join(docDir.path, nnueFiles[0])}',
+      );
+    }
+    if (nnueFiles.length > 1) {
+      sendCommand(
+        'setoption name EvalFileSmall value ${p.join(docDir.path, nnueFiles[1])}',
+      );
+    }
+
+    sendCommand('isready');
+  }
+
+  void sendCommand(String command) {
+    if (_process != null) {
+      print("-> INVIATO: $command");
+      _process!.stdin.writeln(command);
+    }
+  }
+
+  void dispose() {
+    sendCommand('quit');
+    _process?.kill();
+    _broadcastOutput = null; // Pulizia
+  }
+}
+
+
+
+================================================================================
+FILE: lib\core\logic\shashin_logic.dart
+================================================================================
+
+import 'package:flutter/material.dart';
+
+class ShashinZone {
+  final String name;
+  final String symbol;
+  final Color color;
+
+  ShashinZone(this.name, this.symbol, this.color);
+}
+
+/// Converte i millesimi WDL del motore in una Zona Shashin
+ShashinZone analyzeShashinZone(int w, int d, int l) {
+  int total = w + d + l;
+  if (total == 0) return ShashinZone("Calcolo in corso...", "...", Colors.grey);
+
+  // Total Chaos: perfetto equilibrio
+  if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
+    return ShashinZone("Chaos: Capablanca-Petrosian-Tal", "∞", Colors.purple);
+  }
+
+  // Calcolo Win Probability (WP) 0-100
+  int wpInt = ((w + (d / 2.0)) / 10.0).round();
+
+  // Pepite d'oro
+  if (wpInt == 25)
+    return ShashinZone("Petrosian Nugget", "⚱️", Colors.orangeAccent);
+  if (wpInt == 75) return ShashinZone("Tal Nugget", "⚱️", Colors.tealAccent);
+
+  // Zone PETROSIAN
+  if (wpInt <= 5) return ShashinZone("High Petrosian", "-+", Colors.red);
+  if (wpInt <= 10)
+    return ShashinZone("High-Middle Petrosian", "-+ / -/+", Colors.deepOrange);
+  if (wpInt <= 15) return ShashinZone("Middle Petrosian", "-/+", Colors.orange);
+  if (wpInt <= 20)
+    return ShashinZone(
+      "Middle-Low Petrosian",
+      "-/+ / =/+",
+      Colors.orangeAccent,
+    );
+  if (wpInt <= 24) return ShashinZone("Low Petrosian", "=/+", Colors.amber);
+  if (wpInt <= 49)
+    return ShashinZone("Chaos: Capablanca-Petrosian", "↓", Colors.purpleAccent);
+
+  // Zona CAPABLANCA
+  if (wpInt == 50) return ShashinZone("Capablanca", "=", Colors.blue);
+
+  // Zone TAL
+  if (wpInt <= 74)
+    return ShashinZone("Chaos: Capablanca-Tal", "↑", Colors.teal);
+  if (wpInt <= 79) return ShashinZone("Low Tal", "+/=", Colors.lightGreen);
+  if (wpInt <= 84)
+    return ShashinZone("Middle-Low Tal", "+/= / +/-", Colors.green);
+  if (wpInt <= 89) return ShashinZone("Middle Tal", "+/-", Colors.green[700]!);
+  if (wpInt <= 94)
+    return ShashinZone("High-Middle Tal", "+/- / +-", Colors.green[800]!);
+
+  return ShashinZone("High Tal", "+-", Colors.green[900]!);
+}
+
+
+
+================================================================================
+FILE: lib\core\orchestrators\crossed_eval.dart
+================================================================================
+
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../engine/engine_manager.dart';
+import '../logic/shashin_logic.dart';
+
+enum CrossedState { idle, studentThinking, masterThinking }
+
+class CrossedEvalOrchestrator {
+  final EngineManager engineManager;
+
+  CrossedState currentState = CrossedState.idle;
+  StreamSubscription<String>? _outputSubscription;
+
+  // Memoria del calcolo
+  String? studentMove;
+  ShashinZone? studentZone;
+  String? masterMove;
+  ShashinZone? masterZone;
+
+  // Callback per la UI
+  final Function(String) onLog;
+  final Function(String, ShashinZone, String, ShashinZone) onReportReady;
+
+  CrossedEvalOrchestrator({
+    required this.engineManager,
+    required this.onLog,
+    required this.onReportReady,
+  }) {
+    _outputSubscription = engineManager.engineOutput?.listen(
+      _handleEngineOutput,
+    );
+  }
+
+  void _handleEngineOutput(String line) {
+    // Aggiorniamo la zona in base a chi sta pensando
+    final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
+    if (wdlMatch != null) {
+      int w = int.parse(wdlMatch.group(1)!);
+      int d = int.parse(wdlMatch.group(2)!);
+      int l = int.parse(wdlMatch.group(3)!);
+
+      if (currentState == CrossedState.studentThinking) {
+        studentZone = analyzeShashinZone(w, d, l);
+      } else if (currentState == CrossedState.masterThinking) {
+        masterZone = analyzeShashinZone(w, d, l);
+      }
+    }
+
+    // Quando scade il tempo, catturiamo la bestmove e passiamo alla fase successiva
+    if (line.startsWith("bestmove")) {
+      final moveMatch = RegExp(r"bestmove (\w+)").firstMatch(line);
+      if (moveMatch != null) {
+        String move = moveMatch.group(1)!;
+
+        if (currentState == CrossedState.studentThinking) {
+          studentMove = move;
+          _startMasterAnalysis(); // Tocca al Maestro!
+        } else if (currentState == CrossedState.masterThinking) {
+          masterMove = move;
+          _finishAndReport(); // Analisi conclusa, generiamo il verdetto!
+        }
+      }
+    }
+  }
+
+  /// Avvia la valutazione incrociata partendo dall'Allievo
+  void startCrossedEval(String fen, int playerElo) {
+    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
+
+    currentState = CrossedState.studentThinking;
+    onLog("===========================================");
+    onLog("🧑‍🎓 L'Allievo (Elo $playerElo) sta cercando un piano...");
+
+    engineManager.sendCommand('position fen $fen');
+
+    // Per l'MVP simuliamo l'Elo basso limitando fortemente la profondità di ricerca
+    // (Nella versione completa useremo i comandi UCI_LimitStrength e UCI_Elo)
+    int studentDepth = (playerElo < 1500) ? 3 : 6;
+    engineManager.sendCommand('go depth $studentDepth');
+  }
+
+  /// Il Maestro analizza la stessa posizione al massimo della forza
+  void _startMasterAnalysis() {
+    currentState = CrossedState.masterThinking;
+    onLog("🧙‍♂️ Il Maestro sta valutando la posizione profonda...");
+
+    // Il maestro pensa molto più a fondo
+    engineManager.sendCommand('go depth 12');
+  }
+
+  /// Genera il risultato finale
+  void _finishAndReport() {
+    currentState = CrossedState.idle;
+
+    if (studentMove != null &&
+        studentZone != null &&
+        masterMove != null &&
+        masterZone != null) {
+      onLog("✅ Valutazione incrociata completata.");
+      onReportReady(studentMove!, studentZone!, masterMove!, masterZone!);
+    } else {
+      onLog("❌ Errore durante l'estrazione delle mosse.");
+    }
+  }
+
+  void stop() {
+    engineManager.sendCommand('stop');
+    currentState = CrossedState.idle;
+  }
+
+  void dispose() {
+    _outputSubscription?.cancel();
+  }
+}
+
+
+
+================================================================================
+FILE: lib\core\orchestrators\play_orchestrator.dart
+================================================================================
+
+import 'dart:async';
+import 'package:flutter_chess_board/flutter_chess_board.dart';
+import '../engine/engine_manager.dart';
+
+// I tre stati della nostra partita
+enum PlayState { idle, userTurn, engineThinking }
+
+class PlayOrchestrator {
+  final EngineManager engineManager;
+  final ChessBoardController boardController;
+
+  PlayState currentState = PlayState.idle;
+  StreamSubscription<String>? _outputSubscription;
+
+  // Callback per aggiornare i testi nella UI
+  final Function(String) onLog;
+  final Function(PlayState) onStateChanged;
+
+  PlayOrchestrator({
+    required this.engineManager,
+    required this.boardController,
+    required this.onLog,
+    required this.onStateChanged,
+  }) {
+    // Ci sintonizziamo sulla "Radio Pubblica" del motore
+    _outputSubscription = engineManager.engineOutput?.listen(
+      _handleEngineOutput,
+    );
+  }
+
+  void _handleEngineOutput(String line) {
+    // Se è il turno del motore e sentiamo la parola magica "bestmove"...
+    if (currentState == PlayState.engineThinking &&
+        line.startsWith("bestmove")) {
+      final match = RegExp(r"bestmove (\w+)").firstMatch(line);
+      if (match != null) {
+        String move = match.group(1)!;
+        _executeEngineMove(move);
+      }
+    }
+  }
+
+  /// Inizia una nuova partita (Noi siamo il Bianco, il motore il Nero)
+  void startGame() {
+    if (currentState != PlayState.idle) {
+      engineManager.sendCommand('stop');
+    }
+
+    boardController.resetBoard(); // Resetta la scacchiera visiva
+    onLog("===========================================");
+    onLog("⚔️ Partita Iniziata! Tu hai il Bianco.");
+
+    _waitForUser();
+  }
+
+  /// Viene chiamato dalla UI ogni volta che l'utente muove un pezzo
+  void onUserMoved() {
+    if (currentState == PlayState.userTurn) {
+      // È il turno del Nero!
+      _triggerEngine();
+    }
+  }
+
+  /// Sveglia il motore e gli fa calcolare la mossa
+  void _triggerEngine() {
+    currentState = PlayState.engineThinking;
+    onStateChanged(currentState);
+    onLog("🤖 Il motore sta pensando...");
+
+    // Legge la scacchiera e la invia al motore
+    String fen = boardController.getFen();
+    engineManager.sendCommand('position fen $fen');
+
+    // Per questa demo, diamo al motore 1.5 secondi netti per pensare
+    engineManager.sendCommand('go movetime 1500');
+  }
+
+  /// Applica fisicamente la mossa del motore sulla scacchiera grafica
+  void _executeEngineMove(String uciMove) {
+    onLog("♟️ Mossa del motore: $uciMove");
+
+    // Convertiamo la mossa UCI (es. "e7e5") in coordinate per la UI
+    String from = uciMove.substring(0, 2);
+    String to = uciMove.substring(2, 4);
+
+    // Muoviamo il pezzo sulla scacchiera in modo visivo
+    boardController.makeMove(from: from, to: to);
+
+    // Ripassa il turno all'umano
+    _waitForUser();
+  }
+
+  /// Aspetta la mossa dell'utente umano
+  void _waitForUser() {
+    currentState = PlayState.userTurn;
+    onStateChanged(currentState);
+    onLog("👤 Tocca a te! Fai la tua mossa.");
+  }
+
+  /// Ferma la partita
+  void stop() {
+    engineManager.sendCommand('stop');
+    currentState = PlayState.idle;
+    onStateChanged(currentState);
+    onLog("🛑 Partita interrotta.");
+  }
+
+  void dispose() {
+    _outputSubscription?.cancel();
+  }
+}
+
+
+
+================================================================================
+FILE: lib\core\orchestrators\shashin_fsm.dart
+================================================================================
+
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../engine/engine_manager.dart';
+import '../logic/shashin_logic.dart';
+
+// I tre stati in cui può trovarsi il nostro orchestratore
+enum FsmState { idle, phase1, phase2 }
+
+class ShashinFsm {
+  final EngineManager engineManager;
+
+  FsmState currentState = FsmState.idle;
+  StreamSubscription<String>? _outputSubscription;
+  ShashinZone currentZone = ShashinZone("In attesa...", "-", Colors.grey);
+
+  // Callback per comunicare con l'interfaccia grafica (UI)
+  final Function(String) onLog;
+  final Function(ShashinZone) onZoneChanged;
+  final Function(FsmState) onStateChanged;
+
+  ShashinFsm({
+    required this.engineManager,
+    required this.onLog,
+    required this.onZoneChanged,
+    required this.onStateChanged,
+  }) {
+    // Ci mettiamo in ascolto dei sussurri del motore
+    _outputSubscription = engineManager.engineOutput?.listen(
+      _handleEngineOutput,
+    );
+  }
+
+  void _handleEngineOutput(String line) {
+    // 1. Cacciatore di WDL (Aggiorna il termometro)
+    final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
+    if (wdlMatch != null) {
+      int w = int.parse(wdlMatch.group(1)!);
+      int d = int.parse(wdlMatch.group(2)!);
+      int l = int.parse(wdlMatch.group(3)!);
+
+      currentZone = analyzeShashinZone(w, d, l);
+      onZoneChanged(currentZone); // Avvisa la UI che la zona è cambiata
+    }
+
+    // 2. IL TRUCCO DELLO SWITCH:
+    // Quando la Fase 1 finisce (il tempo scade), Stockfish sputa sempre "bestmove".
+    // Noi intercettiamo quel "bestmove" per innescare la Fase 2!
+    if (currentState == FsmState.phase1 && line.startsWith("bestmove")) {
+      _startPhase2();
+    }
+  }
+
+  /// Avvia l'analisi della posizione (FASE 1)
+  void startAnalysis(String fen) {
+    if (currentState != FsmState.idle) {
+      engineManager.sendCommand('stop');
+    }
+
+    currentState = FsmState.phase1;
+    onStateChanged(currentState);
+
+    onLog("===========================================");
+    onLog("⏱️ FASE 1: Lettura Termodinamica rapida...");
+
+    engineManager.sendCommand('position fen $fen');
+
+    // Diciamo al motore di pensare SOLO per 1.5 secondi (1500 millisecondi)
+    engineManager.sendCommand('go movetime 1500');
+  }
+
+  /// Avvia l'analisi profonda (FASE 2)
+  void _startPhase2() {
+    currentState = FsmState.phase2;
+    onStateChanged(currentState);
+
+    onLog(
+      "🎯 FASE 2: Analisi profonda in modalità [ ${currentZone.name.toUpperCase()} ]",
+    );
+
+    // Qui prepariamo il motore alla modalità specifica.
+    // N.B. In futuro qui invieremo le UCI options specifiche di ShashChess
+    // es: engineManager.sendCommand('setoption name TargetZone value ${currentZone.name}');
+
+    // Facciamo ripartire il motore per un calcolo più profondo e mirato
+    engineManager.sendCommand('go depth 12');
+  }
+
+  /// Ferma tutto
+  void stop() {
+    engineManager.sendCommand('stop');
+    currentState = FsmState.idle;
+    onStateChanged(currentState);
+    onLog("🛑 Analisi fermata.");
+  }
+
+  void dispose() {
+    _outputSubscription?.cancel();
+  }
+}
+
+
+
+================================================================================
+FILE: linux\flutter\generated_plugin_registrant.h
+================================================================================
+
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GENERATED_PLUGIN_REGISTRANT_
+#define GENERATED_PLUGIN_REGISTRANT_
+
+#include <flutter_linux/flutter_linux.h>
+
+// Registers Flutter plugins.
+void fl_register_plugins(FlPluginRegistry* registry);
+
+#endif  // GENERATED_PLUGIN_REGISTRANT_
+
+
+
+================================================================================
+FILE: linux\runner\my_application.h
+================================================================================
+
+#ifndef FLUTTER_MY_APPLICATION_H_
+#define FLUTTER_MY_APPLICATION_H_
+
+#include <gtk/gtk.h>
+
+G_DECLARE_FINAL_TYPE(MyApplication,
+                     my_application,
+                     MY,
+                     APPLICATION,
+                     GtkApplication)
+
+/**
+ * my_application_new:
+ *
+ * Creates a new Flutter-based application.
+ *
+ * Returns: a new #MyApplication.
+ */
+MyApplication* my_application_new();
+
+#endif  // FLUTTER_MY_APPLICATION_H_
+
+
+
+================================================================================
+FILE: windows\flutter\generated_plugin_registrant.h
+================================================================================
+
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GENERATED_PLUGIN_REGISTRANT_
+#define GENERATED_PLUGIN_REGISTRANT_
+
+#include <flutter/plugin_registry.h>
+
+// Registers Flutter plugins.
+void RegisterPlugins(flutter::PluginRegistry* registry);
+
+#endif  // GENERATED_PLUGIN_REGISTRANT_
+
+
+
+================================================================================
+FILE: windows\runner\flutter_window.cpp
+================================================================================
+
+#include "flutter_window.h"
+
+#include <optional>
+
+#include "flutter/generated_plugin_registrant.h"
+
+FlutterWindow::FlutterWindow(const flutter::DartProject& project)
+    : project_(project) {}
+
+FlutterWindow::~FlutterWindow() {}
+
+bool FlutterWindow::OnCreate() {
+  if (!Win32Window::OnCreate()) {
+    return false;
+  }
+
+  RECT frame = GetClientArea();
+
+  // The size here must match the window dimensions to avoid unnecessary surface
+  // creation / destruction in the startup path.
+  flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
+      frame.right - frame.left, frame.bottom - frame.top, project_);
+  // Ensure that basic setup of the controller was successful.
+  if (!flutter_controller_->engine() || !flutter_controller_->view()) {
+    return false;
+  }
+  RegisterPlugins(flutter_controller_->engine());
+  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  flutter_controller_->engine()->SetNextFrameCallback([&]() {
+    this->Show();
+  });
+
+  // Flutter can complete the first frame before the "show window" callback is
+  // registered. The following call ensures a frame is pending to ensure the
+  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  flutter_controller_->ForceRedraw();
+
+  return true;
+}
+
+void FlutterWindow::OnDestroy() {
+  if (flutter_controller_) {
+    flutter_controller_ = nullptr;
+  }
+
+  Win32Window::OnDestroy();
+}
+
+LRESULT
+FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
+                              WPARAM const wparam,
+                              LPARAM const lparam) noexcept {
+  // Give Flutter, including plugins, an opportunity to handle window messages.
+  if (flutter_controller_) {
+    std::optional<LRESULT> result =
+        flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,
+                                                      lparam);
+    if (result) {
+      return *result;
+    }
+  }
+
+  switch (message) {
+    case WM_FONTCHANGE:
+      flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+  }
+
+  return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+
+
+================================================================================
+FILE: windows\runner\flutter_window.h
+================================================================================
+
+#ifndef RUNNER_FLUTTER_WINDOW_H_
+#define RUNNER_FLUTTER_WINDOW_H_
+
+#include <flutter/dart_project.h>
+#include <flutter/flutter_view_controller.h>
+
+#include <memory>
+
+#include "win32_window.h"
+
+// A window that does nothing but host a Flutter view.
+class FlutterWindow : public Win32Window {
+ public:
+  // Creates a new FlutterWindow hosting a Flutter view running |project|.
+  explicit FlutterWindow(const flutter::DartProject& project);
+  virtual ~FlutterWindow();
+
+ protected:
+  // Win32Window:
+  bool OnCreate() override;
+  void OnDestroy() override;
+  LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
+                         LPARAM const lparam) noexcept override;
+
+ private:
+  // The project to run.
+  flutter::DartProject project_;
+
+  // The Flutter instance hosted by this window.
+  std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+};
+
+#endif  // RUNNER_FLUTTER_WINDOW_H_
+
+
+
+================================================================================
+FILE: windows\runner\main.cpp
+================================================================================
+
+#include <flutter/dart_project.h>
+#include <flutter/flutter_view_controller.h>
+#include <windows.h>
+
+#include "flutter_window.h"
+#include "utils.h"
+
+int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
+                      _In_ wchar_t *command_line, _In_ int show_command) {
+  // Attach to console when present (e.g., 'flutter run') or create a
+  // new console when running with a debugger.
+  if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
+    CreateAndAttachConsole();
+  }
+
+  // Initialize COM, so that it is available for use in the library and/or
+  // plugins.
+  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+  flutter::DartProject project(L"data");
+
+  std::vector<std::string> command_line_arguments =
+      GetCommandLineArguments();
+
+  project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
+
+  FlutterWindow window(project);
+  Win32Window::Point origin(10, 10);
+  Win32Window::Size size(1280, 720);
+  if (!window.Create(L"shashgui_mobile", origin, size)) {
+    return EXIT_FAILURE;
+  }
+  window.SetQuitOnClose(true);
+
+  ::MSG msg;
+  while (::GetMessage(&msg, nullptr, 0, 0)) {
+    ::TranslateMessage(&msg);
+    ::DispatchMessage(&msg);
+  }
+
+  ::CoUninitialize();
+  return EXIT_SUCCESS;
+}
+
+
+
+================================================================================
+FILE: windows\runner\resource.h
+================================================================================
+
+//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ generated include file.
+// Used by Runner.rc
+//
+#define IDI_APP_ICON                    101
+
+// Next default values for new objects
+//
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NEXT_RESOURCE_VALUE        102
+#define _APS_NEXT_COMMAND_VALUE         40001
+#define _APS_NEXT_CONTROL_VALUE         1001
+#define _APS_NEXT_SYMED_VALUE           101
+#endif
+#endif
+
+
+
+================================================================================
+FILE: windows\runner\utils.cpp
+================================================================================
+
+#include "utils.h"
+
+#include <flutter_windows.h>
+#include <io.h>
+#include <stdio.h>
+#include <windows.h>
+
+#include <iostream>
+
+void CreateAndAttachConsole() {
+  if (::AllocConsole()) {
+    FILE *unused;
+    if (freopen_s(&unused, "CONOUT$", "w", stdout)) {
+      _dup2(_fileno(stdout), 1);
+    }
+    if (freopen_s(&unused, "CONOUT$", "w", stderr)) {
+      _dup2(_fileno(stdout), 2);
+    }
+    std::ios::sync_with_stdio();
+    FlutterDesktopResyncOutputStreams();
+  }
+}
+
+std::vector<std::string> GetCommandLineArguments() {
+  // Convert the UTF-16 command line arguments to UTF-8 for the Engine to use.
+  int argc;
+  wchar_t** argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+  if (argv == nullptr) {
+    return std::vector<std::string>();
+  }
+
+  std::vector<std::string> command_line_arguments;
+
+  // Skip the first argument as it's the binary name.
+  for (int i = 1; i < argc; i++) {
+    command_line_arguments.push_back(Utf8FromUtf16(argv[i]));
+  }
+
+  ::LocalFree(argv);
+
+  return command_line_arguments;
+}
+
+std::string Utf8FromUtf16(const wchar_t* utf16_string) {
+  if (utf16_string == nullptr) {
+    return std::string();
+  }
+  unsigned int target_length = ::WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
+      -1, nullptr, 0, nullptr, nullptr)
+    -1; // remove the trailing null character
+  int input_length = (int)wcslen(utf16_string);
+  std::string utf8_string;
+  if (target_length == 0 || target_length > utf8_string.max_size()) {
+    return utf8_string;
+  }
+  utf8_string.resize(target_length);
+  int converted_length = ::WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
+      input_length, utf8_string.data(), target_length, nullptr, nullptr);
+  if (converted_length == 0) {
+    return std::string();
+  }
+  return utf8_string;
+}
+
+
+
+================================================================================
+FILE: windows\runner\utils.h
+================================================================================
+
+#ifndef RUNNER_UTILS_H_
+#define RUNNER_UTILS_H_
+
+#include <string>
+#include <vector>
+
+// Creates a console for the process, and redirects stdout and stderr to
+// it for both the runner and the Flutter library.
+void CreateAndAttachConsole();
+
+// Takes a null-terminated wchar_t* encoded in UTF-16 and returns a std::string
+// encoded in UTF-8. Returns an empty std::string on failure.
+std::string Utf8FromUtf16(const wchar_t* utf16_string);
+
+// Gets the command line arguments passed in as a std::vector<std::string>,
+// encoded in UTF-8. Returns an empty std::vector<std::string> on failure.
+std::vector<std::string> GetCommandLineArguments();
+
+#endif  // RUNNER_UTILS_H_
+
+
+
+================================================================================
+FILE: windows\runner\win32_window.cpp
+================================================================================
+
+#include "win32_window.h"
+
+#include <dwmapi.h>
+#include <flutter_windows.h>
+
+#include "resource.h"
+
+namespace {
+
+/// Window attribute that enables dark mode window decorations.
+///
+/// Redefined in case the developer's machine has a Windows SDK older than
+/// version 10.0.22000.0.
+/// See: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+
+constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+
+/// Registry key for app theme preference.
+///
+/// A value of 0 indicates apps should use dark mode. A non-zero or missing
+/// value indicates apps should use light mode.
+constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
+  L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
+
+// The number of Win32Window objects that currently exist.
+static int g_active_window_count = 0;
+
+using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
+
+// Scale helper to convert logical scaler values to physical using passed in
+// scale factor
+int Scale(int source, double scale_factor) {
+  return static_cast<int>(source * scale_factor);
+}
+
+// Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
+// This API is only needed for PerMonitor V1 awareness mode.
+void EnableFullDpiSupportIfAvailable(HWND hwnd) {
+  HMODULE user32_module = LoadLibraryA("User32.dll");
+  if (!user32_module) {
+    return;
+  }
+  auto enable_non_client_dpi_scaling =
+      reinterpret_cast<EnableNonClientDpiScaling*>(
+          GetProcAddress(user32_module, "EnableNonClientDpiScaling"));
+  if (enable_non_client_dpi_scaling != nullptr) {
+    enable_non_client_dpi_scaling(hwnd);
+  }
+  FreeLibrary(user32_module);
+}
+
+}  // namespace
+
+// Manages the Win32Window's window class registration.
+class WindowClassRegistrar {
+ public:
+  ~WindowClassRegistrar() = default;
+
+  // Returns the singleton registrar instance.
+  static WindowClassRegistrar* GetInstance() {
+    if (!instance_) {
+      instance_ = new WindowClassRegistrar();
+    }
+    return instance_;
+  }
+
+  // Returns the name of the window class, registering the class if it hasn't
+  // previously been registered.
+  const wchar_t* GetWindowClass();
+
+  // Unregisters the window class. Should only be called if there are no
+  // instances of the window.
+  void UnregisterWindowClass();
+
+ private:
+  WindowClassRegistrar() = default;
+
+  static WindowClassRegistrar* instance_;
+
+  bool class_registered_ = false;
+};
+
+WindowClassRegistrar* WindowClassRegistrar::instance_ = nullptr;
+
+const wchar_t* WindowClassRegistrar::GetWindowClass() {
+  if (!class_registered_) {
+    WNDCLASS window_class{};
+    window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    window_class.lpszClassName = kWindowClassName;
+    window_class.style = CS_HREDRAW | CS_VREDRAW;
+    window_class.cbClsExtra = 0;
+    window_class.cbWndExtra = 0;
+    window_class.hInstance = GetModuleHandle(nullptr);
+    window_class.hIcon =
+        LoadIcon(window_class.hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    window_class.hbrBackground = 0;
+    window_class.lpszMenuName = nullptr;
+    window_class.lpfnWndProc = Win32Window::WndProc;
+    RegisterClass(&window_class);
+    class_registered_ = true;
+  }
+  return kWindowClassName;
+}
+
+void WindowClassRegistrar::UnregisterWindowClass() {
+  UnregisterClass(kWindowClassName, nullptr);
+  class_registered_ = false;
+}
+
+Win32Window::Win32Window() {
+  ++g_active_window_count;
+}
+
+Win32Window::~Win32Window() {
+  --g_active_window_count;
+  Destroy();
+}
+
+bool Win32Window::Create(const std::wstring& title,
+                         const Point& origin,
+                         const Size& size) {
+  Destroy();
+
+  const wchar_t* window_class =
+      WindowClassRegistrar::GetInstance()->GetWindowClass();
+
+  const POINT target_point = {static_cast<LONG>(origin.x),
+                              static_cast<LONG>(origin.y)};
+  HMONITOR monitor = MonitorFromPoint(target_point, MONITOR_DEFAULTTONEAREST);
+  UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  double scale_factor = dpi / 96.0;
+
+  HWND window = CreateWindow(
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
+      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      nullptr, nullptr, GetModuleHandle(nullptr), this);
+
+  if (!window) {
+    return false;
+  }
+
+  UpdateTheme(window);
+
+  return OnCreate();
+}
+
+bool Win32Window::Show() {
+  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+}
+
+// static
+LRESULT CALLBACK Win32Window::WndProc(HWND const window,
+                                      UINT const message,
+                                      WPARAM const wparam,
+                                      LPARAM const lparam) noexcept {
+  if (message == WM_NCCREATE) {
+    auto window_struct = reinterpret_cast<CREATESTRUCT*>(lparam);
+    SetWindowLongPtr(window, GWLP_USERDATA,
+                     reinterpret_cast<LONG_PTR>(window_struct->lpCreateParams));
+
+    auto that = static_cast<Win32Window*>(window_struct->lpCreateParams);
+    EnableFullDpiSupportIfAvailable(window);
+    that->window_handle_ = window;
+  } else if (Win32Window* that = GetThisFromHandle(window)) {
+    return that->MessageHandler(window, message, wparam, lparam);
+  }
+
+  return DefWindowProc(window, message, wparam, lparam);
+}
+
+LRESULT
+Win32Window::MessageHandler(HWND hwnd,
+                            UINT const message,
+                            WPARAM const wparam,
+                            LPARAM const lparam) noexcept {
+  switch (message) {
+    case WM_DESTROY:
+      window_handle_ = nullptr;
+      Destroy();
+      if (quit_on_close_) {
+        PostQuitMessage(0);
+      }
+      return 0;
+
+    case WM_DPICHANGED: {
+      auto newRectSize = reinterpret_cast<RECT*>(lparam);
+      LONG newWidth = newRectSize->right - newRectSize->left;
+      LONG newHeight = newRectSize->bottom - newRectSize->top;
+
+      SetWindowPos(hwnd, nullptr, newRectSize->left, newRectSize->top, newWidth,
+                   newHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+      return 0;
+    }
+    case WM_SIZE: {
+      RECT rect = GetClientArea();
+      if (child_content_ != nullptr) {
+        // Size and position the child window.
+        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
+                   rect.bottom - rect.top, TRUE);
+      }
+      return 0;
+    }
+
+    case WM_ACTIVATE:
+      if (child_content_ != nullptr) {
+        SetFocus(child_content_);
+      }
+      return 0;
+
+    case WM_DWMCOLORIZATIONCOLORCHANGED:
+      UpdateTheme(hwnd);
+      return 0;
+  }
+
+  return DefWindowProc(window_handle_, message, wparam, lparam);
+}
+
+void Win32Window::Destroy() {
+  OnDestroy();
+
+  if (window_handle_) {
+    DestroyWindow(window_handle_);
+    window_handle_ = nullptr;
+  }
+  if (g_active_window_count == 0) {
+    WindowClassRegistrar::GetInstance()->UnregisterWindowClass();
+  }
+}
+
+Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
+  return reinterpret_cast<Win32Window*>(
+      GetWindowLongPtr(window, GWLP_USERDATA));
+}
+
+void Win32Window::SetChildContent(HWND content) {
+  child_content_ = content;
+  SetParent(content, window_handle_);
+  RECT frame = GetClientArea();
+
+  MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
+             frame.bottom - frame.top, true);
+
+  SetFocus(child_content_);
+}
+
+RECT Win32Window::GetClientArea() {
+  RECT frame;
+  GetClientRect(window_handle_, &frame);
+  return frame;
+}
+
+HWND Win32Window::GetHandle() {
+  return window_handle_;
+}
+
+void Win32Window::SetQuitOnClose(bool quit_on_close) {
+  quit_on_close_ = quit_on_close;
+}
+
+bool Win32Window::OnCreate() {
+  // No-op; provided for subclasses.
+  return true;
+}
+
+void Win32Window::OnDestroy() {
+  // No-op; provided for subclasses.
+}
+
+void Win32Window::UpdateTheme(HWND const window) {
+  DWORD light_mode;
+  DWORD light_mode_size = sizeof(light_mode);
+  LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
+                               kGetPreferredBrightnessRegValue,
+                               RRF_RT_REG_DWORD, nullptr, &light_mode,
+                               &light_mode_size);
+
+  if (result == ERROR_SUCCESS) {
+    BOOL enable_dark_mode = light_mode == 0;
+    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                          &enable_dark_mode, sizeof(enable_dark_mode));
+  }
+}
+
+
+
+================================================================================
+FILE: windows\runner\win32_window.h
+================================================================================
+
+#ifndef RUNNER_WIN32_WINDOW_H_
+#define RUNNER_WIN32_WINDOW_H_
+
+#include <windows.h>
+
+#include <functional>
+#include <memory>
+#include <string>
+
+// A class abstraction for a high DPI-aware Win32 Window. Intended to be
+// inherited from by classes that wish to specialize with custom
+// rendering and input handling
+class Win32Window {
+ public:
+  struct Point {
+    unsigned int x;
+    unsigned int y;
+    Point(unsigned int x, unsigned int y) : x(x), y(y) {}
+  };
+
+  struct Size {
+    unsigned int width;
+    unsigned int height;
+    Size(unsigned int width, unsigned int height)
+        : width(width), height(height) {}
+  };
+
+  Win32Window();
+  virtual ~Win32Window();
+
+  // Creates a win32 window with |title| that is positioned and sized using
+  // |origin| and |size|. New windows are created on the default monitor. Window
+  // sizes are specified to the OS in physical pixels, hence to ensure a
+  // consistent size this function will scale the inputted width and height as
+  // as appropriate for the default monitor. The window is invisible until
+  // |Show| is called. Returns true if the window was created successfully.
+  bool Create(const std::wstring& title, const Point& origin, const Size& size);
+
+  // Show the current window. Returns true if the window was successfully shown.
+  bool Show();
+
+  // Release OS resources associated with window.
+  void Destroy();
+
+  // Inserts |content| into the window tree.
+  void SetChildContent(HWND content);
+
+  // Returns the backing Window handle to enable clients to set icon and other
+  // window properties. Returns nullptr if the window has been destroyed.
+  HWND GetHandle();
+
+  // If true, closing this window will quit the application.
+  void SetQuitOnClose(bool quit_on_close);
+
+  // Return a RECT representing the bounds of the current client area.
+  RECT GetClientArea();
+
+ protected:
+  // Processes and route salient window messages for mouse handling,
+  // size change and DPI. Delegates handling of these to member overloads that
+  // inheriting classes can handle.
+  virtual LRESULT MessageHandler(HWND window,
+                                 UINT const message,
+                                 WPARAM const wparam,
+                                 LPARAM const lparam) noexcept;
+
+  // Called when CreateAndShow is called, allowing subclass window-related
+  // setup. Subclasses should return false if setup fails.
+  virtual bool OnCreate();
+
+  // Called when Destroy is called.
+  virtual void OnDestroy();
+
+ private:
+  friend class WindowClassRegistrar;
+
+  // OS callback called by message pump. Handles the WM_NCCREATE message which
+  // is passed when the non-client area is being created and enables automatic
+  // non-client DPI scaling so that the non-client area automatically
+  // responds to changes in DPI. All other messages are handled by
+  // MessageHandler.
+  static LRESULT CALLBACK WndProc(HWND const window,
+                                  UINT const message,
+                                  WPARAM const wparam,
+                                  LPARAM const lparam) noexcept;
+
+  // Retrieves a class instance pointer for |window|
+  static Win32Window* GetThisFromHandle(HWND const window) noexcept;
+
+  // Update the window frame's theme to match the system theme.
+  static void UpdateTheme(HWND const window);
+
+  bool quit_on_close_ = false;
+
+  // window handle for top level window.
+  HWND window_handle_ = nullptr;
+
+  // window handle for hosted content.
+  HWND child_content_ = nullptr;
+};
+
+#endif  // RUNNER_WIN32_WINDOW_H_
+

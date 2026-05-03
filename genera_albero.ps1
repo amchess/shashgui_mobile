@@ -1,0 +1,1 @@
+Get-ChildItem -Recurse -Attributes !System | Where-Object { $_.FullName -notmatch "\\(build|\.git|\.dart_tool|\.idea)\\" } | ForEach-Object { $indent = "  " * ($_.FullName.Split('\').Count - (Get-Location).Path.Split('\').Count); $indent + $_.Name } > alberatura_progetto.txt
