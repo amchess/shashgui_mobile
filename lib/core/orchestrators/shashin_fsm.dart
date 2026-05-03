@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math'; // Serve per il calcolo del limite (min)
 import 'package:flutter/material.dart';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
@@ -6,23 +7,59 @@ import '../logic/shashin_logic.dart';
 // I tre stati in cui può trovarsi il nostro orchestratore
 enum FsmState { idle, phase1, phase2 }
 
+// NUOVO DTO: Trasporta i dati tecnici del motore alla UI
+class EngineStats {
+  final int depth;
+  final int selDepth;
+  final int nodes;
+  final int nps;
+  final String pv;
+
+  EngineStats({
+    this.depth = 0,
+    this.selDepth = 0,
+    this.nodes = 0,
+    this.nps = 0,
+    this.pv = "",
+  });
+}
+
 class ShashinFsm {
   final EngineManager engineManager;
 
   FsmState currentState = FsmState.idle;
   StreamSubscription<String>? _outputSubscription;
-  ShashinZone currentZone = ShashinZone("In attesa...", "-", Colors.grey);
+  ShashinZone currentZone = ShashinZone(
+    "In attesa...",
+    "-",
+    Colors.grey,
+    50.0,
+    "assets/images/capablanca.png", // Immagine base
+  );
 
   // Callback per comunicare con l'interfaccia grafica (UI)
   final Function(String) onLog;
   final Function(ShashinZone) onZoneChanged;
   final Function(FsmState) onStateChanged;
+  final Function(String) onPvUpdate;
+  final Function(EngineStats) onStatsUpdate; // <-- NUOVO: Invio statistiche
+
+  // Sicure contro i bestmove "fantasma"
+  bool _isSearchingPhase1 = false;
+  bool _isSearchingPhase2 = false;
+
+  // Variabili per il ciclo temporale Lineare (T1, 2T1, 3T1...)
+  int _baseTimeMs = 1500;
+  int _iteration = 1;
+  String currentFen = "";
 
   ShashinFsm({
     required this.engineManager,
     required this.onLog,
     required this.onZoneChanged,
     required this.onStateChanged,
+    required this.onPvUpdate,
+    required this.onStatsUpdate, // <-- NUOVO
   }) {
     // Ci mettiamo in ascolto dei sussurri del motore
     _outputSubscription = engineManager.engineOutput?.listen(
@@ -42,30 +79,98 @@ class ShashinFsm {
       onZoneChanged(currentZone); // Avvisa la UI che la zona è cambiata
     }
 
-    // 2. IL TRUCCO DELLO SWITCH:
-    // Quando la Fase 1 finisce (il tempo scade), Stockfish sputa sempre "bestmove".
-    // Noi intercettiamo quel "bestmove" per innescare la Fase 2!
-    if (currentState == FsmState.phase1 && line.startsWith("bestmove")) {
-      _startPhase2();
+    // 2. Lettura Dati Tecnici e Frecce (Profondità, Nodi, PV)
+    if (line.startsWith("info")) {
+      int depth =
+          int.tryParse(
+            RegExp(r"depth (\d+)").firstMatch(line)?.group(1) ?? "0",
+          ) ??
+          0;
+      int selDepth =
+          int.tryParse(
+            RegExp(r"seldepth (\d+)").firstMatch(line)?.group(1) ?? "0",
+          ) ??
+          0;
+      int nodes =
+          int.tryParse(
+            RegExp(r"nodes (\d+)").firstMatch(line)?.group(1) ?? "0",
+          ) ??
+          0;
+      int nps =
+          int.tryParse(
+            RegExp(r"nps (\d+)").firstMatch(line)?.group(1) ?? "0",
+          ) ??
+          0;
+
+      // NUOVO: Estraiamo l'intera stringa della PV (tutte le mosse)!
+      String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
+
+      onStatsUpdate(
+        EngineStats(
+          depth: depth,
+          selDepth: selDepth,
+          nodes: nodes,
+          nps: nps,
+          pv: fullPv ?? "", // Salviamo l'intera sequenza di mosse
+        ),
+      );
+
+      // Per la freccia sulla scacchiera, ritagliamo solo la prima mossa
+      if (fullPv != null && fullPv.isNotEmpty) {
+        String firstMove = fullPv.trim().split(' ').first;
+        onPvUpdate(firstMove);
+      }
+    }
+
+    // 3. IL TRUCCO DELLO SWITCH CICLICO:
+    if (line.startsWith("bestmove")) {
+      // Se finisce la Fase 1, avvia la Fase 2
+      if (currentState == FsmState.phase1 && _isSearchingPhase1) {
+        _isSearchingPhase1 = false;
+        _startPhase2();
+      }
+      // Se finisce la Fase 2, passa alla iterazione successiva e riavvia la Fase 1
+      else if (currentState == FsmState.phase2 && _isSearchingPhase2) {
+        _isSearchingPhase2 = false;
+        _loopBackToPhase1();
+      }
     }
   }
 
-  /// Avvia l'analisi della posizione (FASE 1)
-  void startAnalysis(String fen) {
-    if (currentState != FsmState.idle) {
-      engineManager.sendCommand('stop');
-    }
+  /// Avvia l'analisi della posizione con tempo configurabile
+  void startAnalysis(String fen, {int baseTimeMs = 1500}) {
+    // Fermiamo brutalmente il motore per zittire vecchie analisi
+    engineManager.sendCommand('stop');
 
-    currentState = FsmState.phase1;
-    onStateChanged(currentState);
+    currentFen = fen;
+    _baseTimeMs = baseTimeMs;
+    _iteration = 1; // Resettiamo le iterazioni a 1
 
     onLog("===========================================");
-    onLog("⏱️ FASE 1: Lettura Termodinamica rapida...");
+    _runPhase1();
+  }
 
-    engineManager.sendCommand('position fen $fen');
+  /// Esegue la Fase 1
+  void _runPhase1() {
+    currentState = FsmState.phase1;
+    _isSearchingPhase1 = false;
+    _isSearchingPhase2 = false;
+    onStateChanged(currentState);
 
-    // Diciamo al motore di pensare SOLO per 1.5 secondi (1500 millisecondi)
-    engineManager.sendCommand('go movetime 1500');
+    // Calcolo Lineare: T1 * iterazione (1T1, 2T1, 3T1...), con tetto a 30s
+    int t1 = min(_baseTimeMs * _iteration, 30000);
+
+    onLog("⏱️ CICLO $_iteration | FASE 1: Lettura Termodinamica (${t1}ms)...");
+
+    // FIX: La Frizione. Aspettiamo 200ms che il motore sputi i vecchi output e si resetti.
+    Future.delayed(const Duration(milliseconds: 200), () {
+      // Assicuriamoci che l'utente non abbia premuto stop in questi 200ms
+      if (currentState == FsmState.phase1) {
+        engineManager.sendCommand('position fen $currentFen');
+        engineManager.sendCommand('go movetime $t1');
+        _isSearchingPhase1 = true; // Togliamo la sicura!
+      }
+    });
   }
 
   /// Avvia l'analisi profonda (FASE 2)
@@ -73,22 +178,35 @@ class ShashinFsm {
     currentState = FsmState.phase2;
     onStateChanged(currentState);
 
+    // Calcolo Lineare per la Fase 2: T2 è sempre il doppio di T1 di questo ciclo, con tetto a 60s
+    int t2 = min((_baseTimeMs * _iteration) * 2, 60000);
+
     onLog(
-      "🎯 FASE 2: Analisi profonda in modalità [ ${currentZone.name.toUpperCase()} ]",
+      "🎯 CICLO $_iteration | FASE 2: Analisi profonda in modalità [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
     );
 
-    // Qui prepariamo il motore alla modalità specifica.
-    // N.B. In futuro qui invieremo le UCI options specifiche di ShashChess
-    // es: engineManager.sendCommand('setoption name TargetZone value ${currentZone.name}');
+    // Piccolo delay per esser certi che il motore sia pronto
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (currentState == FsmState.phase2) {
+        engineManager.sendCommand('go movetime $t2');
+        _isSearchingPhase2 = true;
+      }
+    });
+  }
 
-    // Facciamo ripartire il motore per un calcolo più profondo e mirato
-    engineManager.sendCommand('go depth 12');
+  /// Passa all'iterazione successiva e riavvia
+  void _loopBackToPhase1() {
+    _iteration++; // Incremento lineare (1, 2, 3, 4...)
+    onLog("🔄 Preparazione Ciclo $_iteration con tempi lineari...");
+    _runPhase1();
   }
 
   /// Ferma tutto
   void stop() {
     engineManager.sendCommand('stop');
     currentState = FsmState.idle;
+    _isSearchingPhase1 = false;
+    _isSearchingPhase2 = false;
     onStateChanged(currentState);
     onLog("🛑 Analisi fermata.");
   }

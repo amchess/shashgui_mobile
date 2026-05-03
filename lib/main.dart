@@ -68,7 +68,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   }
 }
 
-// --- IL TUO ENGINE TEST SCREEN (ESTESO E COMPLETO) ---
+// --- L'ENGINE TEST SCREEN (COMPLETO ED ESTESO) ---
 class EngineTestScreen extends StatefulWidget {
   const EngineTestScreen({super.key});
 
@@ -90,7 +90,21 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   bool _isEngineRunning = false;
   bool _isPlayingMode = false;
 
-  ShashinZone _currentZone = ShashinZone("In attesa...", "-", Colors.grey);
+  // Memoria del tempo iniziale T1 per il loop infinito
+  int _baseTimeSec = 2;
+
+  List<BoardArrow> _currentArrows = [];
+
+  // <-- VARIABILE AGGIUNTA PER I DATI DEL MOTORE -->
+  EngineStats _currentStats = EngineStats();
+
+  ShashinZone _currentZone = ShashinZone(
+    "In attesa...",
+    "-",
+    Colors.grey,
+    50.0,
+    "assets/images/capablanca.png",
+  );
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
@@ -107,23 +121,16 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _outputLines.clear();
       _outputLines.add("Accensione motore ShashChess...");
     });
-
     try {
       await _engineManager.initEngine('shashchess', [
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
-
-      setState(() {
-        _isEngineRunning = true;
-      });
-
+      setState(() => _isEngineRunning = true);
       await Future.delayed(const Duration(milliseconds: 500));
       _startNormalAnalysis();
     } catch (e) {
-      setState(() {
-        _outputLines.add("ERRORE FATALE: $e");
-      });
+      setState(() => _outputLines.add("ERRORE FATALE: $e"));
     }
   }
 
@@ -141,6 +148,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _playFsm = null;
 
     _isPlayingMode = false;
+    setState(() {
+      _currentArrows.clear();
+      _currentStats = EngineStats(); // <-- AZZERA LE STATISTICHE ALLO STOP
+    });
   }
 
   void _startNormalAnalysis() {
@@ -150,20 +161,37 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _fsm = ShashinFsm(
       engineManager: _engineManager,
       onLog: (line) {
-        setState(() {
-          _outputLines.add(line);
-        });
-        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+        setState(() => _outputLines.add(line));
+        _scrollToBottom();
       },
-      onZoneChanged: (zone) {
-        setState(() {
-          _currentZone = zone;
-        });
-      },
+      onZoneChanged: (zone) => setState(() => _currentZone = zone),
       onStateChanged: (state) {},
+      onPvUpdate: (move) {
+        setState(() {
+          String fromSq = move.substring(0, 2);
+          String toSq = move.substring(2, 4);
+          _currentArrows = [
+            BoardArrow(
+              from: fromSq,
+              to: toSq,
+              color: _currentZone.color.withValues(alpha: 0.8),
+            ),
+          ];
+        });
+      },
+      // <-- IL CALLBACK CHE AGGIORNA I DATI SULLA UI -->
+      onStatsUpdate: (stats) {
+        setState(() {
+          _currentStats = stats;
+        });
+      },
     );
 
-    _fsm!.startAnalysis(_boardController.getFen());
+    // Invia i secondi selezionati all'FSM per il ciclo ricorsivo
+    _fsm!.startAnalysis(
+      _boardController.getFen(),
+      baseTimeMs: _baseTimeSec * 1000,
+    );
   }
 
   void _startCrossedAnalysis() {
@@ -173,23 +201,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _crossedFsm = CrossedEvalOrchestrator(
       engineManager: _engineManager,
       onLog: (line) {
-        setState(() {
-          _outputLines.add(line);
-        });
+        setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
-      onReportReady: (studentMove, studentZone, masterMove, masterZone) {
-        _showCrossedEvalReport(
-          studentMove,
-          studentZone,
-          masterMove,
-          masterZone,
-        );
-      },
+      onReportReady: (sMove, sZone, mMove, mZone) =>
+          _showCrossedEvalReport(sMove, sZone, mMove, mZone),
     );
-
-    int simulatedElo = 1200;
-    _crossedFsm!.startCrossedEval(_boardController.getFen(), simulatedElo);
+    _crossedFsm!.startCrossedEval(_boardController.getFen(), 1200);
   }
 
   void _startPlayMode() {
@@ -198,21 +216,24 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     setState(() {
       _isPlayingMode = true;
-      _currentZone = ShashinZone("Modalità Gioco", "⚔️", Colors.orange);
+      _currentZone = ShashinZone(
+        "Modalità Gioco",
+        "⚔️",
+        Colors.orange,
+        50.0,
+        "🎮",
+      );
     });
 
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: _boardController,
       onLog: (line) {
-        setState(() {
-          _outputLines.add(line);
-        });
+        setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
       onStateChanged: (state) {},
     );
-
     _playFsm!.startGame();
   }
 
@@ -331,7 +352,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     setState(() {
       _isEngineRunning = false;
-      _currentZone = ShashinZone("Motore Spento", "-", Colors.grey);
+      _currentZone = ShashinZone(
+        "Motore Spento",
+        "-",
+        Colors.grey,
+        50.0,
+        "assets/images/capablanca.png",
+      );
       _outputLines.add("--- MOTORE SPENTO ---");
     });
     Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
@@ -343,6 +370,24 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _engineManager.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // <-- FUNZIONE HELPER PER IL TESTO DEL CRUSCOTTO -->
+  Widget _statText(String label, String value) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -365,6 +410,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   controller: _boardController,
                   boardColor: BoardColor.brown,
                   boardOrientation: PlayerColor.white,
+                  arrows: _currentArrows,
                   onMove: () {
                     if (_isPlayingMode) {
                       _playFsm?.onUserMoved();
@@ -377,43 +423,195 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 2. TERMOMETRO SHASHIN
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            color: _currentZone.color.withValues(alpha: 0.2),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          // 2. BARRA DELLA WIN PROBABILITY (WP) E AVATAR
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 8.0,
+            ),
+            child: Column(
               children: [
-                Text(
-                  _currentZone.symbol,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: _currentZone.color,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "🛡️ Petrosian",
+                      style: TextStyle(color: Colors.red[300], fontSize: 12),
+                    ),
+                    Text(
+                      "${_currentZone.wp.toStringAsFixed(1)}%",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      "Tal 🔥",
+                      style: TextStyle(color: Colors.green[300], fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: _currentZone.wp / 100.0,
+                    minHeight: 12,
+                    backgroundColor: Colors.red[700],
+                    color: Colors.green[600],
                   ),
                 ),
-                const SizedBox(width: 15),
-                Text(
-                  _currentZone.name.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _currentZone.color,
-                    letterSpacing: 1.2,
-                  ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.transparent,
+                      child: Image.asset(
+                        _currentZone.avatar,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Text("👤", style: TextStyle(fontSize: 24)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "${_currentZone.symbol} ${_currentZone.name.toUpperCase()}",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _currentZone.color,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          // 3. PULSANTI ESTESI CON ICONE
+          // <-- 3. IL CRUSCOTTO DEL MOTORE (Ora con la PV!) -->
+          if (_isEngineRunning)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statText(
+                        "Profondità",
+                        "${_currentStats.depth}/${_currentStats.selDepth}",
+                      ),
+                      _statText(
+                        "Nodi",
+                        "${(_currentStats.nodes / 1000).toStringAsFixed(1)}k",
+                      ),
+                      _statText(
+                        "Velocità (NPS)",
+                        "${(_currentStats.nps / 1000).toStringAsFixed(1)}k",
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24, height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "PV: ",
+                        style: TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          _currentStats.pv.isEmpty ? "..." : _currentStats.pv,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                          ),
+                          maxLines:
+                              2, // Limita a 2 righe per non invadere troppo lo schermo
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          // 4. FINESTRA DI NOTAZIONE E CONTROLLI PGN/FEN
+          Container(
+            height: 60,
+            width: double.infinity,
+            margin: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[800]!),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.undo, color: Colors.orangeAccent),
+                  onPressed: () {
+                    _boardController.undoMove();
+                    _startNormalAnalysis();
+                  },
+                ),
+                const VerticalDivider(color: Colors.grey),
+                Expanded(
+                  child: ValueListenableBuilder(
+                    valueListenable: _boardController,
+                    builder: (context, value, child) {
+                      String history = _boardController.game.san_moves().join(
+                        " ",
+                      );
+                      if (history.isEmpty) history = "Nessuna mossa giocata.";
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        child: Text(
+                          history,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const VerticalDivider(color: Colors.grey),
+                IconButton(
+                  icon: const Icon(Icons.copy),
+                  tooltip: "Stampa FEN in console",
+                  onPressed: () {
+                    debugPrint("FEN Corrente: ${_boardController.getFen()}");
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // 5. PULSANTI ESTESI CON ICONE E SELETTORE TEMPO
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
             child: Wrap(
               spacing: 8.0,
               runSpacing: 8.0,
               alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (!_isEngineRunning)
                   ElevatedButton.icon(
@@ -429,6 +627,60 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ),
                   )
                 else ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1e1e1e),
+                      border: Border.all(color: Colors.grey[700]!),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "T1: ",
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        DropdownButton<int>(
+                          value: _baseTimeSec,
+                          dropdownColor: const Color(0xFF2b2b2b),
+                          underline: const SizedBox(),
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          items: [1, 2, 3, 5, 10].map((int val) {
+                            return DropdownMenuItem<int>(
+                              value: val,
+                              child: Text("${val}s"),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _baseTimeSec = val;
+                              });
+                              _startNormalAnalysis();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                   ElevatedButton.icon(
                     onPressed: _startNormalAnalysis,
                     icon: const Icon(Icons.search, size: 16),
@@ -480,7 +732,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 4. TERMINALE ESTESO
+          // 6. TERMINALE ESTESO
           Expanded(
             flex: 4,
             child: Container(
