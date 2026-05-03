@@ -529,9 +529,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
 
+  // <-- AGGIUNGI QUESTE RIGHE -->
+  String _selectedEngine = 'shashchess';
+  final Map<String, String> _customUciOptions = {'Threads': '2', 'Hash': '128'};
+
   List<BoardArrow> _currentArrows = [];
-  EngineStats _currentStats =
-      EngineStats(); // <-- Questa raccoglie i dati del motore!
+
+  // <-- VARIABILE AGGIUNTA PER I DATI DEL MOTORE -->
+  EngineStats _currentStats = EngineStats();
 
   ShashinZone _currentZone = ShashinZone(
     "In attesa...",
@@ -554,13 +559,21 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _startEngine() async {
     setState(() {
       _outputLines.clear();
-      _outputLines.add("Accensione motore ShashChess...");
+      _outputLines.add(
+        "Accensione motore $_selectedEngine...",
+      ); // Nome dinamico
     });
     try {
-      await _engineManager.initEngine('shashchess', [
+      await _engineManager.initEngine(_selectedEngine, [
+        // Motore dinamico
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
+
+      // <-- AGGIUNGI QUESTO CICLO PER LE OPZIONI UCI -->
+      _customUciOptions.forEach((name, value) {
+        _engineManager.sendCommand('setoption name $name value $value');
+      });
       setState(() => _isEngineRunning = true);
       await Future.delayed(const Duration(milliseconds: 500));
       _startNormalAnalysis();
@@ -585,7 +598,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _isPlayingMode = false;
     setState(() {
       _currentArrows.clear();
-      _currentStats = EngineStats();
+      _currentStats = EngineStats(); // <-- AZZERA LE STATISTICHE ALLO STOP
     });
   }
 
@@ -614,16 +627,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           ];
         });
       },
-      // --- ECCO IL PEZZO CHE MANCAVA! ---
+      // <-- IL CALLBACK CHE AGGIORNA I DATI SULLA UI -->
       onStatsUpdate: (stats) {
         setState(() {
           _currentStats = stats;
         });
       },
-      // ----------------------------------
     );
 
-    // Invia i secondi selezionati
+    // Invia i secondi selezionati all'FSM per il ciclo ricorsivo
     _fsm!.startAnalysis(
       _boardController.getFen(),
       baseTimeMs: _baseTimeSec * 1000,
@@ -808,6 +820,24 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     super.dispose();
   }
 
+  // <-- FUNZIONE HELPER PER IL TESTO DEL CRUSCOTTO -->
+  Widget _statText(String label, String value) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -907,7 +937,67 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 3. FINESTRA DI NOTAZIONE E CONTROLLI PGN/FEN
+          // <-- 3. IL CRUSCOTTO DEL MOTORE (Ora con la PV!) -->
+          if (_isEngineRunning)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statText(
+                        "Profondità",
+                        "${_currentStats.depth}/${_currentStats.selDepth}",
+                      ),
+                      _statText(
+                        "Nodi",
+                        "${(_currentStats.nodes / 1000).toStringAsFixed(1)}k",
+                      ),
+                      _statText(
+                        "Velocità (NPS)",
+                        "${(_currentStats.nps / 1000).toStringAsFixed(1)}k",
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24, height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "PV: ",
+                        style: TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          _currentStats.pv.isEmpty ? "..." : _currentStats.pv,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                          ),
+                          maxLines:
+                              2, // Limita a 2 righe per non invadere troppo lo schermo
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          // 4. FINESTRA DI NOTAZIONE E CONTROLLI PGN/FEN
           Container(
             height: 60,
             width: double.infinity,
@@ -962,7 +1052,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 4. PULSANTI ESTESI CON ICONE E SELETTORE TEMPO
+          // 5. PULSANTI ESTESI CON ICONE E SELETTORE TEMPO
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
             child: Wrap(
@@ -971,7 +1061,42 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (!_isEngineRunning)
+                if (!_isEngineRunning) ...[
+                  // 1. SELETTORE MOTORE (Pulito graficamente)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      // Nasconde la linea brutta sotto
+                      child: DropdownButton<String>(
+                        value: _selectedEngine,
+                        items: ['shashchess', 'alexander'].map((String engine) {
+                          return DropdownMenuItem(
+                            value: engine,
+                            child: Text(engine),
+                          );
+                        }).toList(),
+                        onChanged: (val) =>
+                            setState(() => _selectedEngine = val!),
+                      ),
+                    ),
+                  ),
+
+                  // 2. NUOVO: INGRANAGGIO IMPOSTAZIONI UCI
+                  IconButton(
+                    onPressed: _showUciSettings, // Chiama la funzione popup
+                    icon: const Icon(
+                      Icons.settings,
+                      color: Colors.orangeAccent,
+                    ),
+                    tooltip: "Parametri UCI",
+                  ),
+
+                  // 3. TASTO ACCENDI
                   ElevatedButton.icon(
                     onPressed: _startEngine,
                     icon: const Icon(Icons.power, size: 18),
@@ -983,8 +1108,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
                     ),
-                  )
-                else ...[
+                  ),
+                ] else ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -1090,7 +1215,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 5. TERMINALE ESTESO
+          // 6. TERMINALE ESTESO
           Expanded(
             flex: 4,
             child: Container(
@@ -1112,6 +1237,41 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 },
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUciSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Parametri UCI"),
+        backgroundColor: const Color(0xFF2b2b2b),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: "Threads"),
+              onChanged: (v) => _customUciOptions['Threads'] = v,
+              controller: TextEditingController(
+                text: _customUciOptions['Threads'],
+              ),
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: "Hash (MB)"),
+              onChanged: (v) => _customUciOptions['Hash'] = v,
+              controller: TextEditingController(
+                text: _customUciOptions['Hash'],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
           ),
         ],
       ),
@@ -1804,9 +1964,9 @@ class ShashinFsm {
             RegExp(r"nps (\d+)").firstMatch(line)?.group(1) ?? "0",
           ) ??
           0;
-      String? pv = RegExp(
-        r" pv ([a-h][1-8][a-h][1-8])",
-      ).firstMatch(line)?.group(1);
+
+      // NUOVO: Estraiamo l'intera stringa della PV (tutte le mosse)!
+      String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
 
       onStatsUpdate(
         EngineStats(
@@ -1814,12 +1974,14 @@ class ShashinFsm {
           selDepth: selDepth,
           nodes: nodes,
           nps: nps,
-          pv: pv ?? "",
+          pv: fullPv ?? "", // Salviamo l'intera sequenza di mosse
         ),
       );
 
-      if (pv != null) {
-        onPvUpdate(pv); // Estrae la mossa (es. "e2e4") e la invia alla UI
+      // Per la freccia sulla scacchiera, ritagliamo solo la prima mossa
+      if (fullPv != null && fullPv.isNotEmpty) {
+        String firstMove = fullPv.trim().split(' ').first;
+        onPvUpdate(firstMove);
       }
     }
 
@@ -1874,19 +2036,26 @@ class ShashinFsm {
     });
   }
 
-  /// Avvia l'analisi profonda (FASE 2)
+  /// Avvia l'analisi profonda (FASE 2) con settaggio dinamico Shashin
   void _startPhase2() {
     currentState = FsmState.phase2;
     onStateChanged(currentState);
 
-    // Calcolo Lineare per la Fase 2: T2 è sempre il doppio di T1 di questo ciclo, con tetto a 60s
-    int t2 = min((_baseTimeMs * _iteration) * 2, 60000);
-
+    int t2 = (_baseTimeMs * _iteration) * 2;
     onLog(
-      "🎯 CICLO $_iteration | FASE 2: Analisi profonda in modalità [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
+      "🎯 CICLO $_iteration | FASE 2: Calcolo [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
     );
 
-    // Piccolo delay per esser certi che il motore sia pronto
+    // --- IL CUORE DELLA TEORIA DI SHASHIN ---
+    // Comunichiamo al motore in che zona "mentale" deve calcolare
+    String targetMode = "Normal";
+    if (currentZone.name.contains("Tal")) targetMode = "Tal";
+    if (currentZone.name.contains("Petrosian")) targetMode = "Petrosian";
+    if (currentZone.name.contains("Capablanca")) targetMode = "Capablanca";
+
+    // Invia il comando UCI specifico per ShashChess o Alexander
+    engineManager.sendCommand('setoption name ShashinMode value $targetMode');
+
     Future.delayed(const Duration(milliseconds: 50), () {
       if (currentState == FsmState.phase2) {
         engineManager.sendCommand('go movetime $t2');

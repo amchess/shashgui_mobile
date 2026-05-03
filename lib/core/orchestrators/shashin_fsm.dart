@@ -173,19 +173,26 @@ class ShashinFsm {
     });
   }
 
-  /// Avvia l'analisi profonda (FASE 2)
+  /// Avvia l'analisi profonda (FASE 2) con settaggio dinamico Shashin
   void _startPhase2() {
     currentState = FsmState.phase2;
     onStateChanged(currentState);
 
-    // Calcolo Lineare per la Fase 2: T2 è sempre il doppio di T1 di questo ciclo, con tetto a 60s
-    int t2 = min((_baseTimeMs * _iteration) * 2, 60000);
-
+    int t2 = (_baseTimeMs * _iteration) * 2;
     onLog(
-      "🎯 CICLO $_iteration | FASE 2: Analisi profonda in modalità [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
+      "🎯 CICLO $_iteration | FASE 2: Calcolo [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
     );
 
-    // Piccolo delay per esser certi che il motore sia pronto
+    // --- IL CUORE DELLA TEORIA DI SHASHIN ---
+    // Comunichiamo al motore in che zona "mentale" deve calcolare
+    String targetMode = "Normal";
+    if (currentZone.name.contains("Tal")) targetMode = "Tal";
+    if (currentZone.name.contains("Petrosian")) targetMode = "Petrosian";
+    if (currentZone.name.contains("Capablanca")) targetMode = "Capablanca";
+
+    // Invia il comando UCI specifico per ShashChess o Alexander
+    engineManager.sendCommand('setoption name ShashinMode value $targetMode');
+
     Future.delayed(const Duration(milliseconds: 50), () {
       if (currentState == FsmState.phase2) {
         engineManager.sendCommand('go movetime $t2');

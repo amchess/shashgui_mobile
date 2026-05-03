@@ -93,6 +93,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
 
+  // <-- AGGIUNGI QUESTE RIGHE -->
+  String _selectedEngine = 'shashchess';
+  final Map<String, String> _customUciOptions = {'Threads': '2', 'Hash': '128'};
+
   List<BoardArrow> _currentArrows = [];
 
   // <-- VARIABILE AGGIUNTA PER I DATI DEL MOTORE -->
@@ -119,13 +123,21 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _startEngine() async {
     setState(() {
       _outputLines.clear();
-      _outputLines.add("Accensione motore ShashChess...");
+      _outputLines.add(
+        "Accensione motore $_selectedEngine...",
+      ); // Nome dinamico
     });
     try {
-      await _engineManager.initEngine('shashchess', [
+      await _engineManager.initEngine(_selectedEngine, [
+        // Motore dinamico
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
+
+      // <-- AGGIUNGI QUESTO CICLO PER LE OPZIONI UCI -->
+      _customUciOptions.forEach((name, value) {
+        _engineManager.sendCommand('setoption name $name value $value');
+      });
       setState(() => _isEngineRunning = true);
       await Future.delayed(const Duration(milliseconds: 500));
       _startNormalAnalysis();
@@ -613,7 +625,42 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (!_isEngineRunning)
+                if (!_isEngineRunning) ...[
+                  // 1. SELETTORE MOTORE (Pulito graficamente)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      // Nasconde la linea brutta sotto
+                      child: DropdownButton<String>(
+                        value: _selectedEngine,
+                        items: ['shashchess', 'alexander'].map((String engine) {
+                          return DropdownMenuItem(
+                            value: engine,
+                            child: Text(engine),
+                          );
+                        }).toList(),
+                        onChanged: (val) =>
+                            setState(() => _selectedEngine = val!),
+                      ),
+                    ),
+                  ),
+
+                  // 2. NUOVO: INGRANAGGIO IMPOSTAZIONI UCI
+                  IconButton(
+                    onPressed: _showUciSettings, // Chiama la funzione popup
+                    icon: const Icon(
+                      Icons.settings,
+                      color: Colors.orangeAccent,
+                    ),
+                    tooltip: "Parametri UCI",
+                  ),
+
+                  // 3. TASTO ACCENDI
                   ElevatedButton.icon(
                     onPressed: _startEngine,
                     icon: const Icon(Icons.power, size: 18),
@@ -625,8 +672,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
                     ),
-                  )
-                else ...[
+                  ),
+                ] else ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -754,6 +801,41 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 },
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUciSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Parametri UCI"),
+        backgroundColor: const Color(0xFF2b2b2b),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: "Threads"),
+              onChanged: (v) => _customUciOptions['Threads'] = v,
+              controller: TextEditingController(
+                text: _customUciOptions['Threads'],
+              ),
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: "Hash (MB)"),
+              onChanged: (v) => _customUciOptions['Hash'] = v,
+              controller: TextEditingController(
+                text: _customUciOptions['Hash'],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
           ),
         ],
       ),
