@@ -93,7 +93,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   bool _isEngineRunning = false;
   bool _isPlayingMode = false;
-  bool _isDragging = false; // <-- NUOVO: Capisce se stai toccando un pezzo
+  bool _isDragging = false;
+
+  // --- NUOVE VARIABILI PER NAVIGAZIONE E ORIENTAMENTO ---
+  PlayerColor _boardOrientation = PlayerColor.white; // Bianco o Nero in basso
+  late MoveNode _rootNode;
+  late MoveNode _currentNode;
 
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
@@ -113,6 +118,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   @override
   void initState() {
     super.initState();
+    // Il nodo radice deve avere un nome (san) e il FEN iniziale
+    _rootNode = MoveNode(
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      san: 'Inizio',
+    );
+    _currentNode = _rootNode;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initMemoryAndProbe();
     });
@@ -384,6 +396,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   // 2. L'AVVIO VERO E PROPRIO (Contiene la tua vecchia logica + l'invio comandi)
+
   void _executePlayModeStartup() {
     _stopAllOrchestrators();
 
@@ -427,6 +440,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       },
     );
     _playFsm!.startGame();
+
+    // <-- NUOVO: LOGICA PER GIOCARE COL NERO -->
+    // Se hai girato la scacchiera (Nero in basso) e il FEN dice che tocca al Bianco (" w "),
+    // forziamo il motore a eseguire la primissima mossa del Bianco!
+    if (_boardOrientation == PlayerColor.black &&
+        _boardController.getFen().contains(" w ")) {
+      _playFsm?.playCycle();
+    }
   }
 
   void _showCrossedEvalReport(
@@ -598,50 +619,75 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           // 1. SCACCHIERA
           Expanded(
             flex: 5,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: LayoutBuilder(
-                  // <-- NUOVO: Prende le misure perfette
-                  builder: (context, constraints) {
-                    final boardSize =
-                        constraints.maxWidth < constraints.maxHeight
-                        ? constraints.maxWidth
-                        : constraints.maxHeight;
-
-                    return Listener(
-                      // <-- NUOVO: Ascolta le tue dita
-                      onPointerDown: (_) => _isDragging = true,
-                      onPointerUp: (_) => _isDragging = false,
-                      onPointerCancel: (_) => _isDragging = false,
-                      child: ValueListenableBuilder<List<BoardArrow>>(
-                        valueListenable: _arrowsNotifier,
-                        builder: (context, arrows, child) {
-                          return ChessBoard(
-                            size:
-                                boardSize, // <-- LA MAGIA CHE RISOLVE I PEZZI GIGANTI
-                            controller: _boardController,
-                            boardColor: BoardColor.brown,
-                            boardOrientation: PlayerColor.white,
-                            arrows: arrows,
-                            onMove: () {
-                              _isDragging =
-                                  false; // Sicurezza extra a fine mossa
-                              if (_isPlayingMode) {
-                                _playFsm?.playCycle();
-                              } else if (_isEngineRunning) {
-                                _startNormalAnalysis();
-                              }
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  },
+            child: Column(
+              // Avvolgiamo in una colonna per mettere i tasti sotto
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final boardSize =
+                          constraints.maxWidth < constraints.maxHeight
+                          ? constraints.maxWidth
+                          : constraints.maxHeight;
+                      return Listener(
+                        onPointerDown: (_) => _isDragging = true,
+                        onPointerUp: (_) => _isDragging = false,
+                        child: ValueListenableBuilder<List<BoardArrow>>(
+                          valueListenable: _arrowsNotifier,
+                          builder: (context, arrows, child) {
+                            return ChessBoard(
+                              size: boardSize,
+                              controller: _boardController,
+                              boardColor: BoardColor.brown,
+                              boardOrientation: _boardOrientation, // DINAMICO
+                              arrows: arrows,
+                              onMove: _onMovePerformed, // USA LA NUOVA LOGICA
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+                // Barra di navigazione esistente
+                Container(
+                  color: Colors.black26,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.first_page),
+                        onPressed: _goToStart,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _goBack,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.sync),
+                        color: Colors.blueAccent,
+                        onPressed: () => setState(() {
+                          _boardOrientation =
+                              (_boardOrientation == PlayerColor.white)
+                              ? PlayerColor.black
+                              : PlayerColor.white;
+                        }),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _goForward,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.last_page),
+                        onPressed: _goToEnd,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+          // Qui sotto di solito iniziano le statistiche del motore...
           // 2. BARRA DELLA WIN PROBABILITY (WP) E AVATAR
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -785,61 +831,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 },
               ),
             ),
-          // 4. FINESTRA DI NOTAZIONE E CONTROLLI PGN/FEN
-          Container(
-            height: 60,
-            width: double.infinity,
-            margin: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
-            padding: const EdgeInsets.all(8.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111111),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[800]!),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.undo, color: Colors.orangeAccent),
-                  onPressed: () {
-                    _boardController.undoMove();
-                    _startNormalAnalysis();
-                  },
-                ),
-                const VerticalDivider(color: Colors.grey),
-                Expanded(
-                  child: ValueListenableBuilder(
-                    valueListenable: _boardController,
-                    builder: (context, value, child) {
-                      String history = _boardController.game.san_moves().join(
-                        " ",
-                      );
-                      if (history.isEmpty) history = "Nessuna mossa giocata.";
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        reverse: true,
-                        child: Text(
-                          history,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const VerticalDivider(color: Colors.grey),
-                IconButton(
-                  icon: const Icon(Icons.copy),
-                  tooltip: "Stampa FEN in console",
-                  onPressed: () {
-                    debugPrint("FEN Corrente: ${_boardController.getFen()}");
-                  },
-                ),
-              ],
-            ),
+          // 4. FINESTRA DI NOTAZIONE (NUOVA CON VARIANTI)
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
+            child:
+                _buildNotationPanel(), // <-- CHIAMIAMO FINALMENTE IL NUOVO PANNELLO!
           ),
-
           // 5. PULSANTI ESTESI CON ICONE E SELETTORE TEMPO
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -1169,6 +1166,292 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       ),
     );
   }
+
+  // Questa funzione gestisce la creazione di varianti e la cattura della notazione
+  Future<void> _onMovePerformed() async {
+    _isDragging = false;
+
+    // Recuperiamo il nome della mossa leggendo il PGN ufficiale
+    String pgn = _boardController.game.pgn();
+
+    // Puliamo eventuali risultati scritti a fine stringa (es. "1-0" o "*")
+    pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
+    List<String> pgnParts = pgn.split(RegExp(r'\s+'));
+
+    // Cerchiamo l'ultima parola che non contiene un punto (per ignorare i numeri come "1.")
+    String moveSan = pgnParts.lastWhere(
+      (s) => !s.contains('.'),
+      orElse: () => "Mossa",
+    );
+
+    String newFen = _boardController.getFen();
+
+    // 1. Controlliamo se la mossa esiste già
+    MoveNode? existingChild;
+    for (var child in _currentNode.children) {
+      if (child.fen == newFen) {
+        existingChild = child;
+        break;
+      }
+    }
+
+    if (existingChild != null) {
+      _currentNode = existingChild;
+    } else {
+      if (_currentNode.children.isEmpty) {
+        // Linea retta
+        final newNode = MoveNode(
+          fen: newFen,
+          san: moveSan,
+          parent: _currentNode,
+        );
+        _currentNode.children.add(newNode);
+        _currentNode = newNode;
+      } else {
+        // Variante!
+        String? choice = await _showBranchingDialog();
+        if (choice == 'main') {
+          final newNode = MoveNode(
+            fen: newFen,
+            san: moveSan,
+            parent: _currentNode,
+          );
+          _currentNode.children.insert(0, newNode);
+          _currentNode = newNode;
+        } else if (choice == 'variant') {
+          final newNode = MoveNode(
+            fen: newFen,
+            san: moveSan,
+            parent: _currentNode,
+          );
+          _currentNode.children.add(newNode);
+          _currentNode = newNode;
+        } else if (choice == 'overwrite') {
+          _currentNode.children.clear();
+          final newNode = MoveNode(
+            fen: newFen,
+            san: moveSan,
+            parent: _currentNode,
+          );
+          _currentNode.children.add(newNode);
+          _currentNode = newNode;
+        } else {
+          _boardController.loadFen(_currentNode.fen);
+          return; // Esce senza aggiornare
+        }
+      }
+    }
+    setState(() {});
+    _triggerEngineAnalysis();
+  }
+
+  // Piccolo metodo di supporto per non ripetere il codice di avvio motore
+  void _triggerEngineAnalysis() {
+    if (_isPlayingMode) {
+      _playFsm?.playCycle();
+    } else if (_isEngineRunning) {
+      _startNormalAnalysis();
+    }
+  }
+
+  Widget _buildNotationPanel() {
+    List<Widget> widgets = [];
+
+    // Funzione interna che attraversa l'albero per costruire la vista
+    void buildNotation(MoveNode node, int moveCount) {
+      if (node.children.isEmpty) return;
+
+      // La linea principale è il primo figlio (indice 0)
+      var mainMove = node.children.first;
+      bool isCurrent = (mainMove == _currentNode);
+
+      // Aggiungiamo il numero di mossa (solo se tocca al bianco)
+      String prefix = (moveCount % 2 != 0)
+          ? "${(moveCount / 2).floor() + 1}. "
+          : "";
+
+      widgets.add(
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _currentNode = mainMove;
+              _boardController.loadFen(mainMove.fen);
+            });
+            _triggerEngineAnalysis();
+          },
+          child: Text(
+            "$prefix${mainMove.san} ",
+            style: TextStyle(
+              color: isCurrent ? Colors.orangeAccent : Colors.white,
+              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+
+      // --- QUI GESTIAMO LE VARIANTI ---
+      if (node.children.length > 1) {
+        for (int i = 1; i < node.children.length; i++) {
+          var variant = node.children[i];
+          widgets.add(
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _currentNode = variant;
+                  _boardController.loadFen(variant.fen);
+                });
+                _triggerEngineAnalysis();
+              },
+              child: Text(
+                "(${variant.san}) ",
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          );
+        }
+      }
+
+      // Continua ricorsivamente sulla linea principale
+      buildNotation(mainMove, moveCount + 1);
+    }
+
+    buildNotation(_rootNode, 1);
+
+    return Container(
+      width: double.infinity,
+      height: 120,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: SingleChildScrollView(
+        child: Wrap(
+          children: widgets.isEmpty
+              ? [
+                  const Text(
+                    "Inizia a muovere...",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ]
+              : widgets,
+        ),
+      ),
+    );
+  }
+
+  // Mostra il popup quando si crea una diramazione
+  Future<String?> _showBranchingDialog() async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false, // L'utente deve scegliere o annullare
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2b2b2b),
+          title: const Text(
+            "Diramazione rilevata",
+            style: TextStyle(color: Colors.orangeAccent),
+          ),
+          content: const Text(
+            "Esiste già una continuazione per questa posizione. Cosa vuoi fare?",
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, 'main'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[700],
+                  ),
+                  child: const Text(
+                    "Nuova Linea Principale",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, 'variant'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[700],
+                  ),
+                  child: const Text(
+                    "Aggiungi come Variante",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, 'overwrite'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[700],
+                  ),
+                  child: const Text(
+                    "Sovrascrivi tutto",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'cancel'),
+                  child: const Text(
+                    "Annulla mossa",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _goBack() {
+    if (_currentNode.parent != null) {
+      setState(() {
+        _currentNode = _currentNode.parent!;
+        _boardController.loadFen(_currentNode.fen);
+      });
+      if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+    }
+  }
+
+  void _goForward() {
+    if (_currentNode.children.isNotEmpty) {
+      setState(() {
+        // Segue sempre la prima variante (linea principale)
+        _currentNode = _currentNode.children.first;
+        _boardController.loadFen(_currentNode.fen);
+      });
+      if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+    }
+  }
+
+  void _goToStart() {
+    setState(() {
+      _currentNode = _rootNode;
+      _boardController.loadFen(_currentNode.fen);
+    });
+    if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+  }
+
+  void _goToEnd() {
+    while (_currentNode.children.isNotEmpty) {
+      _currentNode = _currentNode.children.first;
+    }
+    setState(() {
+      _boardController.loadFen(_currentNode.fen);
+    });
+    if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+  }
 }
 
 // --- LA SCHERMATA VETRINA (MOCKUP) ---
@@ -1268,4 +1551,13 @@ class PremiumShowcaseScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class MoveNode {
+  final String fen;
+  final String san;
+  MoveNode? parent;
+  List<MoveNode> children = [];
+
+  MoveNode({required this.fen, required this.san, this.parent});
 }
