@@ -43,6 +43,7 @@ class ShashinFsm {
   final Function(FsmState) onStateChanged;
   final Function(String) onPvUpdate;
   final Function(EngineStats) onStatsUpdate; // <-- NUOVO: Invio statistiche
+  final Function(String) onOptionFound; // <-- NUOVO: Intercetta le opzioni UCI
 
   // Sicure contro i bestmove "fantasma"
   bool _isSearchingPhase1 = false;
@@ -59,7 +60,8 @@ class ShashinFsm {
     required this.onZoneChanged,
     required this.onStateChanged,
     required this.onPvUpdate,
-    required this.onStatsUpdate, // <-- NUOVO
+    required this.onStatsUpdate,
+    required this.onOptionFound, // <-- NUOVO
   }) {
     // Ci mettiamo in ascolto dei sussurri del motore
     _outputSubscription = engineManager.engineOutput?.listen(
@@ -120,6 +122,11 @@ class ShashinFsm {
         String firstMove = fullPv.trim().split(' ').first;
         onPvUpdate(firstMove);
       }
+    }
+
+    // <-- NUOVO: Cacciatore di Opzioni UCI -->
+    if (line.startsWith("option name")) {
+      onOptionFound(line);
     }
 
     // 3. IL TRUCCO DELLO SWITCH CICLICO:

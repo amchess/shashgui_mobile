@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 class EngineManager {
   static const platform = MethodChannel('com.shashgui.engine/native');
@@ -14,7 +16,11 @@ class EngineManager {
   // Il getter ora restituisce semplicemente la "Radio" già sintonizzata
   Stream<String>? get engineOutput => _broadcastOutput;
 
-  Future<void> initEngine(String engineName, List<String> nnueFiles) async {
+  Future<void> initEngine(
+    String engineName,
+    List<String> nnueFiles, {
+    Function(String)? onLine,
+  }) async {
     print("Inizializzazione motore $engineName in corso...");
     final String libDir = await platform.invokeMethod('getNativeLibDir');
     final String enginePath = p.join(libDir, 'lib$engineName.so');
@@ -48,12 +54,20 @@ class EngineManager {
     }
 
     _process = await Process.start(enginePath, []);
-
     // --- FIX CRITICO: Trasformiamo lo stdout in Broadcast UNA SOLA VOLTA ---
     _broadcastOutput = _process!.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .asBroadcastStream();
+
+    final readyCompleter = Completer<void>();
+
+    _broadcastOutput!.listen((line) {
+      onLine?.call(line);
+      if (line.trim() == 'readyok' && !readyCompleter.isCompleted) {
+        readyCompleter.complete();
+      }
+    });
 
     sendCommand('uci');
     if (nnueFiles.isNotEmpty) {
@@ -68,6 +82,12 @@ class EngineManager {
     }
 
     sendCommand('isready');
+
+    // Aspettiamo che il motore sia davvero pronto (timeout sicurezza 10s)
+    await readyCompleter.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => debugPrint('⚠️ Timeout readyok'),
+    );
   }
 
   void sendCommand(String command) {

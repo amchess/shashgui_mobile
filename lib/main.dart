@@ -85,7 +85,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   final List<String> _outputLines = [];
   final ChessBoardController _boardController = ChessBoardController();
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = () {
+    final sc = ScrollController();
+    return sc;
+  }();
 
   bool _isEngineRunning = false;
   bool _isPlayingMode = false;
@@ -93,9 +96,45 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
 
-  // <-- AGGIUNGI QUESTE RIGHE -->
+  // --- NUOVE VARIABILI PER IL MOTORE DINAMICO ---
   String _selectedEngine = 'shashchess';
-  final Map<String, String> _customUciOptions = {'Threads': '2', 'Hash': '128'};
+  final Map<String, String> _uciValues = {'Threads': '2', 'Hash': '128'};
+  final List<Map<String, String>> _engineOptionsMetadata = [];
+  bool _isLoadingOptions = false; // Per la rotellina di caricamento
+
+  @override
+  void initState() {
+    super.initState();
+    // Lanciamo la sonda appena l'app è pronta per leggere le opzioni
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _probeEngineOptions();
+    });
+  }
+
+  // FUNZIONE SONDA: Accende un motore "fantasma", legge le opzioni e lo spegne
+  Future<void> _probeEngineOptions() async {
+    if (!mounted) return;
+    setState(() => _isLoadingOptions = true);
+    _engineOptionsMetadata.clear();
+
+    final probeManager = EngineManager();
+    try {
+      await probeManager.initEngine(
+        _selectedEngine,
+        [], // Nessun NNUE per andare velocissimi
+        onLine: (line) {
+          if (line.trim().startsWith("option name")) {
+            _parseUciOption(line);
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint("Errore Sonda: $e");
+    } finally {
+      probeManager.dispose(); // Spegniamo il motore spia
+      if (mounted) setState(() => _isLoadingOptions = false);
+    }
+  }
 
   List<BoardArrow> _currentArrows = [];
 
@@ -123,23 +162,23 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _startEngine() async {
     setState(() {
       _outputLines.clear();
-      _outputLines.add(
-        "Accensione motore $_selectedEngine...",
-      ); // Nome dinamico
+      _outputLines.add("Accensione motore $_selectedEngine...");
     });
     try {
+      // Le opzioni le abbiamo già catturate con la Sonda, quindi avviamo e basta!
       await _engineManager.initEngine(_selectedEngine, [
-        // Motore dinamico
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
 
-      // <-- AGGIUNGI QUESTO CICLO PER LE OPZIONI UCI -->
-      _customUciOptions.forEach((name, value) {
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Inviamo i parametri personalizzati
+      _uciValues.forEach((name, value) {
         _engineManager.sendCommand('setoption name $name value $value');
       });
+
       setState(() => _isEngineRunning = true);
-      await Future.delayed(const Duration(milliseconds: 500));
       _startNormalAnalysis();
     } catch (e) {
       setState(() => _outputLines.add("ERRORE FATALE: $e"));
@@ -197,6 +236,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           _currentStats = stats;
         });
       },
+      // <-- NUOVO: Invia alla UI le opzioni UCI scoperte
+      onOptionFound: (optionLine) => _parseUciOption(optionLine),
     );
 
     // Invia i secondi selezionati all'FSM per il ciclo ricorsivo
@@ -626,7 +667,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (!_isEngineRunning) ...[
-                  // 1. SELETTORE MOTORE (Pulito graficamente)
+                  // 1. SELETTORE MOTORE
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
@@ -635,7 +676,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       border: Border.all(color: Colors.grey[700]!),
                     ),
                     child: DropdownButtonHideUnderline(
-                      // Nasconde la linea brutta sotto
                       child: DropdownButton<String>(
                         value: _selectedEngine,
                         items: ['shashchess', 'alexander'].map((String engine) {
@@ -644,25 +684,39 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             child: Text(engine),
                           );
                         }).toList(),
-                        onChanged: (val) =>
-                            setState(() => _selectedEngine = val!),
+                        onChanged: (val) {
+                          setState(() => _selectedEngine = val!);
+                          _probeEngineOptions(); // Rilancia la sonda sul nuovo motore!
+                        },
                       ),
                     ),
                   ),
 
-                  // 2. NUOVO: INGRANAGGIO IMPOSTAZIONI UCI
-                  IconButton(
-                    onPressed: _showUciSettings, // Chiama la funzione popup
-                    icon: const Icon(
-                      Icons.settings,
-                      color: Colors.orangeAccent,
-                    ),
-                    tooltip: "Parametri UCI",
-                  ),
+                  // 2. INGRANAGGIO DINAMICO (Mostra lo spinner se sta caricando)
+                  _isLoadingOptions
+                      ? const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.orangeAccent,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          onPressed: _showUciSettings,
+                          icon: const Icon(
+                            Icons.settings,
+                            color: Colors.orangeAccent,
+                          ),
+                          tooltip: "Parametri UCI",
+                        ),
 
-                  // 3. TASTO ACCENDI
+                  // 3. TASTO ACCENDI (Disabilitato finché la sonda non ha finito)
                   ElevatedButton.icon(
-                    onPressed: _startEngine,
+                    onPressed: _isLoadingOptions ? null : _startEngine,
                     icon: const Icon(Icons.power, size: 18),
                     label: const Text(
                       'Accendi',
@@ -807,35 +861,91 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     );
   }
 
+  // <-- NUOVA FUNZIONE: Smonta la stringa del motore e salva l'opzione -->
+  void _parseUciOption(String line) {
+    try {
+      // Puliamo spazi doppi o tabulazioni strane
+      line = line.replaceAll(RegExp(r'\s+'), ' ');
+      if (!line.contains("option name ") || !line.contains(" type ")) return;
+
+      int nameStart = line.indexOf("option name ") + 12;
+      int nameEnd = line.indexOf(" type ");
+      String name = line.substring(nameStart, nameEnd).trim();
+
+      int typeStart = nameEnd + 6;
+      int typeEnd = line.indexOf(" ", typeStart);
+      if (typeEnd == -1) typeEnd = line.length;
+      String type = line.substring(typeStart, typeEnd).trim();
+
+      String def = "";
+      if (line.contains(" default ")) {
+        int defStart = line.indexOf(" default ") + 9;
+        int defEnd = line.indexOf(" min ", defStart);
+        if (defEnd == -1) defEnd = line.indexOf(" max ", defStart);
+        if (defEnd == -1) defEnd = line.indexOf(" combo ", defStart);
+        if (defEnd == -1) defEnd = line.length;
+        def = line.substring(defStart, defEnd).trim();
+      }
+
+      if (!_engineOptionsMetadata.any((opt) => opt['name'] == name)) {
+        if (mounted) {
+          setState(() {
+            _engineOptionsMetadata.add({'name': name, 'type': type});
+            if (!_uciValues.containsKey(name) && def.isNotEmpty) {
+              _uciValues[name] = def;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Errore parse: $e su riga: $line");
+    }
+  }
+
   void _showUciSettings() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Parametri UCI"),
+        title: Text("Opzioni $_selectedEngine"),
         backgroundColor: const Color(0xFF2b2b2b),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: "Threads"),
-              onChanged: (v) => _customUciOptions['Threads'] = v,
-              controller: TextEditingController(
-                text: _customUciOptions['Threads'],
-              ),
-            ),
-            TextField(
-              decoration: const InputDecoration(labelText: "Hash (MB)"),
-              onChanged: (v) => _customUciOptions['Hash'] = v,
-              controller: TextEditingController(
-                text: _customUciOptions['Hash'],
-              ),
-            ),
-          ],
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _engineOptionsMetadata.length,
+            itemBuilder: (context, index) {
+              final opt = _engineOptionsMetadata[index];
+              final name = opt['name']!;
+
+              // Saltiamo opzioni di tipo "button" (che in UCI sono solo comandi eseguibili)
+              if (opt['type'] == 'button') return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: name,
+                    labelStyle: const TextStyle(
+                      color: Colors.orangeAccent,
+                      fontSize: 12,
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                  // Se il valore è null mettiamo una stringa vuota per non far crashare il controller
+                  controller: TextEditingController(
+                    text: _uciValues[name] ?? "",
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                  onChanged: (v) => _uciValues[name] = v,
+                ),
+              );
+            },
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
+            child: const Text("CHIUDI"),
           ),
         ],
       ),
