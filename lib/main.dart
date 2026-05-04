@@ -5,6 +5,7 @@ import 'core/orchestrators/play_orchestrator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import 'core/engine/engine_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -99,16 +100,31 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // --- NUOVE VARIABILI PER IL MOTORE DINAMICO ---
   String _selectedEngine = 'shashchess';
   final Map<String, String> _uciValues = {'Threads': '2', 'Hash': '128'};
+  // --- PARAMETRI HANDICAP PER ALEXANDER ---
+  bool _limitStrength = false;
+  double _eloValue = 1500;
+  bool _simulateBlunders = false; // Per i parametri "Human-like"
   final List<Map<String, String>> _engineOptionsMetadata = [];
-  bool _isLoadingOptions = false; // Per la rotellina di caricamento
+  bool _isLoadingOptions = false;
+
+  SharedPreferences? _prefs; // <-- La nostra "memoria"
 
   @override
   void initState() {
     super.initState();
-    // Lanciamo la sonda appena l'app è pronta per leggere le opzioni
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _probeEngineOptions();
+      _initMemoryAndProbe(); // <-- Chiamiamo la nuova funzione
     });
+  }
+
+  // NUOVA FUNZIONE: Carica la memoria prima di sondare
+  Future<void> _initMemoryAndProbe() async {
+    _prefs = await SharedPreferences.getInstance();
+    setState(() {
+      // Ricorda l'ultimo motore usato (o usa shashchess di default)
+      _selectedEngine = _prefs?.getString('selectedEngine') ?? 'shashchess';
+    });
+    _probeEngineOptions();
   }
 
   // FUNZIONE SONDA: Accende un motore "fantasma", legge le opzioni e lo spegne
@@ -263,9 +279,112 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _crossedFsm!.startCrossedEval(_boardController.getFen(), 1200);
   }
 
+  // 1. IL POPUP DI HANDICAP (Intercetta il click sul tasto Gioca)
   void _startPlayMode() {
     if (!_isEngineRunning) return;
+
+    if (_selectedEngine == 'alexander') {
+      showDialog(
+        context: context,
+        builder: (context) {
+          // StatefulBuilder ci serve per far muovere il pallino dello slider dentro il popup
+          return StatefulBuilder(
+            builder: (context, setPopupState) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF2b2b2b),
+                title: const Text(
+                  "Impostazioni Sfida",
+                  style: TextStyle(color: Colors.orangeAccent),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      title: const Text(
+                        "Limita Forza",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      value: _limitStrength,
+                      onChanged: (v) => setPopupState(() => _limitStrength = v),
+                    ),
+                    if (_limitStrength) ...[
+                      Text(
+                        "Livello ELO: ${_eloValue.toInt()}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Slider(
+                        value: _eloValue,
+                        min: 1000,
+                        max: 2850,
+                        divisions: 37, // Scatti da 50 Elo
+                        label: _eloValue.toInt().toString(),
+                        onChanged: (v) => setPopupState(() => _eloValue = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text(
+                          "Simula Errori Umani",
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        subtitle: const Text(
+                          "Attiva lo Skill Level per non farlo giocare 'da computer'",
+                        ),
+                        value: _simulateBlunders,
+                        onChanged: (v) =>
+                            setPopupState(() => _simulateBlunders = v),
+                      ),
+                    ],
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Annulla"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Chiude il popup
+                      _executePlayModeStartup(); // Avvia davvero la partita
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("GIOCA"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } else {
+      // Se è ShashChess non ha pietà, resetta l'handicap e parte subito!
+      _engineManager.sendCommand(
+        'setoption name UCI_LimitStrength value false',
+      );
+      _executePlayModeStartup();
+    }
+  }
+
+  // 2. L'AVVIO VERO E PROPRIO (Contiene la tua vecchia logica + l'invio comandi)
+  void _executePlayModeStartup() {
     _stopAllOrchestrators();
+
+    // INVIO COMANDI HANDICAP AL MOTORE
+    if (_selectedEngine == 'alexander' && _limitStrength) {
+      _engineManager.sendCommand('setoption name UCI_LimitStrength value true');
+      _engineManager.sendCommand(
+        'setoption name UCI_Elo value ${_eloValue.toInt()}',
+      );
+      if (_simulateBlunders) {
+        // Parametriamo brutalmente lo Skill Level in base all'Elo
+        _engineManager.sendCommand(
+          'setoption name Skill Level value ${(_eloValue / 150).toInt()}',
+        );
+      } else {
+        _engineManager.sendCommand('setoption name Skill Level value 20');
+      }
+    }
 
     setState(() {
       _isPlayingMode = true;
@@ -685,8 +804,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          setState(() => _selectedEngine = val!);
-                          _probeEngineOptions(); // Rilancia la sonda sul nuovo motore!
+                          if (val == null)
+                            return; // Sicurezza extra: se è nullo, fermati
+                          setState(() => _selectedEngine = val);
+                          _prefs?.setString(
+                            'selectedEngine',
+                            val,
+                          ); // Ora val è 100% sicuro!
+                          _probeEngineOptions();
                         },
                       ),
                     ),
@@ -891,8 +1016,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         if (mounted) {
           setState(() {
             _engineOptionsMetadata.add({'name': name, 'type': type});
-            if (!_uciValues.containsKey(name) && def.isNotEmpty) {
-              _uciValues[name] = def;
+
+            // Cerchiamo in memoria un valore salvato per QUESTO specifico motore
+            String savedValue =
+                _prefs?.getString('${_selectedEngine}_$name') ?? "";
+
+            if (savedValue.isNotEmpty) {
+              _uciValues[name] = savedValue; // Se c'è, usa quello salvato!
+            } else if (!_uciValues.containsKey(name) && def.isNotEmpty) {
+              _uciValues[name] = def; // Altrimenti usa il default
             }
           });
         }
@@ -936,7 +1068,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     text: _uciValues[name] ?? "",
                   ),
                   style: const TextStyle(fontSize: 14),
-                  onChanged: (v) => _uciValues[name] = v,
+                  onChanged: (v) {
+                    _uciValues[name] = v;
+                    // Salva sul telefono (aggiungiamo il prefisso del motore per non mischiare i parametri)
+                    _prefs?.setString('${_selectedEngine}_$name', v);
+                  },
                 ),
               );
             },

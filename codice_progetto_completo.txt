@@ -39,6 +39,16 @@ linter:
 
 
 ================================================================================
+FILE: devtools_options.yaml
+================================================================================
+
+description: This file stores settings for Dart & Flutter DevTools.
+documentation: https://docs.flutter.dev/tools/devtools/extensions#configure-extension-enablement-states
+extensions:
+
+
+
+================================================================================
 FILE: pubspec.yaml
 ================================================================================
 
@@ -78,6 +88,7 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.1
   flutter_chess_board: ^1.0.1
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -441,6 +452,7 @@ import 'core/orchestrators/play_orchestrator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import 'core/engine/engine_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -535,16 +547,31 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // --- NUOVE VARIABILI PER IL MOTORE DINAMICO ---
   String _selectedEngine = 'shashchess';
   final Map<String, String> _uciValues = {'Threads': '2', 'Hash': '128'};
+  // --- PARAMETRI HANDICAP PER ALEXANDER ---
+  bool _limitStrength = false;
+  double _eloValue = 1500;
+  bool _simulateBlunders = false; // Per i parametri "Human-like"
   final List<Map<String, String>> _engineOptionsMetadata = [];
-  bool _isLoadingOptions = false; // Per la rotellina di caricamento
+  bool _isLoadingOptions = false;
+
+  SharedPreferences? _prefs; // <-- La nostra "memoria"
 
   @override
   void initState() {
     super.initState();
-    // Lanciamo la sonda appena l'app è pronta per leggere le opzioni
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _probeEngineOptions();
+      _initMemoryAndProbe(); // <-- Chiamiamo la nuova funzione
     });
+  }
+
+  // NUOVA FUNZIONE: Carica la memoria prima di sondare
+  Future<void> _initMemoryAndProbe() async {
+    _prefs = await SharedPreferences.getInstance();
+    setState(() {
+      // Ricorda l'ultimo motore usato (o usa shashchess di default)
+      _selectedEngine = _prefs?.getString('selectedEngine') ?? 'shashchess';
+    });
+    _probeEngineOptions();
   }
 
   // FUNZIONE SONDA: Accende un motore "fantasma", legge le opzioni e lo spegne
@@ -1121,8 +1148,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          setState(() => _selectedEngine = val!);
-                          _probeEngineOptions(); // Rilancia la sonda sul nuovo motore!
+                          if (val == null)
+                            return; // Sicurezza extra: se è nullo, fermati
+                          setState(() => _selectedEngine = val);
+                          _prefs?.setString(
+                            'selectedEngine',
+                            val,
+                          ); // Ora val è 100% sicuro!
+                          _probeEngineOptions();
                         },
                       ),
                     ),
@@ -1327,8 +1360,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         if (mounted) {
           setState(() {
             _engineOptionsMetadata.add({'name': name, 'type': type});
-            if (!_uciValues.containsKey(name) && def.isNotEmpty) {
-              _uciValues[name] = def;
+
+            // Cerchiamo in memoria un valore salvato per QUESTO specifico motore
+            String savedValue =
+                _prefs?.getString('${_selectedEngine}_$name') ?? "";
+
+            if (savedValue.isNotEmpty) {
+              _uciValues[name] = savedValue; // Se c'è, usa quello salvato!
+            } else if (!_uciValues.containsKey(name) && def.isNotEmpty) {
+              _uciValues[name] = def; // Altrimenti usa il default
             }
           });
         }
@@ -1372,7 +1412,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     text: _uciValues[name] ?? "",
                   ),
                   style: const TextStyle(fontSize: 14),
-                  onChanged: (v) => _uciValues[name] = v,
+                  onChanged: (v) {
+                    _uciValues[name] = v;
+                    // Salva sul telefono (aggiungiamo il prefisso del motore per non mischiare i parametri)
+                    _prefs?.setString('${_selectedEngine}_$name', v);
+                  },
                 ),
               );
             },
