@@ -1,110 +1,96 @@
 import 'dart:async';
-import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
-
-// I tre stati della nostra partita
-enum PlayState { idle, userTurn, engineThinking }
+import 'package:flutter_chess_board/flutter_chess_board.dart';
 
 class PlayOrchestrator {
   final EngineManager engineManager;
   final ChessBoardController boardController;
-
-  PlayState currentState = PlayState.idle;
-  StreamSubscription<String>? _outputSubscription;
-
-  // Callback per aggiornare i testi nella UI
   final Function(String) onLog;
-  final Function(PlayState) onStateChanged;
+  final Function(String?) onGameOver; // Callback per la fine partita
+
+  StreamSubscription<String>? _outputSubscription;
+  bool _isEngineThinking = false;
 
   PlayOrchestrator({
     required this.engineManager,
     required this.boardController,
     required this.onLog,
-    required this.onStateChanged,
-  }) {
-    // Ci sintonizziamo sulla "Radio Pubblica" del motore
-    _outputSubscription = engineManager.engineOutput?.listen(
-      _handleEngineOutput,
-    );
-  }
+    required this.onGameOver,
+  });
 
-  void _handleEngineOutput(String line) {
-    // Se è il turno del motore e sentiamo la parola magica "bestmove"...
-    if (currentState == PlayState.engineThinking &&
-        line.startsWith("bestmove")) {
-      final match = RegExp(r"bestmove (\w+)").firstMatch(line);
-      if (match != null) {
-        String move = match.group(1)!;
-        _executeEngineMove(move);
-      }
-    }
-  }
-
-  /// Inizia una nuova partita (Noi siamo il Bianco, il motore il Nero)
   void startGame() {
-    if (currentState != PlayState.idle) {
-      engineManager.sendCommand('stop');
-    }
-
-    boardController.resetBoard(); // Resetta la scacchiera visiva
-    onLog("===========================================");
-    onLog("⚔️ Partita Iniziata! Tu hai il Bianco.");
-
-    _waitForUser();
+    onLog("🎮 Partita iniziata. Muovi il Bianco per cominciare!");
+    _listenToEngine();
   }
 
-  /// Viene chiamato dalla UI ogni volta che l'utente muove un pezzo
-  void onUserMoved() {
-    if (currentState == PlayState.userTurn) {
-      // È il turno del Nero!
-      _triggerEngine();
-    }
+  // Il cuore del gioco: viene chiamato ogni volta che tu muovi
+  void playCycle() {
+    if (_isEngineThinking) return;
+
+    // 1. Controlla se hai vinto tu con la tua mossa
+    if (_checkStatus()) return;
+
+    // 2. Tocca al Nero (Computer)
+    _makeComputerMove();
   }
 
-  /// Sveglia il motore e gli fa calcolare la mossa
-  void _triggerEngine() {
-    currentState = PlayState.engineThinking;
-    onStateChanged(currentState);
-    onLog("🤖 Il motore sta pensando...");
+  void _makeComputerMove() {
+    _isEngineThinking = true;
+    onLog("🤖 Il computer sta pensando...");
 
-    // Legge la scacchiera e la invia al motore
-    String fen = boardController.getFen();
-    engineManager.sendCommand('position fen $fen');
-
-    // Per questa demo, diamo al motore 1.5 secondi netti per pensare
+    // Invia la posizione attuale e chiedi una mossa rapida (1.5 secondi)
+    engineManager.sendCommand('position fen ${boardController.getFen()}');
     engineManager.sendCommand('go movetime 1500');
   }
 
-  /// Applica fisicamente la mossa del motore sulla scacchiera grafica
-  void _executeEngineMove(String uciMove) {
-    onLog("♟️ Mossa del motore: $uciMove");
+  void _listenToEngine() {
+    _outputSubscription = engineManager.engineOutput?.listen((line) {
+      if (line.startsWith('bestmove')) {
+        // 1. FIX FANTASMA: Ignora le vecchie risposte se il computer non stava "pensando" al turno attuale
+        if (!_isEngineThinking) return;
 
-    // Convertiamo la mossa UCI (es. "e7e5") in coordinate per la UI
-    String from = uciMove.substring(0, 2);
-    String to = uciMove.substring(2, 4);
+        final parts = line.split(' ');
+        if (parts.length > 1) {
+          String move = parts[1]; // Es. riceve "e7e5" o "e7e8q"
 
-    // Muoviamo il pezzo sulla scacchiera in modo visivo
-    boardController.makeMove(from: from, to: to);
+          // 2. FIX SCACCHIERA: Traduciamo l'UCI in case di partenza e arrivo
+          String fromSquare = move.substring(0, 2);
+          String toSquare = move.substring(2, 4);
 
-    // Ripassa il turno all'umano
-    _waitForUser();
+          // Eseguiamo la mossa puntando esattamente le caselle fisiche
+          boardController.makeMove(from: fromSquare, to: toSquare);
+
+          onLog("🤖 Computer muove: $move");
+          _isEngineThinking = false;
+
+          // 3. Controlla se ha vinto il computer o è patta
+          _checkStatus();
+        }
+      }
+    });
   }
 
-  /// Aspetta la mossa dell'utente umano
-  void _waitForUser() {
-    currentState = PlayState.userTurn;
-    onStateChanged(currentState);
-    onLog("👤 Tocca a te! Fai la tua mossa.");
+  bool _checkStatus() {
+    // Usiamo l'oggetto 'game' interno al controller per leggere le regole
+    if (boardController.game.in_checkmate) {
+      onGameOver("SCACCOMATTO! La partita è finita.");
+      return true;
+    } else if (boardController.game.in_draw) {
+      onGameOver("PATTA! La partita è finita in pareggio.");
+      return true;
+    } else if (boardController.game.in_stalemate) {
+      onGameOver("STALLO! Pareggio.");
+      return true;
+    }
+    return false;
   }
 
-  /// Ferma la partita
   void stop() {
-    engineManager.sendCommand('stop');
-    currentState = PlayState.idle;
-    onStateChanged(currentState);
-    onLog("🛑 Partita interrotta.");
+    _outputSubscription?.cancel();
+    onLog("🎮 Sessione di gioco terminata.");
   }
 
+  // Aggiunto per evitare l'errore "The method 'dispose' isn't defined"
   void dispose() {
     _outputSubscription?.cancel();
   }

@@ -28,6 +28,10 @@ class ShashinFsm {
   final EngineManager engineManager;
 
   FsmState currentState = FsmState.idle;
+
+  // NUOVO: Cronometro per limitare la velocità degli aggiornamenti UI
+  DateTime _lastStatsTime = DateTime.now();
+
   StreamSubscription<String>? _outputSubscription;
   ShashinZone currentZone = ShashinZone(
     "In attesa...",
@@ -104,20 +108,27 @@ class ShashinFsm {
           ) ??
           0;
 
-      // NUOVO: Estraiamo l'intera stringa della PV (tutte le mosse)!
+      // Estraiamo l'intera stringa della PV (tutte le mosse)!
       String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
 
-      onStatsUpdate(
-        EngineStats(
-          depth: depth,
-          selDepth: selDepth,
-          nodes: nodes,
-          nps: nps,
-          pv: fullPv ?? "", // Salviamo l'intera sequenza di mosse
-        ),
-      );
+      // --- AGGIUNTA FILTRO VELOCITÀ (THROTTLE) ---
+      final now = DateTime.now();
+      // Invia i dati alla UI solo se sono passati più di 200 millisecondi
+      if (now.difference(_lastStatsTime).inMilliseconds > 200) {
+        _lastStatsTime = now;
+        onStatsUpdate(
+          EngineStats(
+            depth: depth,
+            selDepth: selDepth,
+            nodes: nodes,
+            nps: nps,
+            pv: fullPv ?? "",
+          ),
+        );
+      }
 
-      // Per la freccia sulla scacchiera, ritagliamo solo la prima mossa
+      // La freccia sulla scacchiera la lasciamo fuori dal filtro temporale
+      // perché è un'operazione grafica leggera e vogliamo che sia istantanea
       if (fullPv != null && fullPv.isNotEmpty) {
         String firstMove = fullPv.trim().split(' ').first;
         onPvUpdate(firstMove);

@@ -13,8 +13,9 @@ class ShashinZone {
 /// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
 ShashinZone analyzeShashinZone(int w, int d, int l) {
   int total = w + d + l;
-  if (total == 0)
+  if (total == 0) {
     return ShashinZone("Calcolo...", "...", Colors.grey, 50.0, "⚖️");
+  }
 
   // Calcolo esatto Win Probability (WP)
   double wpDouble = ((w + (d / 2.0)) / 10.0);
@@ -47,7 +48,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
   }
 
   // Pepite
-  if (wpInt == 25)
+  if (wpInt == 25) {
     return ShashinZone(
       "Petrosian Nugget",
       "⚱️",
@@ -55,13 +56,16 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt == 75)
+  }
+  if (wpInt == 75) {
     return ShashinZone("Tal Nugget", "⚱️", Colors.tealAccent, wpDouble, avatar);
+  }
 
   // Zone PETROSIAN (Rosso/Arancio)
-  if (wpInt <= 5)
+  if (wpInt <= 5) {
     return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatar);
-  if (wpInt <= 10)
+  }
+  if (wpInt <= 10) {
     return ShashinZone(
       "High-Middle Petrosian",
       "-+ / -/+",
@@ -69,7 +73,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 15)
+  }
+  if (wpInt <= 15) {
     return ShashinZone(
       "Middle Petrosian",
       "-/+",
@@ -77,7 +82,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 20)
+  }
+  if (wpInt <= 20) {
     return ShashinZone(
       "Middle-Low Petrosian",
       "-/+ / =/+",
@@ -85,9 +91,11 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 24)
+  }
+  if (wpInt <= 24) {
     return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatar);
-  if (wpInt <= 49)
+  }
+  if (wpInt <= 49) {
     return ShashinZone(
       "Chaos: Capablanca-Petrosian",
       "↓",
@@ -95,13 +103,15 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
+  }
 
   // Zona CAPABLANCA (Blu)
-  if (wpInt == 50)
+  if (wpInt == 50) {
     return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatar);
+  }
 
   // Zone TAL (Verde)
-  if (wpInt <= 74)
+  if (wpInt <= 74) {
     return ShashinZone(
       "Chaos: Capablanca-Tal",
       "↑",
@@ -109,9 +119,11 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 79)
+  }
+  if (wpInt <= 79) {
     return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatar);
-  if (wpInt <= 84)
+  }
+  if (wpInt <= 84) {
     return ShashinZone(
       "Middle-Low Tal",
       "+/= / +/-",
@@ -119,7 +131,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 89)
+  }
+  if (wpInt <= 89) {
     return ShashinZone(
       "Middle Tal",
       "+/-",
@@ -127,7 +140,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
-  if (wpInt <= 94)
+  }
+  if (wpInt <= 94) {
     return ShashinZone(
       "High-Middle Tal",
       "+/- / +-",
@@ -135,6 +149,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatar,
     );
+  }
 
   return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatar);
 }

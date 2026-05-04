@@ -93,27 +93,28 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   bool _isEngineRunning = false;
   bool _isPlayingMode = false;
+  bool _isDragging = false; // <-- NUOVO: Capisce se stai toccando un pezzo
 
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
 
-  // --- NUOVE VARIABILI PER IL MOTORE DINAMICO ---
+  // --- VARIABILI REINSERITE ---
+  SharedPreferences? _prefs;
   String _selectedEngine = 'shashchess';
+  bool _isLoadingOptions = false;
+  final List<Map<String, String>> _engineOptionsMetadata = [];
   final Map<String, String> _uciValues = {'Threads': '2', 'Hash': '128'};
-  // --- PARAMETRI HANDICAP PER ALEXANDER ---
+
+  // Variabili per l'handicap (Modalità Gioco)
   bool _limitStrength = false;
   double _eloValue = 1500;
-  bool _simulateBlunders = false; // Per i parametri "Human-like"
-  final List<Map<String, String>> _engineOptionsMetadata = [];
-  bool _isLoadingOptions = false;
-
-  SharedPreferences? _prefs; // <-- La nostra "memoria"
+  bool _simulateBlunders = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initMemoryAndProbe(); // <-- Chiamiamo la nuova funzione
+      _initMemoryAndProbe();
     });
   }
 
@@ -152,17 +153,19 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     }
   }
 
-  List<BoardArrow> _currentArrows = [];
-
-  // <-- VARIABILE AGGIUNTA PER I DATI DEL MOTORE -->
-  EngineStats _currentStats = EngineStats();
-
-  ShashinZone _currentZone = ShashinZone(
-    "In attesa...",
-    "-",
-    Colors.grey,
-    50.0,
-    "assets/images/capablanca.png",
+  // <-- OTTIMIZZAZIONE PRESTAZIONI: Tubi diretti per non bloccare il touch -->
+  final ValueNotifier<List<BoardArrow>> _arrowsNotifier = ValueNotifier([]);
+  final ValueNotifier<EngineStats> _statsNotifier = ValueNotifier(
+    EngineStats(),
+  );
+  final ValueNotifier<ShashinZone> _zoneNotifier = ValueNotifier(
+    ShashinZone(
+      "In attesa...",
+      "-",
+      Colors.grey,
+      50.0,
+      "assets/images/capablanca.png",
+    ),
   );
 
   void _scrollToBottom() {
@@ -215,10 +218,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _playFsm = null;
 
     _isPlayingMode = false;
-    setState(() {
-      _currentArrows.clear();
-      _currentStats = EngineStats(); // <-- AZZERA LE STATISTICHE ALLO STOP
-    });
+    // Aggiorniamo i notifier in modo ultra-fluido, niente setState!
+    _arrowsNotifier.value = [];
+    _statsNotifier.value = EngineStats();
   }
 
   void _startNormalAnalysis() {
@@ -228,31 +230,40 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _fsm = ShashinFsm(
       engineManager: _engineManager,
       onLog: (line) {
+        // <-- Tolto l'if
         setState(() => _outputLines.add(line));
-        _scrollToBottom();
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
-      onZoneChanged: (zone) => setState(() => _currentZone = zone),
+      onZoneChanged: (zone) {
+        _zoneNotifier.value = zone;
+      },
       onStateChanged: (state) {},
-      onPvUpdate: (move) {
-        setState(() {
-          String fromSq = move.substring(0, 2);
-          String toSq = move.substring(2, 4);
-          _currentArrows = [
-            BoardArrow(
-              from: fromSq,
-              to: toSq,
-              color: _currentZone.color.withValues(alpha: 0.8),
-            ),
-          ];
-        });
+      onPvUpdate: (firstMove) {
+        // 1. Se stiamo toccando lo schermo, IGNORIAMO gli aggiornamenti per non rompere il drag!
+        if (_isDragging || firstMove.length < 4) return;
+
+        String fromSq = firstMove.substring(0, 2);
+        String toSq = firstMove.substring(2, 4);
+
+        // 2. Aggiorniamo la UI SOLO se la freccia è diversa da quella di prima
+        final currentArrows = _arrowsNotifier.value;
+        if (currentArrows.isNotEmpty &&
+            currentArrows.first.from == fromSq &&
+            currentArrows.first.to == toSq) {
+          return; // La freccia è identica, evitiamo un rebuild inutile
+        }
+
+        _arrowsNotifier.value = [
+          BoardArrow(
+            from: fromSq,
+            to: toSq,
+            color: _zoneNotifier.value.color.withValues(alpha: 0.8),
+          ),
+        ];
       },
-      // <-- IL CALLBACK CHE AGGIORNA I DATI SULLA UI -->
       onStatsUpdate: (stats) {
-        setState(() {
-          _currentStats = stats;
-        });
+        _statsNotifier.value = stats;
       },
-      // <-- NUOVO: Invia alla UI le opzioni UCI scoperte
       onOptionFound: (optionLine) => _parseUciOption(optionLine),
     );
 
@@ -270,7 +281,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _crossedFsm = CrossedEvalOrchestrator(
       engineManager: _engineManager,
       onLog: (line) {
-        setState(() => _outputLines.add(line));
+        setState(() {
+          _outputLines.add(line);
+          // MANTIENE SOLO LE ULTIME 100 RIGHE
+          if (_outputLines.length > 100) {
+            _outputLines.removeAt(0);
+          }
+        });
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
       onReportReady: (sMove, sZone, mMove, mZone) =>
@@ -388,14 +405,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     setState(() {
       _isPlayingMode = true;
-      _currentZone = ShashinZone(
-        "Modalità Gioco",
-        "⚔️",
-        Colors.orange,
-        50.0,
-        "🎮",
-      );
     });
+    // Aggiorniamo la zona usando il Notifier, fuori dal setState!
+    _zoneNotifier.value = ShashinZone(
+      "Modalità Gioco",
+      "⚔️",
+      Colors.orange,
+      50.0,
+      "🎮",
+    );
 
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
@@ -404,7 +422,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
-      onStateChanged: (state) {},
+      onGameOver: (messaggio) {
+        _showGameOverDialog(messaggio!); // Mostra il popup di fine partita
+      },
     );
     _playFsm!.startGame();
   }
@@ -524,15 +544,18 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     setState(() {
       _isEngineRunning = false;
-      _currentZone = ShashinZone(
-        "Motore Spento",
-        "-",
-        Colors.grey,
-        50.0,
-        "assets/images/capablanca.png",
-      );
       _outputLines.add("--- MOTORE SPENTO ---");
     });
+
+    // Aggiorniamo la zona usando il Notifier!
+    _zoneNotifier.value = ShashinZone(
+      "Motore Spento",
+      "-",
+      Colors.grey,
+      50.0,
+      "assets/images/capablanca.png",
+    );
+
     Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
   }
 
@@ -578,89 +601,126 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: ChessBoard(
-                  controller: _boardController,
-                  boardColor: BoardColor.brown,
-                  boardOrientation: PlayerColor.white,
-                  arrows: _currentArrows,
-                  onMove: () {
-                    if (_isPlayingMode) {
-                      _playFsm?.onUserMoved();
-                    } else {
-                      _startNormalAnalysis();
-                    }
+                child: LayoutBuilder(
+                  // <-- NUOVO: Prende le misure perfette
+                  builder: (context, constraints) {
+                    final boardSize =
+                        constraints.maxWidth < constraints.maxHeight
+                        ? constraints.maxWidth
+                        : constraints.maxHeight;
+
+                    return Listener(
+                      // <-- NUOVO: Ascolta le tue dita
+                      onPointerDown: (_) => _isDragging = true,
+                      onPointerUp: (_) => _isDragging = false,
+                      onPointerCancel: (_) => _isDragging = false,
+                      child: ValueListenableBuilder<List<BoardArrow>>(
+                        valueListenable: _arrowsNotifier,
+                        builder: (context, arrows, child) {
+                          return ChessBoard(
+                            size:
+                                boardSize, // <-- LA MAGIA CHE RISOLVE I PEZZI GIGANTI
+                            controller: _boardController,
+                            boardColor: BoardColor.brown,
+                            boardOrientation: PlayerColor.white,
+                            arrows: arrows,
+                            onMove: () {
+                              _isDragging =
+                                  false; // Sicurezza extra a fine mossa
+                              if (_isPlayingMode) {
+                                _playFsm?.playCycle();
+                              } else if (_isEngineRunning) {
+                                _startNormalAnalysis();
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    );
                   },
                 ),
               ),
             ),
           ),
-
           // 2. BARRA DELLA WIN PROBABILITY (WP) E AVATAR
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 12.0,
               vertical: 8.0,
             ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: ValueListenableBuilder<ShashinZone>(
+              valueListenable: _zoneNotifier,
+              builder: (context, zone, child) {
+                return Column(
                   children: [
-                    Text(
-                      "🛡️ Petrosian",
-                      style: TextStyle(color: Colors.red[300], fontSize: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "🛡️ Petrosian",
+                          style: TextStyle(
+                            color: Colors.red[300],
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          "${zone.wp.toStringAsFixed(1)}%",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          "Tal 🔥",
+                          style: TextStyle(
+                            color: Colors.green[300],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      "${_currentZone.wp.toStringAsFixed(1)}%",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                    const SizedBox(height: 5),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: zone.wp / 100.0,
+                        minHeight: 12,
+                        backgroundColor: Colors.red[700],
+                        color: Colors.green[600],
                       ),
                     ),
-                    Text(
-                      "Tal 🔥",
-                      style: TextStyle(color: Colors.green[300], fontSize: 12),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.transparent,
+                          child: Image.asset(
+                            zone.avatar,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Text(
+                                  "👤",
+                                  style: TextStyle(fontSize: 24),
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          "${zone.symbol} ${zone.name.toUpperCase()}",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: zone.color,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-                const SizedBox(height: 5),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: _currentZone.wp / 100.0,
-                    minHeight: 12,
-                    backgroundColor: Colors.red[700],
-                    color: Colors.green[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.transparent,
-                      child: Image.asset(
-                        _currentZone.avatar,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Text("👤", style: TextStyle(fontSize: 24)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      "${_currentZone.symbol} ${_currentZone.name.toUpperCase()}",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: _currentZone.color,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
           ),
-
           // <-- 3. IL CRUSCOTTO DEL MOTORE (Ora con la PV!) -->
           if (_isEngineRunning)
             Container(
@@ -671,54 +731,58 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey[800]!),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _statText(
-                        "Profondità",
-                        "${_currentStats.depth}/${_currentStats.selDepth}",
-                      ),
-                      _statText(
-                        "Nodi",
-                        "${(_currentStats.nodes / 1000).toStringAsFixed(1)}k",
-                      ),
-                      _statText(
-                        "Velocità (NPS)",
-                        "${(_currentStats.nps / 1000).toStringAsFixed(1)}k",
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white24, height: 16),
-                  Row(
+              child: ValueListenableBuilder<EngineStats>(
+                valueListenable: _statsNotifier,
+                builder: (context, stats, child) {
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "PV: ",
-                        style: TextStyle(
-                          color: Colors.orangeAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          _currentStats.pv.isEmpty ? "..." : _currentStats.pv,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontFamily: 'monospace',
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _statText(
+                            "Profondità",
+                            "${stats.depth}/${stats.selDepth}",
                           ),
-                          maxLines:
-                              2, // Limita a 2 righe per non invadere troppo lo schermo
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          _statText(
+                            "Nodi",
+                            "${(stats.nodes / 1000).toStringAsFixed(1)}k",
+                          ),
+                          _statText(
+                            "Velocità (NPS)",
+                            "${(stats.nps / 1000).toStringAsFixed(1)}k",
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white24, height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "PV: ",
+                            style: TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              stats.pv.isEmpty ? "..." : stats.pv,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           // 4. FINESTRA DI NOTAZIONE E CONTROLLI PGN/FEN
@@ -804,8 +868,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val == null)
-                            return; // Sicurezza extra: se è nullo, fermati
+                          if (val == null) {
+                            return;
+                          } // Aggiunte graffe
                           setState(() => _selectedEngine = val);
                           _prefs?.setString(
                             'selectedEngine',
@@ -1045,16 +1110,17 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           child: ListView.builder(
             shrinkWrap: true,
             itemCount: _engineOptionsMetadata.length,
+            // USA QUESTA LOGICA PIÙ LEGGERA
             itemBuilder: (context, index) {
               final opt = _engineOptionsMetadata[index];
               final name = opt['name']!;
-
-              // Saltiamo opzioni di tipo "button" (che in UCI sono solo comandi eseguibili)
               if (opt['type'] == 'button') return const SizedBox.shrink();
 
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: TextField(
+                child: TextFormField(
+                  // TextFormField è più efficiente di TextField in liste
+                  initialValue: _uciValues[name] ?? "",
                   decoration: InputDecoration(
                     labelText: name,
                     labelStyle: const TextStyle(
@@ -1063,14 +1129,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ),
                     border: const OutlineInputBorder(),
                   ),
-                  // Se il valore è null mettiamo una stringa vuota per non far crashare il controller
-                  controller: TextEditingController(
-                    text: _uciValues[name] ?? "",
-                  ),
                   style: const TextStyle(fontSize: 14),
                   onChanged: (v) {
                     _uciValues[name] = v;
-                    // Salva sul telefono (aggiungiamo il prefisso del motore per non mischiare i parametri)
                     _prefs?.setString('${_selectedEngine}_$name', v);
                   },
                 ),
@@ -1082,6 +1143,27 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("CHIUDI"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGameOverDialog(String messaggio) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Fine Partita"),
+        content: Text(messaggio),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _stopAllOrchestrators(); // Ora riconosce questo comando!
+              setState(() => _isPlayingMode = false);
+            },
+            child: const Text("TORNA AL LABORATORIO"),
           ),
         ],
       ),

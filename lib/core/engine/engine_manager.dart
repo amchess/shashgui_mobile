@@ -6,15 +6,20 @@ import 'package:path/path.dart' as p;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
+// Funzione top-level per isolare la scrittura NNUE in background
+Future<void> _writeNnueFile(Map<String, dynamic> args) async {
+  await File(
+    args['path'] as String,
+  ).writeAsBytes(args['bytes'] as Uint8List, flush: true);
+}
+
 class EngineManager {
   static const platform = MethodChannel('com.shashgui.engine/native');
   Process? _process;
 
-  // --- FIX: Salviamo il flusso broadcast in una variabile ---
-  Stream<String>? _broadcastOutput;
-
-  // Il getter ora restituisce semplicemente la "Radio" già sintonizzata
-  Stream<String>? get engineOutput => _broadcastOutput;
+  // Usiamo un Controller per mantenere viva la connessione!
+  StreamController<String>? _outputController;
+  Stream<String>? get engineOutput => _outputController?.stream;
 
   Future<void> initEngine(
     String engineName,
@@ -43,26 +48,33 @@ class EngineManager {
 
       if (needsExtraction) {
         print("Estrazione rete neurale: $nnue...");
-        await file.writeAsBytes(
-          byteData.buffer.asUint8List(
+        // compute() esegue la scrittura in un isolate separato, sbloccando la UI
+        await compute(_writeNnueFile, {
+          'path': file.path,
+          'bytes': byteData.buffer.asUint8List(
             byteData.offsetInBytes,
             byteData.lengthInBytes,
           ),
-          flush: true, // Assicura che la scrittura sul disco sia completata
-        );
+        });
       }
     }
 
     _process = await Process.start(enginePath, []);
-    // --- FIX CRITICO: Trasformiamo lo stdout in Broadcast UNA SOLA VOLTA ---
-    _broadcastOutput = _process!.stdout
+
+    // Creiamo la stazione radio che non si spegne MAI (nemmeno a 0 ascoltatori)
+    _outputController = StreamController<String>.broadcast();
+
+    // Attacchiamo il motore alla stazione radio in modo permanente
+    _process!.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .asBroadcastStream();
+        .listen((line) {
+          _outputController?.add(line);
+        });
 
     final readyCompleter = Completer<void>();
 
-    _broadcastOutput!.listen((line) {
+    _outputController!.stream.listen((line) {
       onLine?.call(line);
       if (line.trim() == 'readyok' && !readyCompleter.isCompleted) {
         readyCompleter.complete();
@@ -83,9 +95,9 @@ class EngineManager {
 
     sendCommand('isready');
 
-    // Aspettiamo che il motore sia davvero pronto (timeout sicurezza 10s)
+    // Aspettiamo che il motore sia davvero pronto (timeout sicurezza 60s )
     await readyCompleter.future.timeout(
-      const Duration(seconds: 10),
+      const Duration(seconds: 60),
       onTimeout: () => debugPrint('⚠️ Timeout readyok'),
     );
   }
@@ -100,6 +112,7 @@ class EngineManager {
   void dispose() {
     sendCommand('quit');
     _process?.kill();
-    _broadcastOutput = null; // Pulizia
+    _outputController?.close(); // Chiudiamo il controller correttamente
+    _outputController = null;
   }
 }
