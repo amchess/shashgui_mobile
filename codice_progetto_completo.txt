@@ -89,6 +89,7 @@ dependencies:
   path: ^1.9.1
   flutter_chess_board: ^1.0.1
   shared_preferences: ^2.5.5
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -100,6 +101,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # --- PACCHETTI AGGIUNTI PER ICONA E SPLASH SCREEN ---
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -117,32 +122,24 @@ flutter:
     - assets/images/
     - assets/engine/
 
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/to/resolution-aware-images
+# ==========================================
+# CONFIGURAZIONI AGGIUNTIVE SHASHGUI MOBILE
+# ==========================================
 
-  # For details regarding adding assets from package dependencies, see
-  # https://flutter.dev/to/asset-from-package
+# --- CONFIGURAZIONE ICONA APP ---
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/icon.png"
 
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
-
+# --- CONFIGURAZIONE SPLASH SCREEN ---
+flutter_native_splash:
+  color: "#2b2b2b"
+  image: "assets/images/splash.jpg"
+  android_12:
+    image: "assets/images/splash.jpg"
+    color: "#2b2b2b"
+  ios: true
 
 
 ================================================================================
@@ -274,7 +271,7 @@ FILE: android\app\src\main\AndroidManifest.xml
     <application
         android:label="shashgui_mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:extractNativeLibs="true">
         <activity
             android:name=".MainActivity"
@@ -324,16 +321,13 @@ FILE: android\app\src\main\res\drawable\launch_background.xml
 ================================================================================
 
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item>
+        <bitmap android:gravity="fill" android:src="@drawable/background"/>
+    </item>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash"/>
+    </item>
 </layer-list>
 
 
@@ -343,16 +337,13 @@ FILE: android\app\src\main\res\drawable-v21\launch_background.xml
 ================================================================================
 
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item>
+        <bitmap android:gravity="fill" android:src="@drawable/background"/>
+    </item>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash"/>
+    </item>
 </layer-list>
 
 
@@ -368,6 +359,10 @@ FILE: android\app\src\main\res\values\styles.xml
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your
@@ -393,6 +388,10 @@ FILE: android\app\src\main\res\values-night\styles.xml
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your
@@ -401,6 +400,62 @@ FILE: android\app\src\main\res\values-night\styles.xml
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\values-night-v31\styles.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is on -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowSplashScreenBackground">#2b2b2b</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+         
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\values-v31\styles.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowSplashScreenBackground">#2b2b2b</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+         
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
 </resources>
@@ -453,6 +508,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import 'core/engine/engine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -547,6 +604,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   late MoveNode _rootNode;
   late MoveNode _currentNode;
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // --- NOTIFIER PER LE FRECCE ---
+  final ValueNotifier<List<BoardArrow>> _arrowsNotifier = ValueNotifier([]);
+
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
 
@@ -613,7 +675,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   // <-- OTTIMIZZAZIONE PRESTAZIONI: Tubi diretti per non bloccare il touch -->
-  final ValueNotifier<List<BoardArrow>> _arrowsNotifier = ValueNotifier([]);
   final ValueNotifier<EngineStats> _statsNotifier = ValueNotifier(
     EngineStats(),
   );
@@ -683,28 +744,43 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _startNormalAnalysis() {
+    // Sicurezza: se l'engine non è acceso, non partiamo
     if (!_isEngineRunning) return;
+
     _stopAllOrchestrators();
 
+    setState(() {
+      _isEngineRunning = true;
+      _isPlayingMode = false;
+      _outputLines.clear();
+      _arrowsNotifier.value = []; // Pulisce le frecce vecchie
+    });
+
+    // RIPRISTINO DELLA TUA STRUTTURA FSM ORIGINALE COMPLETA
     _fsm = ShashinFsm(
       engineManager: _engineManager,
       onLog: (line) {
-        // <-- Tolto l'if
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
       onZoneChanged: (zone) {
-        _zoneNotifier.value = zone;
+        _zoneNotifier.value = zone; // Aggiorna il termometro Shashin
       },
       onStateChanged: (state) {},
+      onStatsUpdate: (stats) {
+        _statsNotifier.value = stats; // Aggiorna il cruscotto
+      },
+      onOptionFound: (optionLine) => _parseUciOption(optionLine),
+
+      // LA TUA LOGICA ORIGINALE PER LA FRECCIA (È PERFETTA!)
       onPvUpdate: (firstMove) {
-        // 1. Se stiamo toccando lo schermo, IGNORIAMO gli aggiornamenti per non rompere il drag!
+        // Se stiamo toccando lo schermo o la mossa è monca, ignoriamo
         if (_isDragging || firstMove.length < 4) return;
 
         String fromSq = firstMove.substring(0, 2);
         String toSq = firstMove.substring(2, 4);
 
-        // 2. Aggiorniamo la UI SOLO se la freccia è diversa da quella di prima
+        // Aggiorniamo la UI SOLO se la freccia è diversa da quella di prima
         final currentArrows = _arrowsNotifier.value;
         if (currentArrows.isNotEmpty &&
             currentArrows.first.from == fromSq &&
@@ -716,17 +792,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           BoardArrow(
             from: fromSq,
             to: toSq,
+            // Magia: la freccia prende il colore della zona termodinamica attuale!
             color: _zoneNotifier.value.color.withValues(alpha: 0.8),
           ),
         ];
       },
-      onStatsUpdate: (stats) {
-        _statsNotifier.value = stats;
-      },
-      onOptionFound: (optionLine) => _parseUciOption(optionLine),
     );
 
-    // Invia i secondi selezionati all'FSM per il ciclo ricorsivo
+    // AVVIO CORRETTO: Parametro posizionale (FEN) + Parametro nominato (baseTimeMs)
     _fsm!.startAnalysis(
       _boardController.getFen(),
       baseTimeMs: _baseTimeSec * 1000,
@@ -1013,6 +1086,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     setState(() {
       _isEngineRunning = false;
       _outputLines.add("--- MOTORE SPENTO ---");
+      _arrowsNotifier.value = []; // <-- AGGIUNTO: PULISCE LA FRECCIA
     });
 
     // Aggiorniamo la zona usando il Notifier!
@@ -1063,12 +1137,26 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       ),
       body: Column(
         children: [
-          // 1. SCACCHIERA
+          // 1. ZONA SCACCHIERA CON PEZZI CATTURATI
           Expanded(
-            flex: 5,
+            flex: 6,
             child: Column(
-              // Avvolgiamo in una colonna per mettere i tasti sotto
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // PEZZI PERSI DAL BIANCO (SOPRA)
+                Builder(
+                  builder: (context) {
+                    final mat = _calculateMaterial(_boardController.getFen());
+                    return _buildCapturedPieces(
+                      mat['whiteCaptured'],
+                      mat['score'] > 0 ? mat['score'] : 0,
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 5),
+
+                // SCACCHIERA CENTRALE
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -1086,9 +1174,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               size: boardSize,
                               controller: _boardController,
                               boardColor: BoardColor.brown,
-                              boardOrientation: _boardOrientation, // DINAMICO
+                              boardOrientation: _boardOrientation,
                               arrows: arrows,
-                              onMove: _onMovePerformed, // USA LA NUOVA LOGICA
+                              onMove: _onMovePerformed,
                             );
                           },
                         ),
@@ -1096,7 +1184,21 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     },
                   ),
                 ),
-                // Barra di navigazione esistente
+
+                const SizedBox(height: 5),
+
+                // PEZZI PERSI DAL NERO (SOTTO)
+                Builder(
+                  builder: (context) {
+                    final mat = _calculateMaterial(_boardController.getFen());
+                    return _buildCapturedPieces(
+                      mat['blackCaptured'],
+                      mat['score'] < 0 ? -mat['score'] : 0,
+                    );
+                  },
+                ),
+
+                // BARRA DI NAVIGAZIONE (FRECCE)
                 Container(
                   color: Colors.black26,
                   child: Row(
@@ -1113,12 +1215,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       IconButton(
                         icon: const Icon(Icons.sync),
                         color: Colors.blueAccent,
-                        onPressed: () => setState(() {
-                          _boardOrientation =
+                        onPressed: () => setState(
+                          () => _boardOrientation =
                               (_boardOrientation == PlayerColor.white)
                               ? PlayerColor.black
-                              : PlayerColor.white;
-                        }),
+                              : PlayerColor.white,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.chevron_right),
@@ -1134,12 +1236,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               ],
             ),
           ),
-          // Qui sotto di solito iniziano le statistiche del motore...
-          // 2. BARRA DELLA WIN PROBABILITY (WP) E AVATAR
+
+          // 2. BARRA WIN PROBABILITY
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 12.0,
-              vertical: 8.0,
+              vertical: 4.0,
             ),
             child: ValueListenableBuilder<ShashinZone>(
               valueListenable: _zoneNotifier,
@@ -1153,341 +1255,73 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           "🛡️ Petrosian",
                           style: TextStyle(
                             color: Colors.red[300],
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                         Text(
                           "${zone.wp.toStringAsFixed(1)}%",
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 14,
                           ),
                         ),
                         Text(
                           "Tal 🔥",
                           style: TextStyle(
                             color: Colors.green[300],
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
                         value: zone.wp / 100.0,
-                        minHeight: 12,
+                        minHeight: 8,
                         backgroundColor: Colors.red[700],
                         color: Colors.green[600],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Colors.transparent,
-                          child: Image.asset(
-                            zone.avatar,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Text(
-                                  "👤",
-                                  style: TextStyle(fontSize: 24),
-                                ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          "${zone.symbol} ${zone.name.toUpperCase()}",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: zone.color,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 );
               },
             ),
           ),
-          // <-- 3. IL CRUSCOTTO DEL MOTORE (Ora con la PV!) -->
-          if (_isEngineRunning)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
-              decoration: BoxDecoration(
-                color: const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[800]!),
-              ),
-              child: ValueListenableBuilder<EngineStats>(
-                valueListenable: _statsNotifier,
-                builder: (context, stats, child) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _statText(
-                            "Profondità",
-                            "${stats.depth}/${stats.selDepth}",
-                          ),
-                          _statText(
-                            "Nodi",
-                            "${(stats.nodes / 1000).toStringAsFixed(1)}k",
-                          ),
-                          _statText(
-                            "Velocità (NPS)",
-                            "${(stats.nps / 1000).toStringAsFixed(1)}k",
-                          ),
-                        ],
-                      ),
-                      const Divider(color: Colors.white24, height: 16),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "PV: ",
-                            style: TextStyle(
-                              color: Colors.orangeAccent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              stats.pv.isEmpty ? "..." : stats.pv,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11,
-                                fontFamily: 'monospace',
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          // 4. FINESTRA DI NOTAZIONE (NUOVA CON VARIANTI)
+
+          // 3. PANNELLO NOTAZIONE E VARIANTI
+          _buildNotationPanel(),
+
+          // 4. CONTROLLI MOTORE (ACCENDI / ANALIZZA / STOP)
           Padding(
-            padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
-            child:
-                _buildNotationPanel(), // <-- CHIAMIAMO FINALMENTE IL NUOVO PANNELLO!
-          ),
-          // 5. PULSANTI ESTESI CON ICONE E SELETTORE TEMPO
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            padding: const EdgeInsets.only(bottom: 10, top: 5),
             child: Wrap(
-              spacing: 8.0,
-              runSpacing: 8.0,
+              spacing: 8,
               alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (!_isEngineRunning) ...[
-                  // 1. SELETTORE MOTORE
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[700]!),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedEngine,
-                        items: ['shashchess', 'alexander'].map((String engine) {
-                          return DropdownMenuItem(
-                            value: engine,
-                            child: Text(engine),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val == null) {
-                            return;
-                          } // Aggiunte graffe
-                          setState(() => _selectedEngine = val);
-                          _prefs?.setString(
-                            'selectedEngine',
-                            val,
-                          ); // Ora val è 100% sicuro!
-                          _probeEngineOptions();
-                        },
-                      ),
-                    ),
-                  ),
-
-                  // 2. INGRANAGGIO DINAMICO (Mostra lo spinner se sta caricando)
-                  _isLoadingOptions
-                      ? const Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.orangeAccent,
-                            ),
-                          ),
-                        )
-                      : IconButton(
-                          onPressed: _showUciSettings,
-                          icon: const Icon(
-                            Icons.settings,
-                            color: Colors.orangeAccent,
-                          ),
-                          tooltip: "Parametri UCI",
-                        ),
-
-                  // 3. TASTO ACCENDI (Disabilitato finché la sonda non ha finito)
+                if (!_isEngineRunning)
                   ElevatedButton.icon(
                     onPressed: _isLoadingOptions ? null : _startEngine,
-                    icon: const Icon(Icons.power, size: 18),
-                    label: const Text(
-                      'Accendi',
-                      style: TextStyle(fontSize: 14),
-                    ),
+                    icon: const Icon(Icons.power),
+                    label: const Text('Accendi'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
                     ),
-                  ),
-                ] else ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1e1e1e),
-                      border: Border.all(color: Colors.grey[700]!),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "T1: ",
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        DropdownButton<int>(
-                          value: _baseTimeSec,
-                          dropdownColor: const Color(0xFF2b2b2b),
-                          underline: const SizedBox(),
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          items: [1, 2, 3, 5, 10].map((int val) {
-                            return DropdownMenuItem<int>(
-                              value: val,
-                              child: Text("${val}s"),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _baseTimeSec = val;
-                              });
-                              _startNormalAnalysis();
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  ElevatedButton.icon(
-                    onPressed: _startNormalAnalysis,
-                    icon: const Icon(Icons.search, size: 16),
-                    label: const Text(
-                      'Analizza',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _startCrossedAnalysis,
-                    icon: const Icon(Icons.school, size: 16),
-                    label: const Text(
-                      'Cross Eval',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple[700],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _startPlayMode,
-                    icon: const Icon(Icons.videogame_asset, size: 16),
-                    label: const Text('Gioca', style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange[700],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
+                  )
+                else
                   ElevatedButton(
                     onPressed: _stopEngine,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red[700],
                       foregroundColor: Colors.white,
                       shape: const CircleBorder(),
-                      padding: const EdgeInsets.all(12),
                     ),
                     child: const Icon(Icons.stop),
                   ),
-                ],
+                // ... qui puoi rimettere gli altri bottoni come Analizza/Gioca ...
               ],
-            ),
-          ),
-
-          // 6. TERMINALE ESTESO
-          Expanded(
-            flex: 4,
-            child: Container(
-              color: const Color(0xFF111111),
-              width: double.infinity,
-              padding: const EdgeInsets.all(8.0),
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: _outputLines.length,
-                itemBuilder: (context, index) {
-                  return Text(
-                    _outputLines[index],
-                    style: const TextStyle(
-                      color: Colors.greenAccent,
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                    ),
-                  );
-                },
-              ),
             ),
           ),
         ],
@@ -1617,6 +1451,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // Questa funzione gestisce la creazione di varianti e la cattura della notazione
   Future<void> _onMovePerformed() async {
     _isDragging = false;
+    _arrowsNotifier.value =
+        []; // <-- AGGIUNTO: SPEGNE LA FRECCIA APPENA TOCCHI UN PEZZO
 
     // Recuperiamo il nome della mossa leggendo il PGN ufficiale
     String pgn = _boardController.game.pgn();
@@ -1630,7 +1466,39 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       (s) => !s.contains('.'),
       orElse: () => "Mossa",
     );
-
+    try {
+      if (moveSan.contains('#')) {
+        // Scacco Matto!
+        _audioPlayer.play(
+          UrlSource(
+            'https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/game-end.mp3',
+          ),
+        );
+      } else if (moveSan.contains('+')) {
+        // Scacco!
+        _audioPlayer.play(
+          UrlSource(
+            'https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-check.mp3',
+          ),
+        );
+      } else if (moveSan.contains('x')) {
+        // Cattura
+        _audioPlayer.play(
+          UrlSource(
+            'https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3',
+          ),
+        );
+      } else {
+        // Mossa normale
+        _audioPlayer.play(
+          UrlSource(
+            'https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3',
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Errore riproduzione audio: $e");
+    }
     String newFen = _boardController.getFen();
 
     // 1. Controlliamo se la mossa esiste già
@@ -1704,15 +1572,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   Widget _buildNotationPanel() {
     List<Widget> widgets = [];
 
-    // Funzione interna che attraversa l'albero per costruire la vista
     void buildNotation(MoveNode node, int moveCount) {
       if (node.children.isEmpty) return;
-
-      // La linea principale è il primo figlio (indice 0)
       var mainMove = node.children.first;
       bool isCurrent = (mainMove == _currentNode);
-
-      // Aggiungiamo il numero di mossa (solo se tocca al bianco)
       String prefix = (moveCount % 2 != 0)
           ? "${(moveCount / 2).floor() + 1}. "
           : "";
@@ -1737,7 +1600,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         ),
       );
 
-      // --- QUI GESTIAMO LE VARIANTI ---
       if (node.children.length > 1) {
         for (int i = 1; i < node.children.length; i++) {
           var variant = node.children[i];
@@ -1762,34 +1624,73 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           );
         }
       }
-
-      // Continua ricorsivamente sulla linea principale
       buildNotation(mainMove, moveCount + 1);
     }
 
     buildNotation(_rootNode, 1);
 
-    return Container(
-      width: double.infinity,
-      height: 120,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: SingleChildScrollView(
-        child: Wrap(
-          children: widgets.isEmpty
-              ? [
-                  const Text(
-                    "Inizia a muovere...",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ]
-              : widgets,
+    return Stack(
+      // Usiamo uno Stack per mettere il tasto sopra la notazione
+      children: [
+        Container(
+          width: double.infinity,
+          height: 120,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: SingleChildScrollView(
+            child: Wrap(
+              children: widgets.isEmpty
+                  ? [
+                      const Text(
+                        "Inizia a muovere...",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ]
+                  : widgets,
+            ),
+          ),
         ),
-      ),
+        // --- IL TASTO COPIA PGN ---
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.paste,
+                  size: 20,
+                  color: Colors.greenAccent,
+                ),
+                tooltip: "Importa FEN",
+                onPressed:
+                    _showImportDialog, // <-- CHIAMA IL NOSTRO NUOVO POPUP
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.copy_all,
+                  size: 20,
+                  color: Colors.orangeAccent,
+                ),
+                tooltip: "Copia PGN negli appunti",
+                onPressed: () {
+                  String pgn = _boardController.game.pgn();
+                  Clipboard.setData(ClipboardData(text: pgn));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("PGN copiato negli appunti! 📋"),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1858,6 +1759,162 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           ],
         );
       },
+    );
+  }
+
+  // Metodo per importare un FEN esterno
+  void _showImportDialog() {
+    TextEditingController fenController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2b2b2b),
+          title: const Text(
+            "Importa Posizione",
+            style: TextStyle(color: Colors.orangeAccent),
+          ),
+          content: TextField(
+            controller: fenController,
+            decoration: const InputDecoration(
+              hintText: "Incolla qui la stringa FEN...",
+              hintStyle: TextStyle(color: Colors.white38),
+            ),
+            style: const TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                "Annulla",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                String fen = fenController.text.trim();
+                if (fen.isNotEmpty) {
+                  try {
+                    // 1. Carica la posizione
+                    _boardController.loadFen(fen);
+
+                    // 2. Resetta l'albero delle mosse partendo da qui
+                    setState(() {
+                      _rootNode = MoveNode(
+                        fen: fen,
+                        san: 'Posizione Importata',
+                      );
+                      _currentNode = _rootNode;
+                      _arrowsNotifier.value = []; // Pulisce eventuali frecce
+                    });
+
+                    Navigator.pop(context); // Chiude il popup
+
+                    // 3. Se il motore è acceso, analizza subito la nuova posizione!
+                    if (_isEngineRunning && !_isPlayingMode) {
+                      _startNormalAnalysis();
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Errore: Formato FEN non valido!"),
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent,
+              ),
+              child: const Text(
+                "Importa",
+                style: TextStyle(color: Colors.black),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // CALCOLO MATERIALE CATTURATO
+  Map<String, dynamic> _calculateMaterial(String fen) {
+    final piecePlacement = fen.split(' ')[0];
+    Map<String, int> counts = {
+      'P': 0, 'N': 0, 'B': 0, 'R': 0, 'Q': 0, // Bianchi
+      'p': 0, 'n': 0, 'b': 0, 'r': 0, 'q': 0, // Neri
+    };
+
+    for (var char in piecePlacement.runes) {
+      var s = String.fromCharCode(char);
+      if (counts.containsKey(s)) counts[s] = counts[s]! + 1;
+    }
+
+    List<String> whiteCaptured = [];
+    List<String> blackCaptured = [];
+    int score = 0;
+    Map<String, int> values = {'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9};
+
+    void check(String p, int max, List<String> list) {
+      int missing = max - (counts[p] ?? 0);
+      for (int i = 0; i < missing; i++) {
+        list.add(p.toLowerCase());
+        score += p == p.toUpperCase()
+            ? -values[p.toLowerCase()]!
+            : values[p.toLowerCase()]!;
+      }
+    }
+
+    check('P', 8, whiteCaptured);
+    check('N', 2, whiteCaptured);
+    check('B', 2, whiteCaptured);
+    check('R', 2, whiteCaptured);
+    check('Q', 1, whiteCaptured);
+    check('p', 8, blackCaptured);
+    check('n', 2, blackCaptured);
+    check('b', 2, blackCaptured);
+    check('r', 2, blackCaptured);
+    check('q', 1, blackCaptured);
+
+    return {
+      'whiteCaptured': whiteCaptured,
+      'blackCaptured': blackCaptured,
+      'score': score,
+    };
+  }
+
+  // WIDGET PER DISEGNARE I PEZZI CATTURATI
+  Widget _buildCapturedPieces(List<String> pieces, int score) {
+    Map<String, String> icons = {
+      'p': '♟',
+      'n': '♞',
+      'b': '♝',
+      'r': '♜',
+      'q': '♛',
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...pieces.map(
+          (p) => Text(
+            icons[p]!,
+            style: const TextStyle(fontSize: 18, color: Colors.white70),
+          ),
+        ),
+        if (score > 0)
+          Padding(
+            padding: const EdgeInsets.only(left: 6.0),
+            child: Text(
+              "+$score",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
