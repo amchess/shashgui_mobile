@@ -1,77 +1,163 @@
 import 'dart:async';
-import '../engine/engine_manager.dart';
+import 'dart:math';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
+import '../engine/engine_manager.dart';
+import '../logic/livebook_scanner.dart'; // Messo per usare l'Oracolo
 
 class PlayOrchestrator {
   final EngineManager engineManager;
   final ChessBoardController boardController;
   final Function(String) onLog;
-  final Function(String?) onGameOver; // Callback per la fine partita
+  final Function(String?) onGameOver;
+  final bool useLivebook;
+  final int thinkTimeMs;
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
+  bool _outOfBook = false;
 
   PlayOrchestrator({
     required this.engineManager,
     required this.boardController,
     required this.onLog,
     required this.onGameOver,
+    this.useLivebook = true,
+    this.thinkTimeMs = 1500,
   });
 
   void startGame() {
-    onLog("🎮 Partita iniziata. Muovi il Bianco per cominciare!");
+    onLog("🎮 Partita iniziata! Buona fortuna.");
+    _outOfBook = !useLivebook;
     _listenToEngine();
   }
 
-  // Il cuore del gioco: viene chiamato ogni volta che tu muovi
-  void playCycle() {
+  void playCycle() async {
     if (_isEngineThinking) return;
-
-    // 1. Controlla se hai vinto tu con la tua mossa
     if (_checkStatus()) return;
 
-    // 2. Tocca al Nero (Computer)
-    _makeComputerMove();
-  }
-
-  void _makeComputerMove() {
     _isEngineThinking = true;
     onLog("🤖 Il computer sta pensando...");
 
-    // Invia la posizione attuale e chiedi una mossa rapida (1.5 secondi)
+    // --- LOGICA ORACOLO LIVEBOOK (Roulette Stocastica) ---
+    if (!_outOfBook) {
+      // Mock logica per capire che motore stiamo usando (da affinare se serve)
+      bool isShash = engineManager.engineOutput == null;
+
+      try {
+        // Chiamiamo il Cloud! Passiamo [] come history perché qui ci servono solo i WinRate
+        var result = await LiveBookScanner.scan(
+          boardController.getFen(),
+          [],
+          isShash,
+        );
+        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        if (chosenUci != null) {
+          onLog("📖 Mossa pescata dal LiveBook Cloud!");
+          _executeMoveOnBoard(chosenUci);
+          return;
+        } else {
+          onLog(
+            "📉 Livebook esaurito o mosse deboli. Il motore pensa da solo.",
+          );
+          _outOfBook = true;
+        }
+      } catch (e) {
+        onLog("⚠️ Errore LiveBook ($e). Il motore pensa da solo.");
+        _outOfBook = true;
+      }
+    }
+
+    // --- ANALISI MOTORE NORMALE ---
     engineManager.sendCommand('position fen ${boardController.getFen()}');
-    engineManager.sendCommand('go movetime 1500');
+    engineManager.sendCommand('go movetime $thinkTimeMs');
+  }
+
+  // --- TRADUZIONE ESATTA DALLA TUA VERSIONE PYTHON ---
+  String? _applyOracleRoulette(List<LiveBookMove> moves) {
+    if (moves.isEmpty ||
+        moves.first.move == "-" ||
+        moves.first.move.contains("."))
+      return null;
+
+    List<Map<String, dynamic>> parsedMoves = [];
+    for (var m in moves) {
+      double wp = double.tryParse(m.description.replaceAll('%', '')) ?? 0.0;
+      parsedMoves.add({'uci': m.move, 'wp': wp});
+    }
+
+    // Ordinamento
+    parsedMoves.sort(
+      (a, b) => (b['wp'] as double).compareTo(a['wp'] as double),
+    );
+    double topScore = parsedMoves.first['wp'];
+
+    // Se la mossa migliore fa schifo, usciamo dal libro (Bailout)
+    if (topScore < 40.0) return null;
+
+    // Selezioniamo l'Élite (almeno 48% di vittoria e a non più di 2 punti dalla migliore)
+    List<Map<String, dynamic>> eliteMoves = parsedMoves.where((m) {
+      double wp = m['wp'];
+      return wp >= 48.0 && (topScore - wp) <= 2.0;
+    }).toList();
+
+    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    // Assegnazione Biglietti Lotteria (Esponenziale)
+    List<double> weights = [];
+    double totalWeight = 0.0;
+    for (var m in eliteMoves) {
+      double weight = pow(2.5, m['wp'] - 48.0).toDouble();
+      weights.add(weight);
+      totalWeight += weight;
+    }
+
+    double randomVal = Random().nextDouble() * totalWeight;
+    double current = 0.0;
+
+    for (int i = 0; i < eliteMoves.length; i++) {
+      current += weights[i];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
+    }
+
+    return eliteMoves.last['uci'];
   }
 
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
+      if (!_isEngineThinking) return;
+
       if (line.startsWith('bestmove')) {
-        // 1. FIX FANTASMA: Ignora le vecchie risposte se il computer non stava "pensando" al turno attuale
-        if (!_isEngineThinking) return;
-
         final parts = line.split(' ');
-        if (parts.length > 1) {
-          String move = parts[1]; // Es. riceve "e7e5" o "e7e8q"
-
-          // 2. FIX SCACCHIERA: Traduciamo l'UCI in case di partenza e arrivo
-          String fromSquare = move.substring(0, 2);
-          String toSquare = move.substring(2, 4);
-
-          // Eseguiamo la mossa puntando esattamente le caselle fisiche
-          boardController.makeMove(from: fromSquare, to: toSquare);
-
-          onLog("🤖 Computer muove: $move");
-          _isEngineThinking = false;
-
-          // 3. Controlla se ha vinto il computer o è patta
-          _checkStatus();
+        if (parts.length > 1 && parts[1] != '(none)') {
+          _executeMoveOnBoard(parts[1]);
         }
       }
     });
   }
 
+  void _executeMoveOnBoard(String uciMove) {
+    String fromSq = uciMove.substring(0, 2);
+    String toSq = uciMove.substring(2, 4);
+
+    if (uciMove.length == 5) {
+      boardController.makeMoveWithPromotion(
+        from: fromSq,
+        to: toSq,
+        pieceToPromoteTo: uciMove[4],
+      );
+    } else {
+      boardController.makeMove(from: fromSq, to: toSq);
+    }
+
+    onLog("🤖 Computer gioca: $uciMove");
+    _isEngineThinking = false;
+    _checkStatus();
+  }
+
   bool _checkStatus() {
-    // Usiamo l'oggetto 'game' interno al controller per leggere le regole
     if (boardController.game.in_checkmate) {
       onGameOver("SCACCOMATTO! La partita è finita.");
       return true;
@@ -87,10 +173,8 @@ class PlayOrchestrator {
 
   void stop() {
     _outputSubscription?.cancel();
-    onLog("🎮 Sessione di gioco terminata.");
   }
 
-  // Aggiunto per evitare l'errore "The method 'dispose' isn't defined"
   void dispose() {
     _outputSubscription?.cancel();
   }

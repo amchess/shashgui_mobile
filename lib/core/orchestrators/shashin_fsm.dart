@@ -38,7 +38,7 @@ class ShashinFsm {
     "-",
     Colors.grey,
     50.0,
-    "assets/images/capablanca.png", // Immagine base
+    ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
   );
 
   // Callback per comunicare con l'interfaccia grafica (UI)

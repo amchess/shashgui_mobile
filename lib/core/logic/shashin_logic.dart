@@ -5,36 +5,55 @@ class ShashinZone {
   final String symbol;
   final Color color;
   final double wp; // La percentuale esatta (0.0 - 100.0)
-  final String avatar; // Quale faccina mostrare
+  final List<String> avatars; // Quale faccina mostrare (ora supporta array)
 
-  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatar);
+  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatars);
 }
 
 /// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
 ShashinZone analyzeShashinZone(int w, int d, int l) {
   int total = w + d + l;
   if (total == 0) {
-    return ShashinZone("Calcolo...", "...", Colors.grey, 50.0, "⚖️");
+    return ShashinZone("Calcolo...", "...", Colors.grey, 50.0, [
+      "assets/images/capablanca.png",
+    ]);
   }
 
   // Calcolo esatto Win Probability (WP)
-  double wpDouble = ((w + (d / 2.0)) / 10.0);
+  double wpDouble = ((w + (d / 2.0)) / total) * 100.0;
   int wpInt = wpDouble.round();
 
   // Assegnazione Avatar (Percorsi alle immagini locali)
-  String getAvatar(int wp) {
+  List<String> getAvatars(int wp) {
+    // 0. Total Chaos
+    if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
+      return [
+        "assets/images/capablanca.png",
+        "assets/images/petrosian.png",
+        "assets/images/tal.png",
+      ];
+    }
+
     // 1. Prima controlliamo se è una Pepita (Nugget)
-    if (wp == 25 || wp == 75) return "assets/images/nugget.png";
+    if (wp == 25 || wp == 75) return ["assets/images/nugget.png"];
 
-    // 2. Altrimenti, assegniamo il giocatore standard
-    if (wp > 50) return "assets/images/tal.png";
-    if (wp < 50) return "assets/images/petrosian.png";
+    // 2. Zone miste (Caos)
+    if (wp >= 25 && wp <= 49) {
+      return ["assets/images/capablanca.png", "assets/images/petrosian.png"];
+    }
+    if (wp >= 51 && wp <= 75) {
+      return ["assets/images/capablanca.png", "assets/images/tal.png"];
+    }
 
-    // 3. Perfetto equilibrio
-    return "assets/images/capablanca.png";
+    // 3. Altrimenti, assegniamo il giocatore standard
+    if (wp > 50) return ["assets/images/tal.png"];
+    if (wp < 50) return ["assets/images/petrosian.png"];
+
+    // 4. Perfetto equilibrio
+    return ["assets/images/capablanca.png"];
   }
 
-  String avatar = getAvatar(wpInt);
+  List<String> avatars = getAvatars(wpInt);
 
   // Total Chaos: perfetto equilibrio
   if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
@@ -43,7 +62,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       "∞",
       Colors.purple,
       wpDouble,
-      "🌪️",
+      avatars,
     );
   }
 
@@ -54,102 +73,108 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       "⚱️",
       Colors.orangeAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
   if (wpInt == 75) {
-    return ShashinZone("Tal Nugget", "⚱️", Colors.tealAccent, wpDouble, avatar);
+    return ShashinZone(
+      "Tal Nugget",
+      "⚱️",
+      Colors.tealAccent,
+      wpDouble,
+      avatars,
+    );
   }
 
   // Zone PETROSIAN (Rosso/Arancio)
-  if (wpInt <= 5) {
-    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatar);
+  if (wpInt >= 0 && wpInt <= 5) {
+    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatars);
   }
-  if (wpInt <= 10) {
+  if (wpInt >= 6 && wpInt <= 10) {
     return ShashinZone(
       "High-Middle Petrosian",
-      "-+ / -/+",
+      r"-+ \ -/+",
       Colors.deepOrange,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 15) {
+  if (wpInt >= 11 && wpInt <= 15) {
     return ShashinZone(
       "Middle Petrosian",
       "-/+",
       Colors.orange,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 20) {
+  if (wpInt >= 16 && wpInt <= 20) {
     return ShashinZone(
       "Middle-Low Petrosian",
-      "-/+ / =/+",
+      r"-/+ \ =/+",
       Colors.orangeAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 24) {
-    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatar);
+  if (wpInt >= 21 && wpInt <= 24) {
+    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatars);
   }
-  if (wpInt <= 49) {
+  if (wpInt >= 25 && wpInt <= 49) {
     return ShashinZone(
       "Chaos: Capablanca-Petrosian",
       "↓",
       Colors.purpleAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
 
   // Zona CAPABLANCA (Blu)
   if (wpInt == 50) {
-    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatar);
+    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatars);
   }
 
   // Zone TAL (Verde)
-  if (wpInt <= 74) {
+  if (wpInt >= 51 && wpInt <= 75) {
     return ShashinZone(
       "Chaos: Capablanca-Tal",
       "↑",
       Colors.teal,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 79) {
-    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatar);
+  if (wpInt >= 76 && wpInt <= 79) {
+    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatars);
   }
-  if (wpInt <= 84) {
+  if (wpInt >= 80 && wpInt <= 84) {
     return ShashinZone(
       "Middle-Low Tal",
-      "+/= / +/-",
+      r"+/= \ +/-",
       Colors.green,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 89) {
+  if (wpInt >= 85 && wpInt <= 89) {
     return ShashinZone(
       "Middle Tal",
       "+/-",
       Colors.green[700]!,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 94) {
+  if (wpInt >= 90 && wpInt <= 94) {
     return ShashinZone(
       "High-Middle Tal",
-      "+/- / +-",
+      r"+/- \ +-",
       Colors.green[800]!,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
 
-  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatar);
+  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
 }

@@ -610,9 +610,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   bool _showLiveBook = true;
 
   // Memoria del tempo iniziale T1 per il loop infinito
-  int _baseTimeSec = 2;
+  double _baseTimeSec = 2.0; // Cambiato in double per lo slider
 
   // Variabili per l'handicap (Modalità Gioco)
+  double _playTimeSec = 2.0; // <-- 1. NUOVA VARIABILE PER IL TEMPO DI GIOCO
   bool _limitStrength = false;
   double _eloValue = 1500;
   bool _simulateBlunders = false;
@@ -678,13 +679,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   final ValueNotifier<EngineStats> _statsNotifier = ValueNotifier(
     EngineStats(),
   );
+
   final ValueNotifier<ShashinZone> _zoneNotifier = ValueNotifier(
     ShashinZone(
       "In attesa...",
       "-",
       Colors.grey,
       50.0,
-      "assets/images/capablanca.png",
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     ),
   );
 
@@ -704,21 +706,27 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _outputLines.add("Accensione motore $_selectedEngine...");
     });
     try {
-      // Le opzioni le abbiamo già catturate con la Sonda, quindi avviamo e basta!
-      await _engineManager.initEngine(_selectedEngine, [
-        'nn-c288c895ea92.nnue',
-        'nn-37f18f62d772.nnue',
-      ]);
+      // Se il motore non è mai stato avviato (o è stato distrutto), lo inizializziamo
+      if (_engineManager.engineOutput == null) {
+        await _engineManager.initEngine(_selectedEngine, [
+          'nn-c288c895ea92.nnue',
+          'nn-37f18f62d772.nnue',
+        ]);
 
-      await Future.delayed(const Duration(milliseconds: 300));
+        await Future.delayed(const Duration(milliseconds: 300));
 
-      // Inviamo i parametri personalizzati
-      _uciValues.forEach((name, value) {
-        _engineManager.sendCommand('setoption name $name value $value');
-      });
+        // Inviamo i parametri personalizzati
+        _uciValues.forEach((name, value) {
+          _engineManager.sendCommand('setoption name $name value $value');
+        });
+      }
 
       setState(() => _isEngineRunning = true);
-      _startNormalAnalysis();
+
+      // Diamo mezzo secondo di respiro al motore per stabilizzarsi in RAM prima di fare richieste web
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _updateLiveBook();
+      });
     } catch (e) {
       setState(() => _outputLines.add("ERRORE FATALE: $e"));
     }
@@ -738,9 +746,32 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _playFsm = null;
 
     _isPlayingMode = false;
-    // Aggiorniamo i notifier in modo ultra-fluido, niente setState!
     _arrowsNotifier.value = [];
     _statsNotifier.value = EngineStats();
+  }
+
+  void _stopEngine() {
+    _stopAllOrchestrators();
+
+    // INVECE di distruggere il processo, lo fermiamo solo con il comando UCI.
+    // Questo permette riavvii istantanei!
+    _engineManager.sendCommand('stop');
+
+    setState(() {
+      _isEngineRunning = false;
+      _outputLines.add("--- ANALISI FERMATA ---");
+      _arrowsNotifier.value = [];
+    });
+
+    _zoneNotifier.value = ShashinZone(
+      "Analisi Fermata",
+      "-",
+      Colors.grey,
+      50.0,
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
+    );
+
+    Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
   }
 
   void _updateLiveBook() async {
@@ -827,31 +858,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // AVVIO CORRETTO: Parametro posizionale (FEN) + Parametro nominato (baseTimeMs)
     _fsm!.startAnalysis(
       _boardController.getFen(),
-      baseTimeMs: _baseTimeSec * 1000,
+      // Convertiamo il double in int prima di passarlo
+      baseTimeMs: (_baseTimeSec * 1000).toInt(),
     );
-  }
-
-  // 2. L'AVVIO VERO E PROPRIO (Contiene la tua vecchia logica + l'invio comandi)
-  void _stopEngine() {
-    _stopAllOrchestrators();
-    _engineManager.dispose();
-
-    setState(() {
-      _isEngineRunning = false;
-      _outputLines.add("--- MOTORE SPENTO ---");
-      _arrowsNotifier.value = []; // <-- AGGIUNTO: PULISCE LA FRECCIA
-    });
-
-    // Aggiorniamo la zona usando il Notifier!
-    _zoneNotifier.value = ShashinZone(
-      "Motore Spento",
-      "-",
-      Colors.grey,
-      50.0,
-      "assets/images/capablanca.png",
-    );
-
-    Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
   }
 
   @override
@@ -1086,7 +1095,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                       children: _liveBookResult!.moves
                                           .map(
                                             (m) => InkWell(
-                                              onTap: () async {
+                                              onTap: () {
                                                 if (m.move.length >= 4 &&
                                                     m.move != "-") {
                                                   String fromSq = m.move
@@ -1107,8 +1116,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                                       to: toSq,
                                                     );
                                                   }
-                                                  // CHIAMATA FONDAMENTALE PER FAR AVANZARE L'ANALISI (COME IN PYTHON)
-                                                  await _onMovePerformed();
+                                                  _onMovePerformed();
                                                 }
                                               },
                                               child: Padding(
@@ -1214,13 +1222,37 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                     fontSize: 11,
                                   ),
                                 ),
-                                Text(
-                                  "${zone.wp.toStringAsFixed(1)}%",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+
+                                // --- DISEGNATORE MULTI-FACCIA ---
+                                Row(
+                                  children: [
+                                    // Ciclo che estrae e affianca tutte le immagini nell'array
+                                    ...zone.avatars.map(
+                                      (avatarPath) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 4.0,
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundImage: AssetImage(
+                                            avatarPath,
+                                          ),
+                                          radius: 12,
+                                          backgroundColor: Colors.transparent,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "${zone.wp.toStringAsFixed(1)}%",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+
+                                // ----------------------------------------
                                 Text(
                                   "Tal 🔥",
                                   style: TextStyle(
@@ -1362,15 +1394,18 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             if (newValue != null &&
                                 newValue != _selectedEngine) {
                               if (_isEngineRunning) _stopEngine();
+                              _engineManager
+                                  .dispose(); // <-- FONDAMENTALE: Uccide il vecchio motore prima di cambiare!
                               setState(() {
                                 _selectedEngine = newValue;
                                 _prefs?.setString('selectedEngine', newValue);
                               });
                             }
                           },
-                        ),
-                        const SizedBox(width: 10),
-
+                        ), // Fine DropdownButton
+                        const SizedBox(
+                          width: 10,
+                        ), // Lasciamo solo un piccolo spazio di 10 pixel
                         // BOTTONE OPZIONI MOTORE
                         IconButton(
                           onPressed: () {
@@ -1394,46 +1429,56 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           ),
                           tooltip: "Configura Parametri",
                         ),
-
                         // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
                         if (_isEngineRunning) ...[
                           IconButton(
-                            onPressed: _isPlayingMode
-                                ? _startNormalAnalysis
-                                : null,
+                            // Se l'analisi è attiva la ferma. Se è ferma, APRE IL POPUP!
+                            onPressed:
+                                (_fsm != null &&
+                                    _fsm!.currentState != FsmState.idle)
+                                ? _stopEngine
+                                : _showAnalysisSetupDialog, // <-- ORA CHIAMA IL POPUP!
+
                             icon: Icon(
                               Icons.analytics,
-                              color: _isPlayingMode
-                                  ? Colors.blueAccent
-                                  : Colors.grey,
+                              // Il colore cambia per indicare lo stato
+                              color:
+                                  (_fsm != null &&
+                                      _fsm!.currentState != FsmState.idle)
+                                  ? Colors
+                                        .orangeAccent // ⬅️ Cambialo in Arancione o altro quando è acceso per contrasto
+                                  : Colors.blueAccent,
                             ),
-                            tooltip: "Modalità Analisi",
+                            tooltip:
+                                (_fsm != null &&
+                                    _fsm!.currentState != FsmState.idle)
+                                ? "Ferma Analisi"
+                                : "Avvia Analisi Libera",
                           ),
                           IconButton(
-                            onPressed: !_isPlayingMode ? _startPlayMode : null,
-                            icon: Icon(
+                            onPressed: _startPlayMode, // <-- Sempre cliccabile
+                            icon: const Icon(
                               Icons.sports_esports,
-                              color: !_isPlayingMode
-                                  ? Colors.greenAccent
-                                  : Colors.grey,
+                              color: Colors.greenAccent,
                             ),
-                            tooltip: "Modalità Gioco",
+                            tooltip: "Gioca contro il Motore",
                           ),
                           IconButton(
-                            onPressed: !_isPlayingMode ? _scanThreats : null,
-                            icon: Icon(
+                            onPressed: _scanThreats, // <-- Sempre cliccabile
+                            icon: const Icon(
                               Icons.crisis_alert,
-                              color: !_isPlayingMode
-                                  ? Colors.redAccent
-                                  : Colors.grey,
+                              color: Colors.redAccent,
                             ),
-                            tooltip: "Rileva Minacce (Mossa Nulla)",
+                            tooltip: "Rileva Minacce",
                           ),
                           IconButton(
                             onPressed: _startCrossedAnalysis,
                             icon: const Icon(
-                              Icons.compare_arrows,
-                              color: Colors.orangeAccent,
+                              Icons.call_split,
+                              color: Colors
+                                  .greenAccent, // Corretto in verde come da te richiesto
+                              size:
+                                  38, // ⬅️ Ingrandito rispetto agli altri bottoni per dargli risalto
                             ),
                             tooltip: "Valutazione Incrociata",
                           ),
@@ -1529,9 +1574,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Questa funzione gestisce la creazione di varianti e la cattura della notazione
   Future<void> _onMovePerformed() async {
+    String newFen = _boardController.getFen();
+    if (_currentNode.fen == newFen)
+      return; // FIX: Previene il doppio innesco che corrompe la storia del LiveBook!
+
     _isDragging = false;
-    _arrowsNotifier.value =
-        []; // <-- AGGIUNTO: SPEGNE LA FRECCIA APPENA TOCCHI UN PEZZO
+    _arrowsNotifier.value = [];
 
     // Recuperiamo il nome della mossa leggendo il PGN ufficiale
     String pgn = _boardController.game.pgn();
@@ -1578,7 +1626,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     } catch (e) {
       debugPrint("Errore riproduzione audio: $e");
     }
-    String newFen = _boardController.getFen();
 
     // 1. Controlliamo se la mossa esiste già
     MoveNode? existingChild;
@@ -2037,25 +2084,70 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
   }
 
-  // --- 1. POPUP IMPOSTAZIONI SFIDA ---
   void _startPlayMode() {
     if (!_isEngineRunning) return;
 
-    if (_selectedEngine == 'alexander') {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setPopupState) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF2b2b2b),
-                title: const Text(
-                  "Impostazioni Sfida",
-                  style: TextStyle(color: Colors.orangeAccent),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+    // Variabili temporanee per il popup
+    bool tempLivebook = true;
+    PlayerColor tempColor = PlayerColor.white;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Sfida",
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. SCELTA COLORE UMANO
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Giochi col:"),
+                      DropdownButton<PlayerColor>(
+                        value: tempColor,
+                        dropdownColor: const Color(0xFF2b2b2b),
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(
+                            value: PlayerColor.white,
+                            child: Text("Bianco"),
+                          ),
+                          DropdownMenuItem(
+                            value: PlayerColor.black,
+                            child: Text("Nero"),
+                          ),
+                        ],
+                        onChanged: (val) =>
+                            setPopupState(() => tempColor = val!),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24),
+
+                  // 2. TOGGLE LIVEBOOK
+                  SwitchListTile(
+                    title: const Text(
+                      "Usa LiveBook Cloud",
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      "Il motore pescherà le aperture dal database online.",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    value: tempLivebook,
+                    activeColor: Colors.greenAccent,
+                    onChanged: (v) => setPopupState(() => tempLivebook = v),
+                  ),
+                  const Divider(color: Colors.white24),
+
+                  if (_selectedEngine == 'alexander') ...[
                     SwitchListTile(
                       title: const Text(
                         "Limita Forza",
@@ -2077,75 +2169,81 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         label: _eloValue.toInt().toString(),
                         onChanged: (v) => setPopupState(() => _eloValue = v),
                       ),
-                      SwitchListTile(
-                        title: const Text(
-                          "Simula Errori Umani",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: const Text(
-                          "Attiva lo Skill Level per un gioco più naturale",
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                        value: _simulateBlunders,
-                        onChanged: (v) =>
-                            setPopupState(() => _simulateBlunders = v),
-                      ),
                     ],
                   ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Annulla"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _executePlayModeStartup();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
+
+                  // --- NUOVO SLIDER TEMPO DI RIFLESSIONE ---
+                  const Divider(color: Colors.white24),
+                  Text(
+                    "Tempo del Motore: ${_playTimeSec.toInt()} sec",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.orangeAccent,
                     ),
-                    child: const Text("GIOCA"),
                   ),
+                  Slider(
+                    value: _playTimeSec,
+                    min: 1,
+                    max: 15, // Massimo 15 secondi per mossa
+                    divisions: 14,
+                    label: "${_playTimeSec.toInt()} s",
+                    activeColor: Colors.orangeAccent,
+                    onChanged: (v) => setPopupState(() => _playTimeSec = v),
+                  ),
+
+                  // ------------------------------------------
                 ],
-              );
-            },
-          );
-        },
-      );
-    } else {
-      // ShashChess gioca sempre al massimo
-      _engineManager.sendCommand(
-        'setoption name UCI_LimitStrength value false',
-      );
-      _executePlayModeStartup();
-    }
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Applichiamo le scelte!
+                    setState(() => _boardOrientation = tempColor);
+                    _executePlayModeStartup(useLivebook: tempLivebook);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("GIOCA"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
-  // --- 2. AVVIO DELLA PARTITA CONTRO IL MOTORE ---
-  void _executePlayModeStartup() {
+  // Aggiorna anche la firma di questa funzione subito sotto:
+  void _executePlayModeStartup({bool useLivebook = true}) {
     _stopAllOrchestrators();
 
-    if (_selectedEngine == 'alexander' && _limitStrength) {
-      _engineManager.sendCommand('setoption name UCI_LimitStrength value true');
-      _engineManager.sendCommand(
-        'setoption name UCI_Elo value ${_eloValue.toInt()}',
-      );
-      if (_simulateBlunders) {
+    if (_selectedEngine == 'alexander') {
+      if (_limitStrength) {
         _engineManager.sendCommand(
-          'setoption name Skill Level value ${(_eloValue / 150).toInt()}',
+          'setoption name UCI_LimitStrength value true',
+        );
+        _engineManager.sendCommand(
+          'setoption name UCI_Elo value ${_eloValue.toInt()}',
         );
       } else {
-        _engineManager.sendCommand('setoption name Skill Level value 20');
+        _engineManager.sendCommand(
+          'setoption name UCI_LimitStrength value false',
+        );
       }
     }
 
     setState(() {
       _isPlayingMode = true;
       _outputLines.clear();
-      _arrowsNotifier.value = []; // Pulisce le frecce analitiche
+      _arrowsNotifier.value = [];
     });
 
     _zoneNotifier.value = ShashinZone(
@@ -2153,23 +2251,26 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       "⚔️",
       Colors.orange,
       50.0,
-      "assets/images/capablanca.png",
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     );
 
+    // PASSAGGIO DEL PARAMETRO LIVEBOOK ALL'ORCHESTRATORE
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: _boardController,
+      useLivebook: useLivebook, // <-- NUOVO PARAMETRO
+      thinkTimeMs: (_playTimeSec * 1000)
+          .toInt(), // <-- PASSIAMO IL TEMPO IN MILLISECONDI
       onLog: (line) {
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
-      onGameOver: (messaggio) {
-        _showGameOverDialog(messaggio!);
-      },
+      onGameOver: (messaggio) => _showGameOverDialog(messaggio!),
     );
+
     _playFsm!.startGame();
 
-    // Se giochiamo col Nero, facciamo muovere subito il computer
+    // Se l'utente è Nero, il motore (Bianco) gioca subito!
     if (_boardOrientation == PlayerColor.black &&
         _boardController.getFen().contains(" w ")) {
       _playFsm?.playCycle();
@@ -2305,45 +2406,152 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _scanThreats() async {
     if (!_isEngineRunning || _isPlayingMode || _isScanningThreat) return;
 
+    // 1. REGOLE SCACCHISTICHE: Niente mossa nulla se siamo sotto scacco
+    if (_boardController.game.in_check) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Impossibile analizzare le minacce sotto scacco!"),
+        ),
+      );
+      return;
+    }
+
+    String currentFen = _boardController.getFen();
+
+    // 2. REGOLE SCACCHISTICHE: Niente mossa nulla alla primissima mossa
+    if (currentFen.contains("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Nessuna minaccia alla mossa iniziale!")),
+      );
+      return;
+    }
+
     setState(() => _isScanningThreat = true); // Attiva sicura
 
     _stopAllOrchestrators();
     _engineManager.sendCommand('stop');
 
-    String currentFen = _boardController.getFen();
     List<String> fenParts = currentFen.split(' ');
     fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
-    fenParts[3] = '-';
+    fenParts[3] =
+        '-'; // Rimuove il target en passant, fondamentale per la legalità della FEN
     String nullMoveFen = fenParts.join(' ');
 
-    _engineManager.sendCommand('position fen $nullMoveFen');
-    _engineManager.sendCommand('go movetime 1500');
+    // 3. FIX TIMING: Diamo al motore 100ms per assorbire lo 'stop' prima di inviare i nuovi comandi
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _engineManager.sendCommand('position fen $nullMoveFen');
+      _engineManager.sendCommand('go movetime 1500');
 
-    StreamSubscription<String>? threatSub;
-    threatSub = _engineManager.engineOutput?.listen((line) {
-      if (line.startsWith('bestmove')) {
-        threatSub?.cancel();
-        final parts = line.split(' ');
-        if (parts.length > 1 && parts[1] != '(none)') {
-          setState(() {
-            _arrowsNotifier.value = [
-              BoardArrow(
-                from: parts[1].substring(0, 2),
-                to: parts[1].substring(2, 4),
-                color: Colors.red.withOpacity(0.8),
-              ),
-            ];
-          });
-          // Aspetta 3 secondi, poi torna all'analisi normale
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() => _isScanningThreat = false); // Disattiva sicura
-              _startNormalAnalysis();
-            }
-          });
+      StreamSubscription<String>? threatSub;
+      threatSub = _engineManager.engineOutput?.listen((line) {
+        if (line.startsWith('bestmove')) {
+          threatSub?.cancel();
+          final parts = line.split(' ');
+
+          if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
+            setState(() {
+              _arrowsNotifier.value = [
+                BoardArrow(
+                  from: parts[1].substring(0, 2),
+                  to: parts[1].substring(2, 4),
+                  color: Colors.red.withOpacity(
+                    0.85,
+                  ), // Un rosso più intenso per le minacce
+                ),
+              ];
+            });
+
+            // Aspetta 3 secondi, poi ripristina la normalità
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() => _isScanningThreat = false);
+                _startNormalAnalysis();
+              }
+            });
+          } else {
+            // Se l'engine restituisce (none), non ci sono minacce legali trovate
+            setState(() => _isScanningThreat = false);
+            _startNormalAnalysis();
+          }
         }
-      }
+      });
     });
+  }
+
+  // --- METODO PER IL POPUP DELL'ANALISI CONTINUA ---
+  void _showAnalysisSetupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Analisi",
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Tempo iniziale (T1) per mossa:",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    "${_baseTimeSec.toInt()} secondi",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
+                      fontSize: 22,
+                    ),
+                  ),
+                  Slider(
+                    value: _baseTimeSec,
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: "${_baseTimeSec.toInt()} s",
+                    activeColor: Colors.blueAccent,
+                    onChanged: (v) => setPopupState(() => _baseTimeSec = v),
+                  ),
+                  const Text(
+                    "Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "Annulla",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _startNormalAnalysis(); // Avvia l'analisi con il tempo scelto
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA ANALISI"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   // --- METODO PER L'ANALISI INCROCIATA (Doppie Frecce) ---
@@ -2352,88 +2560,86 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
-    // Pulizia visiva per preparare lo schermo
     setState(() {
       _outputLines.clear();
       _arrowsNotifier.value = [];
+      _outputLines.add(
+        "<span style='color: #f39c12; font-weight: bold;'>Inizializzazione Analisi Incrociata in corso...</span>",
+      );
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Inizio Analisi Incrociata (Maestro vs Allievo)..."),
-        backgroundColor: Colors.orangeAccent,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
-    // Diamo il comando esplicito di avvio al motore prima di lanciare l'orchestratore!
     _engineManager.sendCommand('stop');
-    _engineManager.sendCommand('position fen ${_boardController.getFen()}');
 
-    _crossedFsm = CrossedEvalOrchestrator(
-      engineManager: _engineManager,
-      onLog: (msg) {
-        // Stampiamo i log dell'orchestratore a schermo per vedere che lavora!
-        setState(() => _outputLines.add(msg));
-        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
-      },
-      onReportReady: (studentMove, studentZone, masterMove, masterZone) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF2b2b2b),
-            title: const Text(
-              "🔍 Verdetto Divergenze",
-              style: TextStyle(color: Colors.cyanAccent),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Idea Allievo (Elo ${_eloValue.toInt()}):",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                Text(
-                  "Mossa: $studentMove [${studentZone.name}]",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orangeAccent,
+    // Diamo 100ms al motore per fermarsi davvero prima di inviargli la nuova posizione
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _engineManager.sendCommand('position fen ${_boardController.getFen()}');
+
+      _crossedFsm = CrossedEvalOrchestrator(
+        engineManager: _engineManager,
+        onLog: (msg) {
+          setState(() => _outputLines.add(msg));
+          Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+        },
+        onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "🔍 Verdetto Divergenze",
+                style: TextStyle(color: Colors.cyanAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Idea Allievo (Elo ${_eloValue.toInt()}):",
+                    style: const TextStyle(color: Colors.grey),
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "Risposta Maestro (Depth 12):",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                Text(
-                  "Mossa: $masterMove [${masterZone.name}]",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent,
+                  Text(
+                    "Mossa: $studentMove [${studentZone.name}]",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "Risposta Maestro (Profondità 12):",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    "Mossa: $masterMove [${masterZone.name}]",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // SICUREZZA: Nessun avvio automatico del motore. Ora l'analisi resta rigorosamente in silenzio!
+                  },
+                  child: const Text(
+                    "Chiudi",
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _startNormalAnalysis(); // Riavvia l'analisi normale chiudendo il popup
-                },
-                child: const Text(
-                  "Chiudi",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
 
-    // Facciamo partire il loop
-    _crossedFsm!.startCrossedEval(_boardController.getFen(), _eloValue.toInt());
+      _crossedFsm!.startCrossedEval(
+        _boardController.getFen(),
+        _eloValue.toInt(),
+      );
+    });
   }
 }
 
@@ -3110,36 +3316,55 @@ class ShashinZone {
   final String symbol;
   final Color color;
   final double wp; // La percentuale esatta (0.0 - 100.0)
-  final String avatar; // Quale faccina mostrare
+  final List<String> avatars; // Quale faccina mostrare (ora supporta array)
 
-  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatar);
+  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatars);
 }
 
 /// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
 ShashinZone analyzeShashinZone(int w, int d, int l) {
   int total = w + d + l;
   if (total == 0) {
-    return ShashinZone("Calcolo...", "...", Colors.grey, 50.0, "⚖️");
+    return ShashinZone("Calcolo...", "...", Colors.grey, 50.0, [
+      "assets/images/capablanca.png",
+    ]);
   }
 
   // Calcolo esatto Win Probability (WP)
-  double wpDouble = ((w + (d / 2.0)) / 10.0);
+  double wpDouble = ((w + (d / 2.0)) / total) * 100.0;
   int wpInt = wpDouble.round();
 
   // Assegnazione Avatar (Percorsi alle immagini locali)
-  String getAvatar(int wp) {
+  List<String> getAvatars(int wp) {
+    // 0. Total Chaos
+    if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
+      return [
+        "assets/images/capablanca.png",
+        "assets/images/petrosian.png",
+        "assets/images/tal.png",
+      ];
+    }
+
     // 1. Prima controlliamo se è una Pepita (Nugget)
-    if (wp == 25 || wp == 75) return "assets/images/nugget.png";
+    if (wp == 25 || wp == 75) return ["assets/images/nugget.png"];
 
-    // 2. Altrimenti, assegniamo il giocatore standard
-    if (wp > 50) return "assets/images/tal.png";
-    if (wp < 50) return "assets/images/petrosian.png";
+    // 2. Zone miste (Caos)
+    if (wp >= 25 && wp <= 49) {
+      return ["assets/images/capablanca.png", "assets/images/petrosian.png"];
+    }
+    if (wp >= 51 && wp <= 75) {
+      return ["assets/images/capablanca.png", "assets/images/tal.png"];
+    }
 
-    // 3. Perfetto equilibrio
-    return "assets/images/capablanca.png";
+    // 3. Altrimenti, assegniamo il giocatore standard
+    if (wp > 50) return ["assets/images/tal.png"];
+    if (wp < 50) return ["assets/images/petrosian.png"];
+
+    // 4. Perfetto equilibrio
+    return ["assets/images/capablanca.png"];
   }
 
-  String avatar = getAvatar(wpInt);
+  List<String> avatars = getAvatars(wpInt);
 
   // Total Chaos: perfetto equilibrio
   if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
@@ -3148,7 +3373,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       "∞",
       Colors.purple,
       wpDouble,
-      "🌪️",
+      avatars,
     );
   }
 
@@ -3159,104 +3384,110 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       "⚱️",
       Colors.orangeAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
   if (wpInt == 75) {
-    return ShashinZone("Tal Nugget", "⚱️", Colors.tealAccent, wpDouble, avatar);
+    return ShashinZone(
+      "Tal Nugget",
+      "⚱️",
+      Colors.tealAccent,
+      wpDouble,
+      avatars,
+    );
   }
 
   // Zone PETROSIAN (Rosso/Arancio)
-  if (wpInt <= 5) {
-    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatar);
+  if (wpInt >= 0 && wpInt <= 5) {
+    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatars);
   }
-  if (wpInt <= 10) {
+  if (wpInt >= 6 && wpInt <= 10) {
     return ShashinZone(
       "High-Middle Petrosian",
-      "-+ / -/+",
+      r"-+ \ -/+",
       Colors.deepOrange,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 15) {
+  if (wpInt >= 11 && wpInt <= 15) {
     return ShashinZone(
       "Middle Petrosian",
       "-/+",
       Colors.orange,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 20) {
+  if (wpInt >= 16 && wpInt <= 20) {
     return ShashinZone(
       "Middle-Low Petrosian",
-      "-/+ / =/+",
+      r"-/+ \ =/+",
       Colors.orangeAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 24) {
-    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatar);
+  if (wpInt >= 21 && wpInt <= 24) {
+    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatars);
   }
-  if (wpInt <= 49) {
+  if (wpInt >= 25 && wpInt <= 49) {
     return ShashinZone(
       "Chaos: Capablanca-Petrosian",
       "↓",
       Colors.purpleAccent,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
 
   // Zona CAPABLANCA (Blu)
   if (wpInt == 50) {
-    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatar);
+    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatars);
   }
 
   // Zone TAL (Verde)
-  if (wpInt <= 74) {
+  if (wpInt >= 51 && wpInt <= 75) {
     return ShashinZone(
       "Chaos: Capablanca-Tal",
       "↑",
       Colors.teal,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 79) {
-    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatar);
+  if (wpInt >= 76 && wpInt <= 79) {
+    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatars);
   }
-  if (wpInt <= 84) {
+  if (wpInt >= 80 && wpInt <= 84) {
     return ShashinZone(
       "Middle-Low Tal",
-      "+/= / +/-",
+      r"+/= \ +/-",
       Colors.green,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 89) {
+  if (wpInt >= 85 && wpInt <= 89) {
     return ShashinZone(
       "Middle Tal",
       "+/-",
       Colors.green[700]!,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
-  if (wpInt <= 94) {
+  if (wpInt >= 90 && wpInt <= 94) {
     return ShashinZone(
       "High-Middle Tal",
-      "+/- / +-",
+      r"+/- \ +-",
       Colors.green[800]!,
       wpDouble,
-      avatar,
+      avatars,
     );
   }
 
-  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatar);
+  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
 }
 
 
@@ -3386,79 +3617,165 @@ FILE: lib\core\orchestrators\play_orchestrator.dart
 ================================================================================
 
 import 'dart:async';
-import '../engine/engine_manager.dart';
+import 'dart:math';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
+import '../engine/engine_manager.dart';
+import '../logic/livebook_scanner.dart'; // Messo per usare l'Oracolo
 
 class PlayOrchestrator {
   final EngineManager engineManager;
   final ChessBoardController boardController;
   final Function(String) onLog;
-  final Function(String?) onGameOver; // Callback per la fine partita
+  final Function(String?) onGameOver;
+  final bool useLivebook;
+  final int thinkTimeMs;
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
+  bool _outOfBook = false;
 
   PlayOrchestrator({
     required this.engineManager,
     required this.boardController,
     required this.onLog,
     required this.onGameOver,
+    this.useLivebook = true,
+    this.thinkTimeMs = 1500,
   });
 
   void startGame() {
-    onLog("🎮 Partita iniziata. Muovi il Bianco per cominciare!");
+    onLog("🎮 Partita iniziata! Buona fortuna.");
+    _outOfBook = !useLivebook;
     _listenToEngine();
   }
 
-  // Il cuore del gioco: viene chiamato ogni volta che tu muovi
-  void playCycle() {
+  void playCycle() async {
     if (_isEngineThinking) return;
-
-    // 1. Controlla se hai vinto tu con la tua mossa
     if (_checkStatus()) return;
 
-    // 2. Tocca al Nero (Computer)
-    _makeComputerMove();
-  }
-
-  void _makeComputerMove() {
     _isEngineThinking = true;
     onLog("🤖 Il computer sta pensando...");
 
-    // Invia la posizione attuale e chiedi una mossa rapida (1.5 secondi)
+    // --- LOGICA ORACOLO LIVEBOOK (Roulette Stocastica) ---
+    if (!_outOfBook) {
+      // Mock logica per capire che motore stiamo usando (da affinare se serve)
+      bool isShash = engineManager.engineOutput == null;
+
+      try {
+        // Chiamiamo il Cloud! Passiamo [] come history perché qui ci servono solo i WinRate
+        var result = await LiveBookScanner.scan(
+          boardController.getFen(),
+          [],
+          isShash,
+        );
+        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        if (chosenUci != null) {
+          onLog("📖 Mossa pescata dal LiveBook Cloud!");
+          _executeMoveOnBoard(chosenUci);
+          return;
+        } else {
+          onLog(
+            "📉 Livebook esaurito o mosse deboli. Il motore pensa da solo.",
+          );
+          _outOfBook = true;
+        }
+      } catch (e) {
+        onLog("⚠️ Errore LiveBook ($e). Il motore pensa da solo.");
+        _outOfBook = true;
+      }
+    }
+
+    // --- ANALISI MOTORE NORMALE ---
     engineManager.sendCommand('position fen ${boardController.getFen()}');
-    engineManager.sendCommand('go movetime 1500');
+    engineManager.sendCommand('go movetime $thinkTimeMs');
+  }
+
+  // --- TRADUZIONE ESATTA DALLA TUA VERSIONE PYTHON ---
+  String? _applyOracleRoulette(List<LiveBookMove> moves) {
+    if (moves.isEmpty ||
+        moves.first.move == "-" ||
+        moves.first.move.contains("."))
+      return null;
+
+    List<Map<String, dynamic>> parsedMoves = [];
+    for (var m in moves) {
+      double wp = double.tryParse(m.description.replaceAll('%', '')) ?? 0.0;
+      parsedMoves.add({'uci': m.move, 'wp': wp});
+    }
+
+    // Ordinamento
+    parsedMoves.sort(
+      (a, b) => (b['wp'] as double).compareTo(a['wp'] as double),
+    );
+    double topScore = parsedMoves.first['wp'];
+
+    // Se la mossa migliore fa schifo, usciamo dal libro (Bailout)
+    if (topScore < 40.0) return null;
+
+    // Selezioniamo l'Élite (almeno 48% di vittoria e a non più di 2 punti dalla migliore)
+    List<Map<String, dynamic>> eliteMoves = parsedMoves.where((m) {
+      double wp = m['wp'];
+      return wp >= 48.0 && (topScore - wp) <= 2.0;
+    }).toList();
+
+    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    // Assegnazione Biglietti Lotteria (Esponenziale)
+    List<double> weights = [];
+    double totalWeight = 0.0;
+    for (var m in eliteMoves) {
+      double weight = pow(2.5, m['wp'] - 48.0).toDouble();
+      weights.add(weight);
+      totalWeight += weight;
+    }
+
+    double randomVal = Random().nextDouble() * totalWeight;
+    double current = 0.0;
+
+    for (int i = 0; i < eliteMoves.length; i++) {
+      current += weights[i];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
+    }
+
+    return eliteMoves.last['uci'];
   }
 
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
+      if (!_isEngineThinking) return;
+
       if (line.startsWith('bestmove')) {
-        // 1. FIX FANTASMA: Ignora le vecchie risposte se il computer non stava "pensando" al turno attuale
-        if (!_isEngineThinking) return;
-
         final parts = line.split(' ');
-        if (parts.length > 1) {
-          String move = parts[1]; // Es. riceve "e7e5" o "e7e8q"
-
-          // 2. FIX SCACCHIERA: Traduciamo l'UCI in case di partenza e arrivo
-          String fromSquare = move.substring(0, 2);
-          String toSquare = move.substring(2, 4);
-
-          // Eseguiamo la mossa puntando esattamente le caselle fisiche
-          boardController.makeMove(from: fromSquare, to: toSquare);
-
-          onLog("🤖 Computer muove: $move");
-          _isEngineThinking = false;
-
-          // 3. Controlla se ha vinto il computer o è patta
-          _checkStatus();
+        if (parts.length > 1 && parts[1] != '(none)') {
+          _executeMoveOnBoard(parts[1]);
         }
       }
     });
   }
 
+  void _executeMoveOnBoard(String uciMove) {
+    String fromSq = uciMove.substring(0, 2);
+    String toSq = uciMove.substring(2, 4);
+
+    if (uciMove.length == 5) {
+      boardController.makeMoveWithPromotion(
+        from: fromSq,
+        to: toSq,
+        pieceToPromoteTo: uciMove[4],
+      );
+    } else {
+      boardController.makeMove(from: fromSq, to: toSq);
+    }
+
+    onLog("🤖 Computer gioca: $uciMove");
+    _isEngineThinking = false;
+    _checkStatus();
+  }
+
   bool _checkStatus() {
-    // Usiamo l'oggetto 'game' interno al controller per leggere le regole
     if (boardController.game.in_checkmate) {
       onGameOver("SCACCOMATTO! La partita è finita.");
       return true;
@@ -3474,10 +3791,8 @@ class PlayOrchestrator {
 
   void stop() {
     _outputSubscription?.cancel();
-    onLog("🎮 Sessione di gioco terminata.");
   }
 
-  // Aggiunto per evitare l'errore "The method 'dispose' isn't defined"
   void dispose() {
     _outputSubscription?.cancel();
   }
@@ -3529,7 +3844,7 @@ class ShashinFsm {
     "-",
     Colors.grey,
     50.0,
-    "assets/images/capablanca.png", // Immagine base
+    ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
   );
 
   // Callback per comunicare con l'interfaccia grafica (UI)

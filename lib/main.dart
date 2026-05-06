@@ -115,9 +115,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   bool _showLiveBook = true;
 
   // Memoria del tempo iniziale T1 per il loop infinito
-  int _baseTimeSec = 2;
+  double _baseTimeSec = 2.0; // Cambiato in double per lo slider
 
   // Variabili per l'handicap (Modalità Gioco)
+  double _playTimeSec = 2.0; // <-- 1. NUOVA VARIABILE PER IL TEMPO DI GIOCO
   bool _limitStrength = false;
   double _eloValue = 1500;
   bool _simulateBlunders = false;
@@ -183,13 +184,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   final ValueNotifier<EngineStats> _statsNotifier = ValueNotifier(
     EngineStats(),
   );
+
   final ValueNotifier<ShashinZone> _zoneNotifier = ValueNotifier(
     ShashinZone(
       "In attesa...",
       "-",
       Colors.grey,
       50.0,
-      "assets/images/capablanca.png",
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     ),
   );
 
@@ -225,7 +227,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       }
 
       setState(() => _isEngineRunning = true);
-      _startNormalAnalysis();
+
+      // Diamo mezzo secondo di respiro al motore per stabilizzarsi in RAM prima di fare richieste web
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _updateLiveBook();
+      });
     } catch (e) {
       setState(() => _outputLines.add("ERRORE FATALE: $e"));
     }
@@ -267,7 +273,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       "-",
       Colors.grey,
       50.0,
-      "assets/images/capablanca.png",
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     );
 
     Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
@@ -357,7 +363,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // AVVIO CORRETTO: Parametro posizionale (FEN) + Parametro nominato (baseTimeMs)
     _fsm!.startAnalysis(
       _boardController.getFen(),
-      baseTimeMs: _baseTimeSec * 1000,
+      // Convertiamo il double in int prima di passarlo
+      baseTimeMs: (_baseTimeSec * 1000).toInt(),
     );
   }
 
@@ -593,7 +600,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                       children: _liveBookResult!.moves
                                           .map(
                                             (m) => InkWell(
-                                              onTap: () async {
+                                              onTap: () {
                                                 if (m.move.length >= 4 &&
                                                     m.move != "-") {
                                                   String fromSq = m.move
@@ -614,8 +621,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                                       to: toSq,
                                                     );
                                                   }
-                                                  // CHIAMATA FONDAMENTALE PER FAR AVANZARE L'ANALISI (COME IN PYTHON)
-                                                  await _onMovePerformed();
+                                                  _onMovePerformed();
                                                 }
                                               },
                                               child: Padding(
@@ -721,13 +727,37 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                     fontSize: 11,
                                   ),
                                 ),
-                                Text(
-                                  "${zone.wp.toStringAsFixed(1)}%",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+
+                                // --- DISEGNATORE MULTI-FACCIA ---
+                                Row(
+                                  children: [
+                                    // Ciclo che estrae e affianca tutte le immagini nell'array
+                                    ...zone.avatars.map(
+                                      (avatarPath) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 4.0,
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundImage: AssetImage(
+                                            avatarPath,
+                                          ),
+                                          radius: 12,
+                                          backgroundColor: Colors.transparent,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "${zone.wp.toStringAsFixed(1)}%",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+
+                                // ----------------------------------------
                                 Text(
                                   "Tal 🔥",
                                   style: TextStyle(
@@ -877,9 +907,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               });
                             }
                           },
-                        ),
-                        const SizedBox(width: 10),
-
+                        ), // Fine DropdownButton
+                        const SizedBox(
+                          width: 10,
+                        ), // Lasciamo solo un piccolo spazio di 10 pixel
                         // BOTTONE OPZIONI MOTORE
                         IconButton(
                           onPressed: () {
@@ -903,46 +934,56 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           ),
                           tooltip: "Configura Parametri",
                         ),
-
                         // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
                         if (_isEngineRunning) ...[
                           IconButton(
-                            onPressed: _isPlayingMode
-                                ? _startNormalAnalysis
-                                : null,
+                            // Se l'analisi è attiva la ferma. Se è ferma, APRE IL POPUP!
+                            onPressed:
+                                (_fsm != null &&
+                                    _fsm!.currentState != FsmState.idle)
+                                ? _stopEngine
+                                : _showAnalysisSetupDialog, // <-- ORA CHIAMA IL POPUP!
+
                             icon: Icon(
                               Icons.analytics,
-                              color: _isPlayingMode
-                                  ? Colors.blueAccent
-                                  : Colors.grey,
+                              // Il colore cambia per indicare lo stato
+                              color:
+                                  (_fsm != null &&
+                                      _fsm!.currentState != FsmState.idle)
+                                  ? Colors
+                                        .orangeAccent // ⬅️ Cambialo in Arancione o altro quando è acceso per contrasto
+                                  : Colors.blueAccent,
                             ),
-                            tooltip: "Modalità Analisi",
+                            tooltip:
+                                (_fsm != null &&
+                                    _fsm!.currentState != FsmState.idle)
+                                ? "Ferma Analisi"
+                                : "Avvia Analisi Libera",
                           ),
                           IconButton(
-                            onPressed: !_isPlayingMode ? _startPlayMode : null,
-                            icon: Icon(
+                            onPressed: _startPlayMode, // <-- Sempre cliccabile
+                            icon: const Icon(
                               Icons.sports_esports,
-                              color: !_isPlayingMode
-                                  ? Colors.greenAccent
-                                  : Colors.grey,
+                              color: Colors.greenAccent,
                             ),
-                            tooltip: "Modalità Gioco",
+                            tooltip: "Gioca contro il Motore",
                           ),
                           IconButton(
-                            onPressed: !_isPlayingMode ? _scanThreats : null,
-                            icon: Icon(
+                            onPressed: _scanThreats, // <-- Sempre cliccabile
+                            icon: const Icon(
                               Icons.crisis_alert,
-                              color: !_isPlayingMode
-                                  ? Colors.redAccent
-                                  : Colors.grey,
+                              color: Colors.redAccent,
                             ),
-                            tooltip: "Rileva Minacce (Mossa Nulla)",
+                            tooltip: "Rileva Minacce",
                           ),
                           IconButton(
                             onPressed: _startCrossedAnalysis,
                             icon: const Icon(
-                              Icons.compare_arrows,
-                              color: Colors.orangeAccent,
+                              Icons.call_split,
+                              color: Colors
+                                  .greenAccent, // Corretto in verde come da te richiesto
+                              size:
+                                  38, // ⬅️ Ingrandito rispetto agli altri bottoni per dargli risalto
                             ),
                             tooltip: "Valutazione Incrociata",
                           ),
@@ -1548,25 +1589,70 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
   }
 
-  // --- 1. POPUP IMPOSTAZIONI SFIDA ---
   void _startPlayMode() {
     if (!_isEngineRunning) return;
 
-    if (_selectedEngine == 'alexander') {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setPopupState) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF2b2b2b),
-                title: const Text(
-                  "Impostazioni Sfida",
-                  style: TextStyle(color: Colors.orangeAccent),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+    // Variabili temporanee per il popup
+    bool tempLivebook = true;
+    PlayerColor tempColor = PlayerColor.white;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Sfida",
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. SCELTA COLORE UMANO
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Giochi col:"),
+                      DropdownButton<PlayerColor>(
+                        value: tempColor,
+                        dropdownColor: const Color(0xFF2b2b2b),
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(
+                            value: PlayerColor.white,
+                            child: Text("Bianco"),
+                          ),
+                          DropdownMenuItem(
+                            value: PlayerColor.black,
+                            child: Text("Nero"),
+                          ),
+                        ],
+                        onChanged: (val) =>
+                            setPopupState(() => tempColor = val!),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24),
+
+                  // 2. TOGGLE LIVEBOOK
+                  SwitchListTile(
+                    title: const Text(
+                      "Usa LiveBook Cloud",
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      "Il motore pescherà le aperture dal database online.",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    value: tempLivebook,
+                    activeColor: Colors.greenAccent,
+                    onChanged: (v) => setPopupState(() => tempLivebook = v),
+                  ),
+                  const Divider(color: Colors.white24),
+
+                  if (_selectedEngine == 'alexander') ...[
                     SwitchListTile(
                       title: const Text(
                         "Limita Forza",
@@ -1588,75 +1674,81 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         label: _eloValue.toInt().toString(),
                         onChanged: (v) => setPopupState(() => _eloValue = v),
                       ),
-                      SwitchListTile(
-                        title: const Text(
-                          "Simula Errori Umani",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: const Text(
-                          "Attiva lo Skill Level per un gioco più naturale",
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                        value: _simulateBlunders,
-                        onChanged: (v) =>
-                            setPopupState(() => _simulateBlunders = v),
-                      ),
                     ],
                   ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Annulla"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _executePlayModeStartup();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
+
+                  // --- NUOVO SLIDER TEMPO DI RIFLESSIONE ---
+                  const Divider(color: Colors.white24),
+                  Text(
+                    "Tempo del Motore: ${_playTimeSec.toInt()} sec",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.orangeAccent,
                     ),
-                    child: const Text("GIOCA"),
                   ),
+                  Slider(
+                    value: _playTimeSec,
+                    min: 1,
+                    max: 15, // Massimo 15 secondi per mossa
+                    divisions: 14,
+                    label: "${_playTimeSec.toInt()} s",
+                    activeColor: Colors.orangeAccent,
+                    onChanged: (v) => setPopupState(() => _playTimeSec = v),
+                  ),
+
+                  // ------------------------------------------
                 ],
-              );
-            },
-          );
-        },
-      );
-    } else {
-      // ShashChess gioca sempre al massimo
-      _engineManager.sendCommand(
-        'setoption name UCI_LimitStrength value false',
-      );
-      _executePlayModeStartup();
-    }
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Applichiamo le scelte!
+                    setState(() => _boardOrientation = tempColor);
+                    _executePlayModeStartup(useLivebook: tempLivebook);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("GIOCA"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
-  // --- 2. AVVIO DELLA PARTITA CONTRO IL MOTORE ---
-  void _executePlayModeStartup() {
+  // Aggiorna anche la firma di questa funzione subito sotto:
+  void _executePlayModeStartup({bool useLivebook = true}) {
     _stopAllOrchestrators();
 
-    if (_selectedEngine == 'alexander' && _limitStrength) {
-      _engineManager.sendCommand('setoption name UCI_LimitStrength value true');
-      _engineManager.sendCommand(
-        'setoption name UCI_Elo value ${_eloValue.toInt()}',
-      );
-      if (_simulateBlunders) {
+    if (_selectedEngine == 'alexander') {
+      if (_limitStrength) {
         _engineManager.sendCommand(
-          'setoption name Skill Level value ${(_eloValue / 150).toInt()}',
+          'setoption name UCI_LimitStrength value true',
+        );
+        _engineManager.sendCommand(
+          'setoption name UCI_Elo value ${_eloValue.toInt()}',
         );
       } else {
-        _engineManager.sendCommand('setoption name Skill Level value 20');
+        _engineManager.sendCommand(
+          'setoption name UCI_LimitStrength value false',
+        );
       }
     }
 
     setState(() {
       _isPlayingMode = true;
       _outputLines.clear();
-      _arrowsNotifier.value = []; // Pulisce le frecce analitiche
+      _arrowsNotifier.value = [];
     });
 
     _zoneNotifier.value = ShashinZone(
@@ -1664,23 +1756,26 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       "⚔️",
       Colors.orange,
       50.0,
-      "assets/images/capablanca.png",
+      ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     );
 
+    // PASSAGGIO DEL PARAMETRO LIVEBOOK ALL'ORCHESTRATORE
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: _boardController,
+      useLivebook: useLivebook, // <-- NUOVO PARAMETRO
+      thinkTimeMs: (_playTimeSec * 1000)
+          .toInt(), // <-- PASSIAMO IL TEMPO IN MILLISECONDI
       onLog: (line) {
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       },
-      onGameOver: (messaggio) {
-        _showGameOverDialog(messaggio!);
-      },
+      onGameOver: (messaggio) => _showGameOverDialog(messaggio!),
     );
+
     _playFsm!.startGame();
 
-    // Se giochiamo col Nero, facciamo muovere subito il computer
+    // Se l'utente è Nero, il motore (Bianco) gioca subito!
     if (_boardOrientation == PlayerColor.black &&
         _boardController.getFen().contains(" w ")) {
       _playFsm?.playCycle();
@@ -1816,45 +1911,152 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _scanThreats() async {
     if (!_isEngineRunning || _isPlayingMode || _isScanningThreat) return;
 
+    // 1. REGOLE SCACCHISTICHE: Niente mossa nulla se siamo sotto scacco
+    if (_boardController.game.in_check) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Impossibile analizzare le minacce sotto scacco!"),
+        ),
+      );
+      return;
+    }
+
+    String currentFen = _boardController.getFen();
+
+    // 2. REGOLE SCACCHISTICHE: Niente mossa nulla alla primissima mossa
+    if (currentFen.contains("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Nessuna minaccia alla mossa iniziale!")),
+      );
+      return;
+    }
+
     setState(() => _isScanningThreat = true); // Attiva sicura
 
     _stopAllOrchestrators();
     _engineManager.sendCommand('stop');
 
-    String currentFen = _boardController.getFen();
     List<String> fenParts = currentFen.split(' ');
     fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
-    fenParts[3] = '-';
+    fenParts[3] =
+        '-'; // Rimuove il target en passant, fondamentale per la legalità della FEN
     String nullMoveFen = fenParts.join(' ');
 
-    _engineManager.sendCommand('position fen $nullMoveFen');
-    _engineManager.sendCommand('go movetime 1500');
+    // 3. FIX TIMING: Diamo al motore 100ms per assorbire lo 'stop' prima di inviare i nuovi comandi
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _engineManager.sendCommand('position fen $nullMoveFen');
+      _engineManager.sendCommand('go movetime 1500');
 
-    StreamSubscription<String>? threatSub;
-    threatSub = _engineManager.engineOutput?.listen((line) {
-      if (line.startsWith('bestmove')) {
-        threatSub?.cancel();
-        final parts = line.split(' ');
-        if (parts.length > 1 && parts[1] != '(none)') {
-          setState(() {
-            _arrowsNotifier.value = [
-              BoardArrow(
-                from: parts[1].substring(0, 2),
-                to: parts[1].substring(2, 4),
-                color: Colors.red.withOpacity(0.8),
-              ),
-            ];
-          });
-          // Aspetta 3 secondi, poi torna all'analisi normale
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() => _isScanningThreat = false); // Disattiva sicura
-              _startNormalAnalysis();
-            }
-          });
+      StreamSubscription<String>? threatSub;
+      threatSub = _engineManager.engineOutput?.listen((line) {
+        if (line.startsWith('bestmove')) {
+          threatSub?.cancel();
+          final parts = line.split(' ');
+
+          if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
+            setState(() {
+              _arrowsNotifier.value = [
+                BoardArrow(
+                  from: parts[1].substring(0, 2),
+                  to: parts[1].substring(2, 4),
+                  color: Colors.red.withOpacity(
+                    0.85,
+                  ), // Un rosso più intenso per le minacce
+                ),
+              ];
+            });
+
+            // Aspetta 3 secondi, poi ripristina la normalità
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() => _isScanningThreat = false);
+                _startNormalAnalysis();
+              }
+            });
+          } else {
+            // Se l'engine restituisce (none), non ci sono minacce legali trovate
+            setState(() => _isScanningThreat = false);
+            _startNormalAnalysis();
+          }
         }
-      }
+      });
     });
+  }
+
+  // --- METODO PER IL POPUP DELL'ANALISI CONTINUA ---
+  void _showAnalysisSetupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Analisi",
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Tempo iniziale (T1) per mossa:",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    "${_baseTimeSec.toInt()} secondi",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
+                      fontSize: 22,
+                    ),
+                  ),
+                  Slider(
+                    value: _baseTimeSec,
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: "${_baseTimeSec.toInt()} s",
+                    activeColor: Colors.blueAccent,
+                    onChanged: (v) => setPopupState(() => _baseTimeSec = v),
+                  ),
+                  const Text(
+                    "Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "Annulla",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _startNormalAnalysis(); // Avvia l'analisi con il tempo scelto
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA ANALISI"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   // --- METODO PER L'ANALISI INCROCIATA (Doppie Frecce) ---
@@ -1863,88 +2065,86 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
-    // Pulizia visiva per preparare lo schermo
     setState(() {
       _outputLines.clear();
       _arrowsNotifier.value = [];
+      _outputLines.add(
+        "<span style='color: #f39c12; font-weight: bold;'>Inizializzazione Analisi Incrociata in corso...</span>",
+      );
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Inizio Analisi Incrociata (Maestro vs Allievo)..."),
-        backgroundColor: Colors.orangeAccent,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
-    // Diamo il comando esplicito di avvio al motore prima di lanciare l'orchestratore!
     _engineManager.sendCommand('stop');
-    _engineManager.sendCommand('position fen ${_boardController.getFen()}');
 
-    _crossedFsm = CrossedEvalOrchestrator(
-      engineManager: _engineManager,
-      onLog: (msg) {
-        // Stampiamo i log dell'orchestratore a schermo per vedere che lavora!
-        setState(() => _outputLines.add(msg));
-        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
-      },
-      onReportReady: (studentMove, studentZone, masterMove, masterZone) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF2b2b2b),
-            title: const Text(
-              "🔍 Verdetto Divergenze",
-              style: TextStyle(color: Colors.cyanAccent),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Idea Allievo (Elo ${_eloValue.toInt()}):",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                Text(
-                  "Mossa: $studentMove [${studentZone.name}]",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orangeAccent,
+    // Diamo 100ms al motore per fermarsi davvero prima di inviargli la nuova posizione
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _engineManager.sendCommand('position fen ${_boardController.getFen()}');
+
+      _crossedFsm = CrossedEvalOrchestrator(
+        engineManager: _engineManager,
+        onLog: (msg) {
+          setState(() => _outputLines.add(msg));
+          Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+        },
+        onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "🔍 Verdetto Divergenze",
+                style: TextStyle(color: Colors.cyanAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Idea Allievo (Elo ${_eloValue.toInt()}):",
+                    style: const TextStyle(color: Colors.grey),
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "Risposta Maestro (Depth 12):",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                Text(
-                  "Mossa: $masterMove [${masterZone.name}]",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent,
+                  Text(
+                    "Mossa: $studentMove [${studentZone.name}]",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "Risposta Maestro (Profondità 12):",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    "Mossa: $masterMove [${masterZone.name}]",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // SICUREZZA: Nessun avvio automatico del motore. Ora l'analisi resta rigorosamente in silenzio!
+                  },
+                  child: const Text(
+                    "Chiudi",
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _startNormalAnalysis(); // Riavvia l'analisi normale chiudendo il popup
-                },
-                child: const Text(
-                  "Chiudi",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
 
-    // Facciamo partire il loop
-    _crossedFsm!.startCrossedEval(_boardController.getFen(), _eloValue.toInt());
+      _crossedFsm!.startCrossedEval(
+        _boardController.getFen(),
+        _eloValue.toInt(),
+      );
+    });
   }
 }
 
