@@ -10,7 +10,16 @@ class PlayOrchestrator {
   final Function(String) onLog;
   final Function(String?) onGameOver;
   final bool useLivebook;
-  final int thinkTimeMs;
+
+  // --- NUOVE VARIABILI OROLOGIO ---
+  final int tcType; // 0 = Fischer, 1 = Fisso
+  final int baseTimeMs;
+  final int incMs;
+
+  int _wtime = 0;
+  int _btime = 0;
+  DateTime? _lastEngineStart;
+  // --------------------------------
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
@@ -22,8 +31,15 @@ class PlayOrchestrator {
     required this.onLog,
     required this.onGameOver,
     this.useLivebook = true,
-    this.thinkTimeMs = 1500,
-  });
+    this.tcType = 1,
+    this.baseTimeMs = 3000,
+    this.incMs = 0,
+  }) {
+    if (tcType == 0) {
+      _wtime = baseTimeMs;
+      _btime = baseTimeMs;
+    }
+  }
 
   void startGame() {
     onLog("🎮 Partita iniziata! Buona fortuna.");
@@ -70,7 +86,17 @@ class PlayOrchestrator {
 
     // --- ANALISI MOTORE NORMALE ---
     engineManager.sendCommand('position fen ${boardController.getFen()}');
-    engineManager.sendCommand('go movetime $thinkTimeMs');
+
+    if (tcType == 1) {
+      // Tempo fisso per mossa
+      engineManager.sendCommand('go movetime $baseTimeMs');
+    } else {
+      // Orologio Fischer (invia il tempo residuo)
+      _lastEngineStart = DateTime.now();
+      engineManager.sendCommand(
+        'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
+      );
+    }
   }
 
   // --- TRADUZIONE ESATTA DALLA TUA VERSIONE PYTHON ---
@@ -141,7 +167,6 @@ class PlayOrchestrator {
   void _executeMoveOnBoard(String uciMove) {
     String fromSq = uciMove.substring(0, 2);
     String toSq = uciMove.substring(2, 4);
-
     if (uciMove.length == 5) {
       boardController.makeMoveWithPromotion(
         from: fromSq,
@@ -154,6 +179,20 @@ class PlayOrchestrator {
 
     onLog("🤖 Computer gioca: $uciMove");
     _isEngineThinking = false;
+
+    // --- AGGIORNAMENTO OROLOGIO INTERNO ---
+    if (tcType == 0 && _lastEngineStart != null) {
+      int elapsed = DateTime.now().difference(_lastEngineStart!).inMilliseconds;
+      // Diamo al motore un limite minimo di 1 secondo per evitare crash da timeout
+      if (boardController.getFen().contains(" b ")) {
+        // È il turno del nero, quindi ha appena mosso il bianco (motore)
+        _wtime = (_wtime - elapsed + incMs).clamp(1000, 9999999);
+      } else {
+        _btime = (_btime - elapsed + incMs).clamp(1000, 9999999);
+      }
+    }
+    // --------------------------------------
+
     _checkStatus();
   }
 

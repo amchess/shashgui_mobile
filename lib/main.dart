@@ -1595,6 +1595,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // Variabili temporanee per il popup
     bool tempLivebook = true;
     PlayerColor tempColor = PlayerColor.white;
+    int tempTcType = 0; // 0 = Fischer, 1 = Fisso
+    int tempBaseTime = 5; // Minuti o Secondi base
+    int tempInc = 3; // Incremento in secondi
 
     showDialog(
       context: context,
@@ -1607,98 +1610,214 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 "Impostazioni Sfida",
                 style: TextStyle(color: Colors.orangeAccent),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. SCELTA COLORE UMANO
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Giochi col:"),
-                      DropdownButton<PlayerColor>(
-                        value: tempColor,
-                        dropdownColor: const Color(0xFF2b2b2b),
-                        style: const TextStyle(color: Colors.white),
-                        items: const [
-                          DropdownMenuItem(
-                            value: PlayerColor.white,
-                            child: Text("Bianco"),
-                          ),
-                          DropdownMenuItem(
-                            value: PlayerColor.black,
-                            child: Text("Nero"),
-                          ),
-                        ],
-                        onChanged: (val) =>
-                            setPopupState(() => tempColor = val!),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white24),
-
-                  // 2. TOGGLE LIVEBOOK
-                  SwitchListTile(
-                    title: const Text(
-                      "Usa LiveBook Cloud",
-                      style: TextStyle(fontSize: 14),
+              content: SingleChildScrollView(
+                // Evita overflow su schermi piccoli
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. SCELTA COLORE UMANO
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Giochi col:",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        DropdownButton<PlayerColor>(
+                          value: tempColor,
+                          dropdownColor: const Color(0xFF2b2b2b),
+                          style: const TextStyle(color: Colors.white),
+                          items: const [
+                            DropdownMenuItem(
+                              value: PlayerColor.white,
+                              child: Text("Bianco"),
+                            ),
+                            DropdownMenuItem(
+                              value: PlayerColor.black,
+                              child: Text("Nero"),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setPopupState(() => tempColor = val!),
+                        ),
+                      ],
                     ),
-                    subtitle: const Text(
-                      "Il motore pescherà le aperture dal database online.",
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    value: tempLivebook,
-                    activeColor: Colors.greenAccent,
-                    onChanged: (v) => setPopupState(() => tempLivebook = v),
-                  ),
-                  const Divider(color: Colors.white24),
+                    const Divider(color: Colors.white24),
 
-                  if (_selectedEngine == 'alexander') ...[
+                    // 2. LIVEBOOK E TRATTI (PREMIUM)
                     SwitchListTile(
                       title: const Text(
-                        "Limita Forza",
-                        style: TextStyle(fontSize: 14),
+                        "Usa LiveBook Cloud",
+                        style: TextStyle(fontSize: 14, color: Colors.white),
                       ),
-                      value: _limitStrength,
-                      onChanged: (v) => setPopupState(() => _limitStrength = v),
+                      subtitle: const Text(
+                        "Il motore pescherà le aperture dal web.",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                      value: tempLivebook,
+                      activeColor: Colors.greenAccent,
+                      onChanged: (v) => setPopupState(() => tempLivebook = v),
                     ),
-                    if (_limitStrength) ...[
-                      Text(
-                        "Livello ELO: ${_eloValue.toInt()}",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    ListTile(
+                      title: const Text(
+                        "Filtri Tratti Posizionali",
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                      Slider(
-                        value: _eloValue,
-                        min: 1000,
-                        max: 2850,
-                        divisions: 37,
-                        label: _eloValue.toInt().toString(),
-                        onChanged: (v) => setPopupState(() => _eloValue = v),
+                      subtitle: const Text(
+                        "Aggiunge bias strategico alle mosse.",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
+                      trailing: const Icon(
+                        Icons.lock,
+                        color: Colors.orangeAccent,
+                      ),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "I Filtri sui Tratti Posizionali sono un'esclusiva della versione Premium!",
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(color: Colors.white24),
+
+                    // 3. LIMITA FORZA
+                    if (_selectedEngine == 'alexander') ...[
+                      SwitchListTile(
+                        title: const Text(
+                          "Limita Forza",
+                          style: TextStyle(fontSize: 14, color: Colors.white),
+                        ),
+                        value: _limitStrength,
+                        activeColor: Colors.blueAccent,
+                        onChanged: (v) =>
+                            setPopupState(() => _limitStrength = v),
+                      ),
+                      if (_limitStrength) ...[
+                        Text(
+                          "Livello ELO: ${_eloValue.toInt()}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Slider(
+                          value: _eloValue,
+                          min: 1000,
+                          max: 2850,
+                          divisions: 37,
+                          label: _eloValue.toInt().toString(),
+                          activeColor: Colors.blueAccent,
+                          onChanged: (v) => setPopupState(() => _eloValue = v),
+                        ),
+                      ],
+                      const Divider(color: Colors.white24),
                     ],
-                  ],
 
-                  // --- NUOVO SLIDER TEMPO DI RIFLESSIONE ---
-                  const Divider(color: Colors.white24),
-                  Text(
-                    "Tempo del Motore: ${_playTimeSec.toInt()} sec",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.orangeAccent,
+                    // 4. OROLOGIO E CADENZE (REPLICA DESKTOP)
+                    const Text(
+                      "Orologio (Cadenza)",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orangeAccent,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  Slider(
-                    value: _playTimeSec,
-                    min: 1,
-                    max: 15, // Massimo 15 secondi per mossa
-                    divisions: 14,
-                    label: "${_playTimeSec.toInt()} s",
-                    activeColor: Colors.orangeAccent,
-                    onChanged: (v) => setPopupState(() => _playTimeSec = v),
-                  ),
+                    const SizedBox(height: 5),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      value: 0,
+                      groupValue: tempTcType,
+                      activeColor: Colors.orangeAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 5;
+                      }),
+                    ),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      value: 1,
+                      groupValue: tempTcType,
+                      activeColor: Colors.orangeAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 3;
+                      }),
+                    ),
 
-                  // ------------------------------------------
-                ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              tempTcType == 0 ? "Minuti:" : "Secondi:",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            DropdownButton<int>(
+                              value: tempBaseTime,
+                              dropdownColor: const Color(0xFF2b2b2b),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              items:
+                                  (tempTcType == 0
+                                          ? [1, 2, 3, 5, 10, 15, 30]
+                                          : [1, 2, 3, 5, 10, 15])
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text("$e"),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (v) =>
+                                  setPopupState(() => tempBaseTime = v!),
+                            ),
+                          ],
+                        ),
+                        if (tempTcType == 0)
+                          Column(
+                            children: [
+                              const Text(
+                                "Incremento (s):",
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              DropdownButton<int>(
+                                value: tempInc,
+                                dropdownColor: const Color(0xFF2b2b2b),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                items: [0, 1, 2, 3, 5, 10, 15]
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text("$e"),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setPopupState(() => tempInc = v!),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -1710,7 +1829,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     Navigator.pop(context);
                     // Applichiamo le scelte!
                     setState(() => _boardOrientation = tempColor);
-                    _executePlayModeStartup(useLivebook: tempLivebook);
+                    _executePlayModeStartup(
+                      useLivebook: tempLivebook,
+                      tcType: tempTcType,
+                      baseTime: tempBaseTime,
+                      increment: tempInc,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
@@ -1727,7 +1851,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   // Aggiorna anche la firma di questa funzione subito sotto:
-  void _executePlayModeStartup({bool useLivebook = true}) {
+  void _executePlayModeStartup({
+    bool useLivebook = true,
+    int tcType = 1,
+    int baseTime = 3,
+    int increment = 0,
+  }) {
     _stopAllOrchestrators();
 
     if (_selectedEngine == 'alexander') {
@@ -1759,13 +1888,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     );
 
-    // PASSAGGIO DEL PARAMETRO LIVEBOOK ALL'ORCHESTRATORE
+    // PASSAGGIO DEI PARAMETRI OROLOGIO ALL'ORCHESTRATORE
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: _boardController,
-      useLivebook: useLivebook, // <-- NUOVO PARAMETRO
-      thinkTimeMs: (_playTimeSec * 1000)
-          .toInt(), // <-- PASSIAMO IL TEMPO IN MILLISECONDI
+      useLivebook: useLivebook,
+      tcType: tcType,
+      // Convertiamo minuti in millisecondi (Fischer) o secondi in millisecondi (Fisso)
+      baseTimeMs: tcType == 0 ? (baseTime * 60 * 1000) : (baseTime * 1000),
+      incMs: increment * 1000,
       onLog: (line) {
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
