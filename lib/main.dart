@@ -111,7 +111,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   final ValueNotifier<List<BoardArrow>> _arrowsNotifier = ValueNotifier([]);
 
   // --- VARIABILI LIVEBOOK ---
-  List<LiveBookMove> _liveBookData = [];
+  LiveBookResult? _liveBookResult;
   bool _showLiveBook = true;
 
   // Memoria del tempo iniziale T1 per il loop infinito
@@ -209,18 +209,20 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _outputLines.add("Accensione motore $_selectedEngine...");
     });
     try {
-      // Le opzioni le abbiamo già catturate con la Sonda, quindi avviamo e basta!
-      await _engineManager.initEngine(_selectedEngine, [
-        'nn-c288c895ea92.nnue',
-        'nn-37f18f62d772.nnue',
-      ]);
+      // Se il motore non è mai stato avviato (o è stato distrutto), lo inizializziamo
+      if (_engineManager.engineOutput == null) {
+        await _engineManager.initEngine(_selectedEngine, [
+          'nn-c288c895ea92.nnue',
+          'nn-37f18f62d772.nnue',
+        ]);
 
-      await Future.delayed(const Duration(milliseconds: 300));
+        await Future.delayed(const Duration(milliseconds: 300));
 
-      // Inviamo i parametri personalizzati
-      _uciValues.forEach((name, value) {
-        _engineManager.sendCommand('setoption name $name value $value');
-      });
+        // Inviamo i parametri personalizzati
+        _uciValues.forEach((name, value) {
+          _engineManager.sendCommand('setoption name $name value $value');
+        });
+      }
 
       setState(() => _isEngineRunning = true);
       _startNormalAnalysis();
@@ -243,18 +245,53 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _playFsm = null;
 
     _isPlayingMode = false;
-    // Aggiorniamo i notifier in modo ultra-fluido, niente setState!
     _arrowsNotifier.value = [];
     _statsNotifier.value = EngineStats();
   }
 
-  // --- AGGIUNTO: Interrogazione Cloud asincrona ---
+  void _stopEngine() {
+    _stopAllOrchestrators();
+
+    // INVECE di distruggere il processo, lo fermiamo solo con il comando UCI.
+    // Questo permette riavvii istantanei!
+    _engineManager.sendCommand('stop');
+
+    setState(() {
+      _isEngineRunning = false;
+      _outputLines.add("--- ANALISI FERMATA ---");
+      _arrowsNotifier.value = [];
+    });
+
+    _zoneNotifier.value = ShashinZone(
+      "Analisi Fermata",
+      "-",
+      Colors.grey,
+      50.0,
+      "assets/images/capablanca.png",
+    );
+
+    Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+  }
+
   void _updateLiveBook() async {
     bool isShash = _selectedEngine.toLowerCase().contains("shash");
-    var data = await LiveBookScanner.scan(_boardController.getFen(), isShash);
+
+    // Calcoliamo la cronologia delle mosse (SAN) dall'inizio alla posizione corrente
+    List<String> history = [];
+    MoveNode? temp = _currentNode;
+    while (temp != null && temp != _rootNode) {
+      history.insert(0, temp.san);
+      temp = temp.parent;
+    }
+
+    var result = await LiveBookScanner.scan(
+      _boardController.getFen(),
+      history,
+      isShash,
+    );
     if (mounted) {
       setState(() {
-        _liveBookData = data;
+        _liveBookResult = result;
       });
     }
   }
@@ -322,29 +359,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _boardController.getFen(),
       baseTimeMs: _baseTimeSec * 1000,
     );
-  }
-
-  // 2. L'AVVIO VERO E PROPRIO (Contiene la tua vecchia logica + l'invio comandi)
-  void _stopEngine() {
-    _stopAllOrchestrators();
-    _engineManager.dispose();
-
-    setState(() {
-      _isEngineRunning = false;
-      _outputLines.add("--- MOTORE SPENTO ---");
-      _arrowsNotifier.value = []; // <-- AGGIUNTO: PULISCE LA FRECCIA
-    });
-
-    // Aggiorniamo la zona usando il Notifier!
-    _zoneNotifier.value = ShashinZone(
-      "Motore Spento",
-      "-",
-      Colors.grey,
-      50.0,
-      "assets/images/capablanca.png",
-    );
-
-    Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
   }
 
   @override
@@ -562,9 +576,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           ),
                           const Divider(color: Colors.white24, height: 8),
 
+                          // --- LISTA MOSSE ---
                           Expanded(
+                            flex: 3, // Diamo il 60% di spazio alle mosse
                             child: SingleChildScrollView(
-                              child: _liveBookData.isEmpty
+                              child: _liveBookResult == null
                                   ? const Text(
                                       "Scanning cloud data...",
                                       style: TextStyle(
@@ -574,10 +590,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                       ),
                                     )
                                   : Column(
-                                      children: _liveBookData
+                                      children: _liveBookResult!.moves
                                           .map(
                                             (m) => InkWell(
-                                              onTap: () {
+                                              onTap: () async {
                                                 if (m.move.length >= 4 &&
                                                     m.move != "-") {
                                                   String fromSq = m.move
@@ -598,6 +614,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                                       to: toSq,
                                                     );
                                                   }
+                                                  // CHIAMATA FONDAMENTALE PER FAR AVANZARE L'ANALISI (COME IN PYTHON)
+                                                  await _onMovePerformed();
                                                 }
                                               },
                                               child: Padding(
@@ -606,10 +624,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                                       vertical: 4.0,
                                                     ),
                                                 child: Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
                                                   children: [
-                                                    // Larghezza fissa per allineare a colonna
                                                     SizedBox(
                                                       width: 60,
                                                       child: Text(
@@ -641,6 +656,46 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                     ),
                             ),
                           ),
+
+                          // --- AREA TESTO (NOME APERTURA O COMMENTO IA) ---
+                          if (_liveBookResult != null &&
+                              (_liveBookResult!.openingName.isNotEmpty ||
+                                  _liveBookResult!
+                                      .engineComment
+                                      .isNotEmpty)) ...[
+                            const Divider(color: Colors.white24, height: 8),
+                            Expanded(
+                              flex:
+                                  2, // Diamo il 40% di spazio al testo scorrevole
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (_liveBookResult!.openingName.isNotEmpty)
+                                      Text(
+                                        _liveBookResult!.openingName,
+                                        style: const TextStyle(
+                                          color: Colors.orangeAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    if (_liveBookResult!
+                                        .engineComment
+                                        .isNotEmpty)
+                                      Text(
+                                        _liveBookResult!.engineComment,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -779,136 +834,153 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               right: 10,
             ),
             width: double.infinity,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // SELETTORE MOTORE (Sempre cliccabile!)
-                  DropdownButton<String>(
-                    value: _selectedEngine,
-                    dropdownColor: const Color(0xFF2b2b2b),
-                    style: const TextStyle(
-                      color: Colors.orangeAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    underline: Container(height: 2, color: Colors.blueAccent),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'shashchess',
-                        child: Text("ShashChess"),
-                      ),
-                      DropdownMenuItem(
-                        value: 'alexander',
-                        child: Text("Alexander"),
-                      ),
-                    ],
-                    onChanged: (String? newValue) {
-                      if (newValue != null && newValue != _selectedEngine) {
-                        // Se il motore è acceso, lo fermiamo in automatico per farti cambiare!
-                        if (_isEngineRunning) _stopEngine();
-                        setState(() {
-                          _selectedEngine = newValue;
-                          _prefs?.setString('selectedEngine', newValue);
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 10),
-
-                  // BOTTONE OPZIONI MOTORE (Ingranaggio con avviso intelligente)
-                  IconButton(
-                    onPressed: () {
-                      if (_isEngineRunning) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "Spegni il motore per modificare i parametri!",
-                            ),
-                            backgroundColor: Colors.orange,
-                            duration: Duration(seconds: 2),
+            child: Row(
+              children: [
+                // I controlli secondari scorrono orizzontalmente
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        // SELETTORE MOTORE
+                        DropdownButton<String>(
+                          value: _selectedEngine,
+                          dropdownColor: const Color(0xFF2b2b2b),
+                          style: const TextStyle(
+                            color: Colors.orangeAccent,
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                      } else {
-                        _showUciSettings();
-                      }
-                    },
-                    icon: Icon(
-                      Icons.settings,
-                      color: _isEngineRunning ? Colors.grey : Colors.white70,
+                          underline: Container(
+                            height: 2,
+                            color: Colors.blueAccent,
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'shashchess',
+                              child: Text("ShashChess"),
+                            ),
+                            DropdownMenuItem(
+                              value: 'alexander',
+                              child: Text("Alexander"),
+                            ),
+                          ],
+                          onChanged: (String? newValue) {
+                            if (newValue != null &&
+                                newValue != _selectedEngine) {
+                              if (_isEngineRunning) _stopEngine();
+                              _engineManager
+                                  .dispose(); // <-- FONDAMENTALE: Uccide il vecchio motore prima di cambiare!
+                              setState(() {
+                                _selectedEngine = newValue;
+                                _prefs?.setString('selectedEngine', newValue);
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        // BOTTONE OPZIONI MOTORE
+                        IconButton(
+                          onPressed: () {
+                            if (_isEngineRunning) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Spegni il motore per modificare i parametri!",
+                                  ),
+                                ),
+                              );
+                            } else {
+                              _showUciSettings();
+                            }
+                          },
+                          icon: Icon(
+                            Icons.settings,
+                            color: _isEngineRunning
+                                ? Colors.grey
+                                : Colors.white70,
+                          ),
+                          tooltip: "Configura Parametri",
+                        ),
+
+                        // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
+                        if (_isEngineRunning) ...[
+                          IconButton(
+                            onPressed: _isPlayingMode
+                                ? _startNormalAnalysis
+                                : null,
+                            icon: Icon(
+                              Icons.analytics,
+                              color: _isPlayingMode
+                                  ? Colors.blueAccent
+                                  : Colors.grey,
+                            ),
+                            tooltip: "Modalità Analisi",
+                          ),
+                          IconButton(
+                            onPressed: !_isPlayingMode ? _startPlayMode : null,
+                            icon: Icon(
+                              Icons.sports_esports,
+                              color: !_isPlayingMode
+                                  ? Colors.greenAccent
+                                  : Colors.grey,
+                            ),
+                            tooltip: "Modalità Gioco",
+                          ),
+                          IconButton(
+                            onPressed: !_isPlayingMode ? _scanThreats : null,
+                            icon: Icon(
+                              Icons.crisis_alert,
+                              color: !_isPlayingMode
+                                  ? Colors.redAccent
+                                  : Colors.grey,
+                            ),
+                            tooltip: "Rileva Minacce (Mossa Nulla)",
+                          ),
+                          IconButton(
+                            onPressed: _startCrossedAnalysis,
+                            icon: const Icon(
+                              Icons.compare_arrows,
+                              color: Colors.orangeAccent,
+                            ),
+                            tooltip: "Valutazione Incrociata",
+                          ),
+                        ],
+                      ],
                     ),
-                    tooltip: "Configura Parametri",
                   ),
+                ),
 
-                  // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
-                  if (_isEngineRunning) ...[
-                    // Tasto ANALIZZA
-                    IconButton(
-                      onPressed: _isPlayingMode ? _startNormalAnalysis : null,
-                      icon: Icon(
-                        Icons.analytics,
-                        color: _isPlayingMode ? Colors.blueAccent : Colors.grey,
+                // IL PULSANTE PRINCIPALE E' FISSO E ANCORATO A DESTRA
+                if (_isEngineRunning) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _stopEngine,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      shape: const CircleBorder(
+                        side: BorderSide(color: Colors.white, width: 2),
                       ),
-                      tooltip: "Modalità Analisi",
+                      padding: const EdgeInsets.all(14),
+                      elevation: 4,
                     ),
-                    // Tasto GIOCA
-                    IconButton(
-                      onPressed: !_isPlayingMode ? _startPlayMode : null,
-                      icon: Icon(
-                        Icons.sports_esports,
-                        color: !_isPlayingMode
-                            ? Colors.greenAccent
-                            : Colors.grey,
-                      ),
-                      tooltip: "Modalità Gioco",
+                    child: const Icon(Icons.stop, size: 28),
+                  ),
+                ] else ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _isLoadingOptions ? null : _startEngine,
+                    icon: const Icon(Icons.power),
+                    label: const Text('Accendi'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
                     ),
-
-                    // --- NUOVO TASTO: THREAT DETECTOR ---
-                    IconButton(
-                      onPressed: !_isPlayingMode ? _scanThreats : null,
-                      icon: Icon(
-                        Icons.crisis_alert, // Icona stile mirino/allarme
-                        color: !_isPlayingMode ? Colors.redAccent : Colors.grey,
-                      ),
-                      tooltip: "Rileva Minacce (Mossa Nulla)",
-                    ),
-
-                    // Tasto VALUTAZIONE INCROCIATA
-                    IconButton(
-                      onPressed: _startCrossedAnalysis,
-                      icon: const Icon(
-                        Icons.compare_arrows,
-                        color: Colors.orangeAccent,
-                      ),
-                      tooltip: "Valutazione Incrociata",
-                    ),
-                    const SizedBox(width: 5),
-                    // PULSANTE STOP (Rosso)
-                    ElevatedButton(
-                      onPressed: _stopEngine,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[700],
-                        foregroundColor: Colors.white,
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(12),
-                      ),
-                      child: const Icon(Icons.stop),
-                    ),
-                  ] else ...[
-                    // PULSANTE ACCENDI (Verde)
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      onPressed: _isLoadingOptions ? null : _startEngine,
-                      icon: const Icon(Icons.power),
-                      label: const Text('Accendi'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[700],
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ],
@@ -966,9 +1038,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Questa funzione gestisce la creazione di varianti e la cattura della notazione
   Future<void> _onMovePerformed() async {
+    String newFen = _boardController.getFen();
+    if (_currentNode.fen == newFen)
+      return; // FIX: Previene il doppio innesco che corrompe la storia del LiveBook!
+
     _isDragging = false;
-    _arrowsNotifier.value =
-        []; // <-- AGGIUNTO: SPEGNE LA FRECCIA APPENA TOCCHI UN PEZZO
+    _arrowsNotifier.value = [];
 
     // Recuperiamo il nome della mossa leggendo il PGN ufficiale
     String pgn = _boardController.game.pgn();
@@ -1015,7 +1090,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     } catch (e) {
       debugPrint("Errore riproduzione audio: $e");
     }
-    String newFen = _boardController.getFen();
 
     // 1. Controlliamo se la mossa esiste già
     MoveNode? existingChild;
@@ -1078,6 +1152,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Piccolo metodo di supporto per non ripetere il codice di avvio motore
   void _triggerEngineAnalysis() {
+    _updateLiveBook(); // <-- AGGIUNTO: Aggiorna il Livebook ad ogni mossa, anche a motore spento!
     if (_isPlayingMode) {
       _playFsm?.playCycle();
     } else if (_isEngineRunning) {
