@@ -8,6 +8,8 @@ import 'core/engine/engine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'core/logic/livebook_scanner.dart'; // <-- AGGIUNTO PER IL LIVEBOOK
+import 'dart:async';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -96,6 +98,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   bool _isEngineRunning = false;
   bool _isPlayingMode = false;
   bool _isDragging = false;
+  bool _isScanningThreat = false;
 
   // --- NUOVE VARIABILI PER NAVIGAZIONE E ORIENTAMENTO ---
   PlayerColor _boardOrientation = PlayerColor.white; // Bianco o Nero in basso
@@ -107,8 +110,17 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // --- NOTIFIER PER LE FRECCE ---
   final ValueNotifier<List<BoardArrow>> _arrowsNotifier = ValueNotifier([]);
 
+  // --- VARIABILI LIVEBOOK ---
+  List<LiveBookMove> _liveBookData = [];
+  bool _showLiveBook = true;
+
   // Memoria del tempo iniziale T1 per il loop infinito
   int _baseTimeSec = 2;
+
+  // Variabili per l'handicap (Modalità Gioco)
+  bool _limitStrength = false;
+  double _eloValue = 1500;
+  bool _simulateBlunders = false;
 
   // --- VARIABILI REINSERITE ---
   SharedPreferences? _prefs;
@@ -116,11 +128,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   bool _isLoadingOptions = false;
   final List<Map<String, String>> _engineOptionsMetadata = [];
   final Map<String, String> _uciValues = {'Threads': '2', 'Hash': '128'};
-
-  // Variabili per l'handicap (Modalità Gioco)
-  bool _limitStrength = false;
-  double _eloValue = 1500;
-  bool _simulateBlunders = false;
 
   @override
   void initState() {
@@ -241,6 +248,17 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _statsNotifier.value = EngineStats();
   }
 
+  // --- AGGIUNTO: Interrogazione Cloud asincrona ---
+  void _updateLiveBook() async {
+    bool isShash = _selectedEngine.toLowerCase().contains("shash");
+    var data = await LiveBookScanner.scan(_boardController.getFen(), isShash);
+    if (mounted) {
+      setState(() {
+        _liveBookData = data;
+      });
+    }
+  }
+
   void _startNormalAnalysis() {
     // Sicurezza: se l'engine non è acceso, non partiamo
     if (!_isEngineRunning) return;
@@ -253,6 +271,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _outputLines.clear();
       _arrowsNotifier.value = []; // Pulisce le frecce vecchie
     });
+
+    _updateLiveBook(); // <-- AGGIUNTO QUI: Scatta all'avvio dell'analisi!
 
     // RIPRISTINO DELLA TUA STRUTTURA FSM ORIGINALE COMPLETA
     _fsm = ShashinFsm(
@@ -272,8 +292,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
       // LA TUA LOGICA ORIGINALE PER LA FRECCIA (È PERFETTA!)
       onPvUpdate: (firstMove) {
-        // Se stiamo toccando lo schermo o la mossa è monca, ignoriamo
-        if (_isDragging || firstMove.length < 4) return;
+        // Se stiamo toccando lo schermo, la mossa è monca, o cerchiamo minacce, ignoriamo!
+        if (_isDragging || firstMove.length < 4 || _isScanningThreat) return;
 
         String fromSq = firstMove.substring(0, 2);
         String toSq = firstMove.substring(2, 4);
@@ -304,279 +324,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     );
   }
 
-  void _startCrossedAnalysis() {
-    if (!_isEngineRunning) return;
-    _stopAllOrchestrators();
-
-    _crossedFsm = CrossedEvalOrchestrator(
-      engineManager: _engineManager,
-      onLog: (line) {
-        setState(() {
-          _outputLines.add(line);
-          // MANTIENE SOLO LE ULTIME 100 RIGHE
-          if (_outputLines.length > 100) {
-            _outputLines.removeAt(0);
-          }
-        });
-        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
-      },
-      onReportReady: (sMove, sZone, mMove, mZone) =>
-          _showCrossedEvalReport(sMove, sZone, mMove, mZone),
-    );
-    _crossedFsm!.startCrossedEval(_boardController.getFen(), 1200);
-  }
-
-  // 1. IL POPUP DI HANDICAP (Intercetta il click sul tasto Gioca)
-  void _startPlayMode() {
-    if (!_isEngineRunning) return;
-
-    if (_selectedEngine == 'alexander') {
-      showDialog(
-        context: context,
-        builder: (context) {
-          // StatefulBuilder ci serve per far muovere il pallino dello slider dentro il popup
-          return StatefulBuilder(
-            builder: (context, setPopupState) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF2b2b2b),
-                title: const Text(
-                  "Impostazioni Sfida",
-                  style: TextStyle(color: Colors.orangeAccent),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SwitchListTile(
-                      title: const Text(
-                        "Limita Forza",
-                        style: TextStyle(fontSize: 14),
-                      ),
-                      value: _limitStrength,
-                      onChanged: (v) => setPopupState(() => _limitStrength = v),
-                    ),
-                    if (_limitStrength) ...[
-                      Text(
-                        "Livello ELO: ${_eloValue.toInt()}",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Slider(
-                        value: _eloValue,
-                        min: 1000,
-                        max: 2850,
-                        divisions: 37, // Scatti da 50 Elo
-                        label: _eloValue.toInt().toString(),
-                        onChanged: (v) => setPopupState(() => _eloValue = v),
-                      ),
-                      SwitchListTile(
-                        title: const Text(
-                          "Simula Errori Umani",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: const Text(
-                          "Attiva lo Skill Level per non farlo giocare 'da computer'",
-                        ),
-                        value: _simulateBlunders,
-                        onChanged: (v) =>
-                            setPopupState(() => _simulateBlunders = v),
-                      ),
-                    ],
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Annulla"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Chiude il popup
-                      _executePlayModeStartup(); // Avvia davvero la partita
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text("GIOCA"),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    } else {
-      // Se è ShashChess non ha pietà, resetta l'handicap e parte subito!
-      _engineManager.sendCommand(
-        'setoption name UCI_LimitStrength value false',
-      );
-      _executePlayModeStartup();
-    }
-  }
-
   // 2. L'AVVIO VERO E PROPRIO (Contiene la tua vecchia logica + l'invio comandi)
-
-  void _executePlayModeStartup() {
-    _stopAllOrchestrators();
-
-    // INVIO COMANDI HANDICAP AL MOTORE
-    if (_selectedEngine == 'alexander' && _limitStrength) {
-      _engineManager.sendCommand('setoption name UCI_LimitStrength value true');
-      _engineManager.sendCommand(
-        'setoption name UCI_Elo value ${_eloValue.toInt()}',
-      );
-      if (_simulateBlunders) {
-        // Parametriamo brutalmente lo Skill Level in base all'Elo
-        _engineManager.sendCommand(
-          'setoption name Skill Level value ${(_eloValue / 150).toInt()}',
-        );
-      } else {
-        _engineManager.sendCommand('setoption name Skill Level value 20');
-      }
-    }
-
-    setState(() {
-      _isPlayingMode = true;
-    });
-    // Aggiorniamo la zona usando il Notifier, fuori dal setState!
-    _zoneNotifier.value = ShashinZone(
-      "Modalità Gioco",
-      "⚔️",
-      Colors.orange,
-      50.0,
-      "🎮",
-    );
-
-    _playFsm = PlayOrchestrator(
-      engineManager: _engineManager,
-      boardController: _boardController,
-      onLog: (line) {
-        setState(() => _outputLines.add(line));
-        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
-      },
-      onGameOver: (messaggio) {
-        _showGameOverDialog(messaggio!); // Mostra il popup di fine partita
-      },
-    );
-    _playFsm!.startGame();
-
-    // <-- NUOVO: LOGICA PER GIOCARE COL NERO -->
-    // Se hai girato la scacchiera (Nero in basso) e il FEN dice che tocca al Bianco (" w "),
-    // forziamo il motore a eseguire la primissima mossa del Bianco!
-    if (_boardOrientation == PlayerColor.black &&
-        _boardController.getFen().contains(" w ")) {
-      _playFsm?.playCycle();
-    }
-  }
-
-  void _showCrossedEvalReport(
-    String sMove,
-    ShashinZone sZone,
-    String mMove,
-    ShashinZone mZone,
-  ) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        bool isMatch = sZone.name == mZone.name;
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2b2b2b),
-          title: const Row(
-            children: [
-              Icon(Icons.school, color: Colors.blueAccent),
-              SizedBox(width: 10),
-              Text(
-                "Verdetto del Maestro",
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "🧑‍🎓 L'idea dell'Allievo:",
-                style: TextStyle(color: Colors.grey[400]),
-              ),
-              Text(
-                "Mossa: $sMove",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                "Porta in Zona: ${sZone.name} ${sZone.symbol}",
-                style: TextStyle(
-                  color: sZone.color,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Divider(color: Colors.grey),
-              ),
-
-              Text(
-                "🧙‍♂️ L'idea del Maestro:",
-                style: TextStyle(color: Colors.grey[400]),
-              ),
-              Text(
-                "Mossa: $mMove",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                "Porta in Zona: ${mZone.name} ${mZone.symbol}",
-                style: TextStyle(
-                  color: mZone.color,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isMatch
-                      ? Colors.green.withValues(alpha: 0.2)
-                      : Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isMatch ? Colors.green : Colors.orange,
-                  ),
-                ),
-                child: Text(
-                  isMatch
-                      ? "✅ Eccellente! Il piano dell'Allievo mantiene la tensione termodinamica corretta."
-                      : "❌ Attenzione! L'idea dell'Allievo cambia radicalmente la natura della posizione rispetto al piano ideale.",
-                  style: TextStyle(
-                    color: isMatch ? Colors.greenAccent : Colors.orangeAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _startNormalAnalysis();
-              },
-              child: const Text("Ho capito"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _stopEngine() {
     _stopAllOrchestrators();
     _engineManager.dispose();
@@ -607,24 +355,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     super.dispose();
   }
 
-  // <-- FUNZIONE HELPER PER IL TESTO DEL CRUSCOTTO -->
-  Widget _statText(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'monospace',
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -635,7 +365,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       ),
       body: Column(
         children: [
-          // 1. ZONA SCACCHIERA CON PEZZI CATTURATI
+          // 1. ZONA SCACCHIERA CON PEZZI CATTURATI E FRECCE (Fissa in alto, occupa 6/10 dello spazio)
           Expanded(
             flex: 6,
             child: Column(
@@ -735,91 +465,450 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
 
-          // 2. BARRA WIN PROBABILITY
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 4.0,
-            ),
-            child: ValueListenableBuilder<ShashinZone>(
-              valueListenable: _zoneNotifier,
-              builder: (context, zone, child) {
-                return Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "🛡️ Petrosian",
-                          style: TextStyle(
-                            color: Colors.red[300],
-                            fontSize: 11,
-                          ),
+          // 2. ZONA INFERIORE SCORREVOLE (Occupa 4/10 dello spazio. Qui LiveBook, WinProb e Notazione scorrono senza sfondare)
+          Expanded(
+            flex: 4,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // --- PANNELLO LIVEBOOK (ORACOLO) ---
+                  if (_isEngineRunning && _showLiveBook)
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.blueAccent.withValues(alpha: 0.3),
                         ),
-                        Text(
-                          "${zone.wp.toStringAsFixed(1)}%",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _isPlayingMode
+                                    ? "🤖 AUTOPLAY ACTIVE"
+                                    : "🌐 LIVEBOOK",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blueAccent,
+                                ),
+                              ),
+                              SizedBox(
+                                height: 24,
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Funzione Tratti Posizionali bloccata (Versione Premium)",
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.lock,
+                                    size: 12,
+                                    color: Colors.orangeAccent,
+                                  ),
+                                  label: const Text(
+                                    "TRAITS",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orangeAccent,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Text(
-                          "Tal 🔥",
-                          style: TextStyle(
-                            color: Colors.green[300],
-                            fontSize: 11,
+                          const SizedBox(height: 5),
+
+                          // INTESTAZIONI DI COLONNA ALLINEATE
+                          const Row(
+                            children: [
+                              SizedBox(
+                                width: 70,
+                                child: Text(
+                                  "MOSSA",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                "VALUTAZIONE",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: zone.wp / 100.0,
-                        minHeight: 8,
-                        backgroundColor: Colors.red[700],
-                        color: Colors.green[600],
+                          const Divider(color: Colors.white24, height: 8),
+
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: _liveBookData.isEmpty
+                                  ? const Text(
+                                      "Scanning cloud data...",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                        color: Colors.white70,
+                                      ),
+                                    )
+                                  : Column(
+                                      children: _liveBookData
+                                          .map(
+                                            (m) => InkWell(
+                                              onTap: () {
+                                                if (m.move.length >= 4 &&
+                                                    m.move != "-") {
+                                                  String fromSq = m.move
+                                                      .substring(0, 2);
+                                                  String toSq = m.move
+                                                      .substring(2, 4);
+                                                  if (m.move.length == 5) {
+                                                    _boardController
+                                                        .makeMoveWithPromotion(
+                                                          from: fromSq,
+                                                          to: toSq,
+                                                          pieceToPromoteTo:
+                                                              m.move[4],
+                                                        );
+                                                  } else {
+                                                    _boardController.makeMove(
+                                                      from: fromSq,
+                                                      to: toSq,
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 4.0,
+                                                    ),
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    // Larghezza fissa per allineare a colonna
+                                                    SizedBox(
+                                                      width: 60,
+                                                      child: Text(
+                                                        m.move,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Colors
+                                                              .greenAccent,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      child: Text(
+                                                        m.description,
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                );
-              },
+
+                  // --- BARRA WIN PROBABILITY ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 4.0,
+                    ),
+                    child: ValueListenableBuilder<ShashinZone>(
+                      valueListenable: _zoneNotifier,
+                      builder: (context, zone, child) {
+                        return Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "🛡️ Petrosian",
+                                  style: TextStyle(
+                                    color: Colors.red[300],
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                Text(
+                                  "${zone.wp.toStringAsFixed(1)}%",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  "Tal 🔥",
+                                  style: TextStyle(
+                                    color: Colors.green[300],
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: zone.wp / 100.0,
+                                minHeight: 8,
+                                backgroundColor: Colors.red[700],
+                                color: Colors.green[600],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+
+                  // --- CRUSCOTTO STATISTICHE MOTORE (PV, Nodi, Profondità) ---
+                  ValueListenableBuilder<EngineStats>(
+                    valueListenable: _statsNotifier,
+                    builder: (context, stats, child) {
+                      if (stats.depth == 0) return const SizedBox.shrink();
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Profondità: ${stats.depth}/${stats.selDepth}",
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                Text(
+                                  "Nodi: ${(stats.nodes / 1000).toStringAsFixed(1)}k",
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.greenAccent,
+                                  ),
+                                ),
+                                Text(
+                                  "NPS: ${stats.nps}",
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orangeAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "PV: ${stats.pv}",
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.white70,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  // --- PANNELLO NOTAZIONE E VARIANTI ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: _buildNotationPanel(),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // 3. PANNELLO NOTAZIONE E VARIANTI
-          _buildNotationPanel(),
-
-          // 4. CONTROLLI MOTORE (ACCENDI / ANALIZZA / STOP)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10, top: 5),
-            child: Wrap(
-              spacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                if (!_isEngineRunning)
-                  ElevatedButton.icon(
-                    onPressed: _isLoadingOptions ? null : _startEngine,
-                    icon: const Icon(Icons.power),
-                    label: const Text('Accendi'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
+          // 3. CONTROLLI MOTORE E OPZIONI (Fissi in fondo)
+          Container(
+            padding: const EdgeInsets.only(
+              bottom: 10,
+              top: 5,
+              left: 10,
+              right: 10,
+            ),
+            width: double.infinity,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // SELETTORE MOTORE (Sempre cliccabile!)
+                  DropdownButton<String>(
+                    value: _selectedEngine,
+                    dropdownColor: const Color(0xFF2b2b2b),
+                    style: const TextStyle(
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.bold,
                     ),
-                  )
-                else
-                  ElevatedButton(
-                    onPressed: _stopEngine,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red[700],
-                      foregroundColor: Colors.white,
-                      shape: const CircleBorder(),
-                    ),
-                    child: const Icon(Icons.stop),
+                    underline: Container(height: 2, color: Colors.blueAccent),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'shashchess',
+                        child: Text("ShashChess"),
+                      ),
+                      DropdownMenuItem(
+                        value: 'alexander',
+                        child: Text("Alexander"),
+                      ),
+                    ],
+                    onChanged: (String? newValue) {
+                      if (newValue != null && newValue != _selectedEngine) {
+                        // Se il motore è acceso, lo fermiamo in automatico per farti cambiare!
+                        if (_isEngineRunning) _stopEngine();
+                        setState(() {
+                          _selectedEngine = newValue;
+                          _prefs?.setString('selectedEngine', newValue);
+                        });
+                      }
+                    },
                   ),
-                // ... qui puoi rimettere gli altri bottoni come Analizza/Gioca ...
-              ],
+                  const SizedBox(width: 10),
+
+                  // BOTTONE OPZIONI MOTORE (Ingranaggio con avviso intelligente)
+                  IconButton(
+                    onPressed: () {
+                      if (_isEngineRunning) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Spegni il motore per modificare i parametri!",
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } else {
+                        _showUciSettings();
+                      }
+                    },
+                    icon: Icon(
+                      Icons.settings,
+                      color: _isEngineRunning ? Colors.grey : Colors.white70,
+                    ),
+                    tooltip: "Configura Parametri",
+                  ),
+
+                  // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
+                  if (_isEngineRunning) ...[
+                    // Tasto ANALIZZA
+                    IconButton(
+                      onPressed: _isPlayingMode ? _startNormalAnalysis : null,
+                      icon: Icon(
+                        Icons.analytics,
+                        color: _isPlayingMode ? Colors.blueAccent : Colors.grey,
+                      ),
+                      tooltip: "Modalità Analisi",
+                    ),
+                    // Tasto GIOCA
+                    IconButton(
+                      onPressed: !_isPlayingMode ? _startPlayMode : null,
+                      icon: Icon(
+                        Icons.sports_esports,
+                        color: !_isPlayingMode
+                            ? Colors.greenAccent
+                            : Colors.grey,
+                      ),
+                      tooltip: "Modalità Gioco",
+                    ),
+
+                    // --- NUOVO TASTO: THREAT DETECTOR ---
+                    IconButton(
+                      onPressed: !_isPlayingMode ? _scanThreats : null,
+                      icon: Icon(
+                        Icons.crisis_alert, // Icona stile mirino/allarme
+                        color: !_isPlayingMode ? Colors.redAccent : Colors.grey,
+                      ),
+                      tooltip: "Rileva Minacce (Mossa Nulla)",
+                    ),
+
+                    // Tasto VALUTAZIONE INCROCIATA
+                    IconButton(
+                      onPressed: _startCrossedAnalysis,
+                      icon: const Icon(
+                        Icons.compare_arrows,
+                        color: Colors.orangeAccent,
+                      ),
+                      tooltip: "Valutazione Incrociata",
+                    ),
+                    const SizedBox(width: 5),
+                    // PULSANTE STOP (Rosso)
+                    ElevatedButton(
+                      onPressed: _stopEngine,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[700],
+                        foregroundColor: Colors.white,
+                        shape: const CircleBorder(),
+                        padding: const EdgeInsets.all(12),
+                      ),
+                      child: const Icon(Icons.stop),
+                    ),
+                  ] else ...[
+                    // PULSANTE ACCENDI (Verde)
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: _isLoadingOptions ? null : _startEngine,
+                      icon: const Icon(Icons.power),
+                      label: const Text('Accendi'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ],
@@ -873,77 +962,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     } catch (e) {
       debugPrint("Errore parse: $e su riga: $line");
     }
-  }
-
-  void _showUciSettings() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Opzioni $_selectedEngine"),
-        backgroundColor: const Color(0xFF2b2b2b),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _engineOptionsMetadata.length,
-            // USA QUESTA LOGICA PIÙ LEGGERA
-            itemBuilder: (context, index) {
-              final opt = _engineOptionsMetadata[index];
-              final name = opt['name']!;
-              if (opt['type'] == 'button') return const SizedBox.shrink();
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: TextFormField(
-                  // TextFormField è più efficiente di TextField in liste
-                  initialValue: _uciValues[name] ?? "",
-                  decoration: InputDecoration(
-                    labelText: name,
-                    labelStyle: const TextStyle(
-                      color: Colors.orangeAccent,
-                      fontSize: 12,
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                  onChanged: (v) {
-                    _uciValues[name] = v;
-                    _prefs?.setString('${_selectedEngine}_$name', v);
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("CHIUDI"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGameOverDialog(String messaggio) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("Fine Partita"),
-        content: Text(messaggio),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _stopAllOrchestrators(); // Ora riconosce questo comando!
-              setState(() => _isPlayingMode = false);
-            },
-            child: const Text("TORNA AL LABORATORIO"),
-          ),
-        ],
-      ),
-    );
   }
 
   // Questa funzione gestisce la creazione di varianti e la cattura della notazione
@@ -1453,6 +1471,405 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       _boardController.loadFen(_currentNode.fen);
     });
     if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+  }
+
+  // --- 1. POPUP IMPOSTAZIONI SFIDA ---
+  void _startPlayMode() {
+    if (!_isEngineRunning) return;
+
+    if (_selectedEngine == 'alexander') {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setPopupState) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF2b2b2b),
+                title: const Text(
+                  "Impostazioni Sfida",
+                  style: TextStyle(color: Colors.orangeAccent),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      title: const Text(
+                        "Limita Forza",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      value: _limitStrength,
+                      onChanged: (v) => setPopupState(() => _limitStrength = v),
+                    ),
+                    if (_limitStrength) ...[
+                      Text(
+                        "Livello ELO: ${_eloValue.toInt()}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Slider(
+                        value: _eloValue,
+                        min: 1000,
+                        max: 2850,
+                        divisions: 37,
+                        label: _eloValue.toInt().toString(),
+                        onChanged: (v) => setPopupState(() => _eloValue = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text(
+                          "Simula Errori Umani",
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        subtitle: const Text(
+                          "Attiva lo Skill Level per un gioco più naturale",
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        value: _simulateBlunders,
+                        onChanged: (v) =>
+                            setPopupState(() => _simulateBlunders = v),
+                      ),
+                    ],
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Annulla"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _executePlayModeStartup();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("GIOCA"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } else {
+      // ShashChess gioca sempre al massimo
+      _engineManager.sendCommand(
+        'setoption name UCI_LimitStrength value false',
+      );
+      _executePlayModeStartup();
+    }
+  }
+
+  // --- 2. AVVIO DELLA PARTITA CONTRO IL MOTORE ---
+  void _executePlayModeStartup() {
+    _stopAllOrchestrators();
+
+    if (_selectedEngine == 'alexander' && _limitStrength) {
+      _engineManager.sendCommand('setoption name UCI_LimitStrength value true');
+      _engineManager.sendCommand(
+        'setoption name UCI_Elo value ${_eloValue.toInt()}',
+      );
+      if (_simulateBlunders) {
+        _engineManager.sendCommand(
+          'setoption name Skill Level value ${(_eloValue / 150).toInt()}',
+        );
+      } else {
+        _engineManager.sendCommand('setoption name Skill Level value 20');
+      }
+    }
+
+    setState(() {
+      _isPlayingMode = true;
+      _outputLines.clear();
+      _arrowsNotifier.value = []; // Pulisce le frecce analitiche
+    });
+
+    _zoneNotifier.value = ShashinZone(
+      "Modalità Gioco",
+      "⚔️",
+      Colors.orange,
+      50.0,
+      "assets/images/capablanca.png",
+    );
+
+    _playFsm = PlayOrchestrator(
+      engineManager: _engineManager,
+      boardController: _boardController,
+      onLog: (line) {
+        setState(() => _outputLines.add(line));
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onGameOver: (messaggio) {
+        _showGameOverDialog(messaggio!);
+      },
+    );
+    _playFsm!.startGame();
+
+    // Se giochiamo col Nero, facciamo muovere subito il computer
+    if (_boardOrientation == PlayerColor.black &&
+        _boardController.getFen().contains(" w ")) {
+      _playFsm?.playCycle();
+    }
+  }
+
+  // --- 3. POPUP FINE PARTITA ---
+  void _showGameOverDialog(String messaggio) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        title: const Text(
+          "Fine Partita",
+          style: TextStyle(color: Colors.orangeAccent),
+        ),
+        content: Text(messaggio, style: const TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _stopAllOrchestrators();
+              setState(() => _isPlayingMode = false);
+              // Rimettiamo il motore in analisi automatica
+              if (_isEngineRunning) _startNormalAnalysis();
+            },
+            child: const Text(
+              "TORNA AL LABORATORIO",
+              style: TextStyle(color: Colors.blueAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUciSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Permette al menu di occupare più spazio
+      backgroundColor: const Color(0xFF1e1e1e),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height:
+              MediaQuery.of(context).size.height *
+              0.75, // Occupa il 75% dello schermo
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "OPZIONI ${_selectedEngine.toUpperCase()}",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 10),
+
+              // QUI GENERIAMO DINAMICAMENTE TUTTE LE OPZIONI TROVATE DALLA SONDA
+              Expanded(
+                child: _engineOptionsMetadata.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "Nessuna opzione trovata o caricamento in corso...",
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _engineOptionsMetadata.length,
+                        itemBuilder: (context, index) {
+                          final opt = _engineOptionsMetadata[index];
+                          final name = opt['name']!;
+
+                          // Ignoriamo i bottoni (es. "Clear Hash") per semplificare la UI
+                          if (opt['type'] == 'button')
+                            return const SizedBox.shrink();
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6.0),
+                            child: TextFormField(
+                              initialValue: _uciValues[name] ?? "",
+                              decoration: InputDecoration(
+                                labelText: name,
+                                labelStyle: const TextStyle(
+                                  color: Colors.blueAccent,
+                                  fontSize: 12,
+                                ),
+                                border: const OutlineInputBorder(),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                              ),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
+                              onChanged: (v) {
+                                _uciValues[name] = v;
+                                _prefs?.setString(
+                                  '${_selectedEngine}_$name',
+                                  v,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- METODO PER IL THREAT DETECTOR (MOSSA NULLA) ---
+  void _scanThreats() async {
+    if (!_isEngineRunning || _isPlayingMode || _isScanningThreat) return;
+
+    setState(() => _isScanningThreat = true); // Attiva sicura
+
+    _stopAllOrchestrators();
+    _engineManager.sendCommand('stop');
+
+    String currentFen = _boardController.getFen();
+    List<String> fenParts = currentFen.split(' ');
+    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
+    fenParts[3] = '-';
+    String nullMoveFen = fenParts.join(' ');
+
+    _engineManager.sendCommand('position fen $nullMoveFen');
+    _engineManager.sendCommand('go movetime 1500');
+
+    StreamSubscription<String>? threatSub;
+    threatSub = _engineManager.engineOutput?.listen((line) {
+      if (line.startsWith('bestmove')) {
+        threatSub?.cancel();
+        final parts = line.split(' ');
+        if (parts.length > 1 && parts[1] != '(none)') {
+          setState(() {
+            _arrowsNotifier.value = [
+              BoardArrow(
+                from: parts[1].substring(0, 2),
+                to: parts[1].substring(2, 4),
+                color: Colors.red.withOpacity(0.8),
+              ),
+            ];
+          });
+          // Aspetta 3 secondi, poi torna all'analisi normale
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() => _isScanningThreat = false); // Disattiva sicura
+              _startNormalAnalysis();
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // --- METODO PER L'ANALISI INCROCIATA (Doppie Frecce) ---
+  void _startCrossedAnalysis() {
+    if (!_isEngineRunning) return;
+
+    _stopAllOrchestrators(); // Stoppa l'analisi normale
+
+    // Pulizia visiva per preparare lo schermo
+    setState(() {
+      _outputLines.clear();
+      _arrowsNotifier.value = [];
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Inizio Analisi Incrociata (Maestro vs Allievo)..."),
+        backgroundColor: Colors.orangeAccent,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    // Diamo il comando esplicito di avvio al motore prima di lanciare l'orchestratore!
+    _engineManager.sendCommand('stop');
+    _engineManager.sendCommand('position fen ${_boardController.getFen()}');
+
+    _crossedFsm = CrossedEvalOrchestrator(
+      engineManager: _engineManager,
+      onLog: (msg) {
+        // Stampiamo i log dell'orchestratore a schermo per vedere che lavora!
+        setState(() => _outputLines.add(msg));
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2b2b2b),
+            title: const Text(
+              "🔍 Verdetto Divergenze",
+              style: TextStyle(color: Colors.cyanAccent),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Idea Allievo (Elo ${_eloValue.toInt()}):",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                Text(
+                  "Mossa: $studentMove [${studentZone.name}]",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orangeAccent,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "Risposta Maestro (Depth 12):",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                Text(
+                  "Mossa: $masterMove [${masterZone.name}]",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _startNormalAnalysis(); // Riavvia l'analisi normale chiudendo il popup
+                },
+                child: const Text(
+                  "Chiudi",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    // Facciamo partire il loop
+    _crossedFsm!.startCrossedEval(_boardController.getFen(), _eloValue.toInt());
   }
 }
 
