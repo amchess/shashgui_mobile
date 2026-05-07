@@ -505,6 +505,7 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'core/logic/livebook_scanner.dart'; // <-- AGGIUNTO PER IL LIVEBOOK
 import 'dart:async';
+import 'core/orchestrators/autoplay_orchestrator.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -577,11 +578,14 @@ class EngineTestScreen extends StatefulWidget {
 }
 
 class _EngineTestScreenState extends State<EngineTestScreen> {
-  final EngineManager _engineManager = EngineManager();
+  final EngineManager _engineManager =
+      EngineManager(); // Motore Bianco/Principale
+  final EngineManager _engineManagerBlack = EngineManager(); // Motore Nero
 
   ShashinFsm? _fsm;
   CrossedEvalOrchestrator? _crossedFsm;
   PlayOrchestrator? _playFsm;
+  AutoplayOrchestrator? _autoplayFsm;
 
   final List<String> _outputLines = [];
   final ChessBoardController _boardController = ChessBoardController();
@@ -736,10 +740,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _fsm?.stop();
     _crossedFsm?.stop();
     _playFsm?.stop();
-
+    _autoplayFsm?.stop();
     _fsm?.dispose();
     _crossedFsm?.dispose();
     _playFsm?.dispose();
+    _autoplayFsm?.dispose();
+    _autoplayFsm = null;
 
     _fsm = null;
     _crossedFsm = null;
@@ -868,6 +874,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void dispose() {
     _stopAllOrchestrators();
     _engineManager.dispose();
+    _engineManagerBlack.dispose(); // <-- NUOVO
     _scrollController.dispose();
     super.dispose();
   }
@@ -1463,6 +1470,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               color: Colors.greenAccent,
                             ),
                             tooltip: "Gioca contro il Motore",
+                          ),
+                          IconButton(
+                            onPressed: _startAutoplayMode,
+                            icon: const Icon(
+                              Icons.smart_toy,
+                              color: Colors.purpleAccent,
+                            ),
+                            tooltip: "Autoplay (Motore vs Motore)",
                           ),
                           IconButton(
                             onPressed: _scanThreats, // <-- Sempre cliccabile
@@ -2690,6 +2705,99 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _startCrossedAnalysis() {
     if (!_isEngineRunning) return;
 
+    int tempCrossedTime = 2; // Default 2 secondi
+    int tempCrossedElo = _eloValue.toInt(); // Peschiamo l'Elo di partenza
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Coach: Analisi Incrociata",
+                style: TextStyle(color: Colors.cyanAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Il tuo Livello (Elo): $tempCrossedElo",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Slider(
+                    value: tempCrossedElo.toDouble(),
+                    min: 1000,
+                    max: 3190,
+                    divisions: 43,
+                    label: tempCrossedElo.toString(),
+                    activeColor: Colors.orangeAccent,
+                    onChanged: (v) {
+                      setPopupState(() {
+                        tempCrossedElo = v.toInt();
+                        _eloValue = v; // Aggiorna anche la variabile globale
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    "Tempo base per valutazione: $tempCrossedTime s",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Slider(
+                    value: tempCrossedTime.toDouble(),
+                    min: 1,
+                    max: 15,
+                    divisions: 14,
+                    label: "$tempCrossedTime s",
+                    activeColor: Colors.cyanAccent,
+                    onChanged: (v) =>
+                        setPopupState(() => tempCrossedTime = v.toInt()),
+                  ),
+                  const Text(
+                    "(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // ORA PASSIAMO SIA IL TEMPO CHE L'ELO SCELTO!
+                    _executeCrossedAnalysis(tempCrossedTime, tempCrossedElo);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.cyan[700],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA COACH"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _executeCrossedAnalysis(int baseTimeSec, int playerElo) {
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
     setState(() {
@@ -2702,63 +2810,39 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     _engineManager.sendCommand('stop');
 
-    // Diamo 100ms al motore per fermarsi davvero prima di inviargli la nuova posizione
+    // Diamo 100ms al motore per fermarsi davvero
     Future.delayed(const Duration(milliseconds: 100), () {
-      _engineManager.sendCommand('position fen ${_boardController.getFen()}');
-
       _crossedFsm = CrossedEvalOrchestrator(
         engineManager: _engineManager,
         onLog: (msg) {
           setState(() => _outputLines.add(msg));
           Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
         },
-        onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+        onReportReady: (reportText) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
               title: const Text(
-                "🔍 Verdetto Divergenze",
+                "🔍 Coach: Verdetto Incrociato",
                 style: TextStyle(color: Colors.cyanAccent),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Idea Allievo (Elo ${_eloValue.toInt()}):",
-                    style: const TextStyle(color: Colors.grey),
+              content: SingleChildScrollView(
+                child: Text(
+                  reportText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
-                  Text(
-                    "Mossa: $studentMove [${studentZone.name}]",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orangeAccent,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "Risposta Maestro (Profondità 12):",
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  Text(
-                    "Mossa: $masterMove [${masterZone.name}]",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueAccent,
-                    ),
-                  ),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // SICUREZZA: Nessun avvio automatico del motore. Ora l'analisi resta rigorosamente in silenzio!
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text(
                     "Chiudi",
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.blueAccent),
                   ),
                 ),
               ],
@@ -2767,11 +2851,346 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         },
       );
 
+      // Usiamo l'Elo scelto dall'utente e il tempo in millisecondi!
       _crossedFsm!.startCrossedEval(
         _boardController.getFen(),
-        _eloValue.toInt(),
+        playerElo,
+        baseTimeSec * 1000,
       );
     });
+  }
+
+  void _startAutoplayMode() {
+    if (!_isEngineRunning) return;
+
+    String tempWhiteEngine = _selectedEngine;
+    String tempBlackEngine = _selectedEngine;
+    bool tempWhiteLivebook = true;
+    bool tempBlackLivebook = true;
+    int tempTcType = 1;
+    int tempBaseTime = 2;
+    int tempInc = 1;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Autoplay",
+                style: TextStyle(color: Colors.purpleAccent),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // BIANCO
+                    Container(
+                      color: Colors.white10,
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        children: [
+                          const Text(
+                            "MOTORE BIANCO",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: tempWhiteEngine,
+                            dropdownColor: const Color(0xFF2b2b2b),
+                            style: const TextStyle(color: Colors.white),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'shashchess',
+                                child: Text("ShashChess"),
+                              ),
+                              DropdownMenuItem(
+                                value: 'alexander',
+                                child: Text("Alexander"),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setPopupState(() => tempWhiteEngine = val!),
+                          ),
+                          SwitchListTile(
+                            title: const Text(
+                              "LiveBook",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                            value: tempWhiteLivebook,
+                            activeColor: Colors.greenAccent,
+                            onChanged: (v) =>
+                                setPopupState(() => tempWhiteLivebook = v),
+                          ),
+                          ListTile(
+                            title: const Text(
+                              "Tratti Posizionali",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: Colors.orangeAccent,
+                            ),
+                            dense: true,
+                            onTap: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // NERO
+                    Container(
+                      color: Colors.black45,
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        children: [
+                          const Text(
+                            "MOTORE NERO",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: tempBlackEngine,
+                            dropdownColor: const Color(0xFF2b2b2b),
+                            style: const TextStyle(color: Colors.white),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'shashchess',
+                                child: Text("ShashChess"),
+                              ),
+                              DropdownMenuItem(
+                                value: 'alexander',
+                                child: Text("Alexander"),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setPopupState(() => tempBlackEngine = val!),
+                          ),
+                          SwitchListTile(
+                            title: const Text(
+                              "LiveBook",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                            value: tempBlackLivebook,
+                            activeColor: Colors.greenAccent,
+                            onChanged: (v) =>
+                                setPopupState(() => tempBlackLivebook = v),
+                          ),
+                          ListTile(
+                            title: const Text(
+                              "Tratti Posizionali",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: Colors.orangeAccent,
+                            ),
+                            dense: true,
+                            onTap: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white24),
+                    // CADENZA
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                      value: 0,
+                      groupValue: tempTcType,
+                      activeColor: Colors.purpleAccent,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 3;
+                      }),
+                    ),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                      value: 1,
+                      groupValue: tempTcType,
+                      activeColor: Colors.purpleAccent,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 2;
+                      }),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              tempTcType == 0 ? "Minuti:" : "Secondi:",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            DropdownButton<int>(
+                              value: tempBaseTime,
+                              dropdownColor: const Color(0xFF2b2b2b),
+                              style: const TextStyle(color: Colors.white),
+                              items: [1, 2, 3, 5, 10]
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text("$e"),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setPopupState(() => tempBaseTime = v!),
+                            ),
+                          ],
+                        ),
+                        if (tempTcType == 0)
+                          Column(
+                            children: [
+                              const Text(
+                                "Incremento (s):",
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              DropdownButton<int>(
+                                value: tempInc,
+                                dropdownColor: const Color(0xFF2b2b2b),
+                                style: const TextStyle(color: Colors.white),
+                                items: [0, 1, 2, 3]
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text("$e"),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setPopupState(() => tempInc = v!),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _executeAutoplayModeStartup(
+                      tempWhiteEngine,
+                      tempBlackEngine,
+                      tempWhiteLivebook,
+                      tempBlackLivebook,
+                      tempTcType,
+                      tempBaseTime,
+                      tempInc,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purpleAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA MATCH"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _executeAutoplayModeStartup(
+    String wEng,
+    String bEng,
+    bool wLb,
+    bool bLb,
+    int tcType,
+    int baseTime,
+    int inc,
+  ) async {
+    _stopAllOrchestrators();
+
+    setState(() {
+      _isPlayingMode = true;
+      _outputLines.clear();
+      _arrowsNotifier.value = [];
+    });
+
+    _zoneNotifier.value = ShashinZone(
+      "Autoplay Match",
+      "⚔️",
+      Colors.purple,
+      50.0,
+      ["assets/images/capablanca.png"],
+    );
+
+    // Accendiamo il motore secondario se necessario
+    if (_engineManagerBlack.engineOutput == null) {
+      await _engineManagerBlack.initEngine(bEng, [
+        'nn-c288c895ea92.nnue',
+        'nn-37f18f62d772.nnue',
+      ]);
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    _autoplayFsm = AutoplayOrchestrator(
+      whiteEngine: _engineManager,
+      blackEngine: _engineManagerBlack,
+      boardController: _boardController,
+      whiteUseLivebook: wLb,
+      blackUseLivebook: bLb,
+      tcType: tcType,
+      baseTimeMs: tcType == 0 ? (baseTime * 60 * 1000) : (baseTime * 1000),
+      incMs: inc * 1000,
+      onLog: (line) {
+        setState(() => _outputLines.add(line));
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onGameOver: (messaggio) => _showGameOverDialog(messaggio!),
+    );
+
+    // Resettiamo la scacchiera e partiamo!
+    _boardController.loadFen(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    );
+    _autoplayFsm!.startMatch();
   }
 }
 
@@ -3656,30 +4075,297 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
 
 
 ================================================================================
+FILE: lib\core\orchestrators\autoplay_orchestrator.dart
+================================================================================
+
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter_chess_board/flutter_chess_board.dart';
+import '../engine/engine_manager.dart';
+import '../logic/livebook_scanner.dart';
+
+class AutoplayOrchestrator {
+  final EngineManager whiteEngine;
+  final EngineManager blackEngine;
+  final ChessBoardController boardController;
+  final Function(String) onLog;
+  final Function(String?) onGameOver;
+
+  final bool whiteUseLivebook;
+  final bool blackUseLivebook;
+
+  final int tcType; // 0 = Fischer, 1 = Fisso
+  final int baseTimeMs;
+  final int incMs;
+
+  int _wtime = 0;
+  int _btime = 0;
+  DateTime? _lastEngineStart;
+
+  StreamSubscription<String>? _whiteSub;
+  StreamSubscription<String>? _blackSub;
+
+  bool _isEngineThinking = false;
+  bool _whiteOutOfBook = false;
+  bool _blackOutOfBook = false;
+  bool _isRunning = false;
+
+  AutoplayOrchestrator({
+    required this.whiteEngine,
+    required this.blackEngine,
+    required this.boardController,
+    required this.onLog,
+    required this.onGameOver,
+    required this.whiteUseLivebook,
+    required this.blackUseLivebook,
+    this.tcType = 1,
+    this.baseTimeMs = 3000,
+    this.incMs = 0,
+  }) {
+    if (tcType == 0) {
+      _wtime = baseTimeMs;
+      _btime = baseTimeMs;
+    }
+  }
+
+  void startMatch() {
+    _isRunning = true;
+    _whiteOutOfBook = !whiteUseLivebook;
+    _blackOutOfBook = !blackUseLivebook;
+    onLog("⚔️ AUTOPLAY INIZIATO! Buona visione.");
+
+    // Mettiamoci in ascolto di entrambi i motori
+    _whiteSub = whiteEngine.engineOutput?.listen(
+      (line) => _handleEngineOutput(line, PlayerColor.white),
+    );
+    _blackSub = blackEngine.engineOutput?.listen(
+      (line) => _handleEngineOutput(line, PlayerColor.black),
+    );
+
+    playNextTurn();
+  }
+
+  void playNextTurn() async {
+    if (!_isRunning || _isEngineThinking) return;
+    if (_checkStatus()) return;
+
+    _isEngineThinking = true;
+    bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
+    EngineManager activeEngine = isWhiteTurn ? whiteEngine : blackEngine;
+    bool outOfBook = isWhiteTurn ? _whiteOutOfBook : _blackOutOfBook;
+
+    String colorName = isWhiteTurn ? "Bianco" : "Nero";
+
+    // --- ORACOLO LIVEBOOK ---
+    if (!outOfBook) {
+      try {
+        bool isNeural =
+            true; // In mobile usiamo il parametro per capire se interrogare ChessDB o Lichess
+        var result = await LiveBookScanner.scan(
+          boardController.getFen(),
+          [],
+          isNeural,
+        );
+        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        if (chosenUci != null) {
+          onLog("📖 Il $colorName gioca dal LiveBook!");
+          _executeMoveOnBoard(chosenUci);
+          return;
+        } else {
+          onLog("📉 Livebook esaurito per il $colorName.");
+          if (isWhiteTurn)
+            _whiteOutOfBook = true;
+          else
+            _blackOutOfBook = true;
+        }
+      } catch (e) {
+        if (isWhiteTurn)
+          _whiteOutOfBook = true;
+        else
+          _blackOutOfBook = true;
+      }
+    }
+
+    // --- RICERCA MOTORE ---
+    onLog("🤖 Il $colorName sta pensando...");
+    activeEngine.sendCommand('position fen ${boardController.getFen()}');
+
+    if (tcType == 1) {
+      activeEngine.sendCommand('go movetime $baseTimeMs');
+    } else {
+      _lastEngineStart = DateTime.now();
+      activeEngine.sendCommand(
+        'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
+      );
+    }
+  }
+
+  void _handleEngineOutput(String line, PlayerColor engineColor) {
+    if (!_isRunning || !_isEngineThinking) return;
+
+    PlayerColor currentTurn = boardController.getFen().split(' ')[1] == 'w'
+        ? PlayerColor.white
+        : PlayerColor.black;
+    if (currentTurn != engineColor)
+      return; // Ignora se parla il motore sbagliato
+
+    if (line.startsWith('bestmove')) {
+      final parts = line.split(' ');
+      if (parts.length > 1 && parts[1] != '(none)') {
+        _executeMoveOnBoard(parts[1]);
+      }
+    }
+  }
+
+  void _executeMoveOnBoard(String uciMove) {
+    if (!_isRunning) return;
+
+    String fromSq = uciMove.substring(0, 2);
+    String toSq = uciMove.substring(2, 4);
+
+    if (uciMove.length == 5) {
+      boardController.makeMoveWithPromotion(
+        from: fromSq,
+        to: toSq,
+        pieceToPromoteTo: uciMove[4],
+      );
+    } else {
+      boardController.makeMove(from: fromSq, to: toSq);
+    }
+
+    _isEngineThinking = false;
+
+    // Aggiornamento Orologio
+    if (tcType == 0 && _lastEngineStart != null) {
+      int elapsed = DateTime.now().difference(_lastEngineStart!).inMilliseconds;
+      if (boardController.getFen().contains(" b ")) {
+        _wtime = (_wtime - elapsed + incMs).clamp(1000, 9999999);
+      } else {
+        _btime = (_btime - elapsed + incMs).clamp(1000, 9999999);
+      }
+    }
+
+    if (!_checkStatus()) {
+      Future.delayed(const Duration(milliseconds: 100), playNextTurn);
+    }
+  }
+
+  String? _applyOracleRoulette(List<LiveBookMove> moves) {
+    if (moves.isEmpty ||
+        moves.first.move == "-" ||
+        moves.first.move.contains("."))
+      return null;
+    List<Map<String, dynamic>> parsedMoves = [];
+    for (var m in moves) {
+      double wp = double.tryParse(m.description.replaceAll('%', '')) ?? 0.0;
+      parsedMoves.add({'uci': m.move, 'wp': wp});
+    }
+    parsedMoves.sort(
+      (a, b) => (b['wp'] as double).compareTo(a['wp'] as double),
+    );
+    double topScore = parsedMoves.first['wp'];
+    if (topScore < 40.0) return null;
+
+    List<Map<String, dynamic>> eliteMoves = parsedMoves
+        .where((m) => m['wp'] >= 48.0 && (topScore - m['wp']) <= 2.0)
+        .toList();
+    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    List<double> weights = [];
+    double totalWeight = 0.0;
+    for (var m in eliteMoves) {
+      double weight = pow(2.5, m['wp'] - 48.0).toDouble();
+      weights.add(weight);
+      totalWeight += weight;
+    }
+
+    double randomVal = Random().nextDouble() * totalWeight;
+    double current = 0.0;
+    for (int i = 0; i < eliteMoves.length; i++) {
+      current += weights[i];
+      if (randomVal <= current) return eliteMoves[i]['uci'];
+    }
+    return eliteMoves.last['uci'];
+  }
+
+  bool _checkStatus() {
+    if (boardController.game.in_checkmate) {
+      onGameOver("SCACCOMATTO!");
+      return true;
+    } else if (boardController.game.in_draw ||
+        boardController.game.in_stalemate) {
+      onGameOver("PATTA!");
+      return true;
+    }
+    return false;
+  }
+
+  void stop() {
+    _isRunning = false;
+    whiteEngine.sendCommand('stop');
+    blackEngine.sendCommand('stop');
+    _whiteSub?.cancel();
+    _blackSub?.cancel();
+  }
+
+  void dispose() {
+    stop();
+  }
+}
+
+
+
+================================================================================
 FILE: lib\core\orchestrators\crossed_eval.dart
 ================================================================================
 
 import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
+import '../logic/livebook_scanner.dart';
 
-enum CrossedState { idle, studentThinking, masterThinking }
+enum CrossedState {
+  idle,
+  staticEval,
+  baseEval,
+  studentThinking,
+  masterThinking,
+}
 
 class CrossedEvalOrchestrator {
   final EngineManager engineManager;
-
   CrossedState currentState = CrossedState.idle;
   StreamSubscription<String>? _outputSubscription;
 
-  // Memoria del calcolo
+  String currentFen = "";
+  bool isWhiteToMove = true;
+
+  int baseTimeMs = 2000; // <--- NUOVO
+
+  int studentElo = 1500;
+  int masterElo = 2000;
+  String studentSchool = "";
+  String masterSchool = "";
+
+  LiveBookResult? cloudLichess;
+  LiveBookResult? cloudChessDb;
+
+  ShashinZone? baseZone;
   String? studentMove;
   ShashinZone? studentZone;
   String? masterMove;
   ShashinZone? masterZone;
 
+  // Variabili per l'analisi Statica (comando 'eval')
+  int? spaceWhite;
+  int? spaceBlack;
+  String? worstPieceWhite;
+  String? worstPieceBlack;
+
   // Callback per la UI
   final Function(String) onLog;
-  final Function(String, ShashinZone, String, ShashinZone) onReportReady;
+  final Function(String) onReportReady;
 
   CrossedEvalOrchestrator({
     required this.engineManager,
@@ -3691,80 +4377,347 @@ class CrossedEvalOrchestrator {
     );
   }
 
+  void _determineSchools(int elo) {
+    studentElo = elo;
+    if (elo < 2000) {
+      studentSchool = "Principianti";
+      masterElo = 2199;
+      masterSchool = "Intermedia";
+    } else if (elo < 2200) {
+      studentSchool = "Intermedia";
+      masterElo = 2399;
+      masterSchool = "Avanzata";
+    } else if (elo < 2500) {
+      // <--- Soglia portata a 2500
+      studentSchool = "Avanzata";
+      masterElo = 3190;
+      masterSchool = "Esperta (Max HCE)";
+    } else {
+      studentSchool = "Esperta";
+      masterElo = 3500; // Flag per ShashChess
+      masterSchool = "Super-Umana (NNUE)";
+    }
+  }
+
+  void startCrossedEval(String fen, int playerElo, int timeMs) async {
+    // <--- Aggiunto int timeMs
+    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
+
+    currentFen = fen;
+    baseTimeMs = timeMs; // <--- Salva il tempo
+    isWhiteToMove = fen.split(' ')[1] == 'w';
+    _determineSchools(playerElo);
+
+    // Reset variabili statiche
+    spaceWhite = null;
+    spaceBlack = null;
+    worstPieceWhite = null;
+    worstPieceBlack = null;
+
+    onLog("===========================================");
+    onLog("🌐 [Coach] Interrogazione Oracoli Cloud (Lichess/ChessDB)...");
+
+    try {
+      cloudLichess = await LiveBookScanner.scan(fen, [], false);
+      cloudChessDb = await LiveBookScanner.scan(fen, [], true);
+    } catch (e) {
+      onLog("⚠️ Errore Cloud: $e");
+    }
+
+    // FASE 1: Estrazione parametri semantici (comando eval)
+    currentState = CrossedState.staticEval;
+    onLog(
+      "📍 [Coach] Scansione semantica della posizione (Makogonov/Spazio)...",
+    );
+    engineManager.sendCommand('position fen $fen');
+    engineManager.sendCommand('eval');
+  }
+
   void _handleEngineOutput(String line) {
-    // Aggiorniamo la zona in base a chi sta pensando
+    // --- LETTURA TRACCIA STATICA (EVAL) ---
+    if (currentState == CrossedState.staticEval) {
+      // Cattura Spazio (Alexander)
+      final spaceMatch = RegExp(
+        r"Total Space: White (\d+) - Black (\d+)",
+      ).firstMatch(line);
+      if (spaceMatch != null) {
+        spaceWhite = int.tryParse(spaceMatch.group(1)!);
+        spaceBlack = int.tryParse(spaceMatch.group(2)!);
+      }
+
+      // Helper interno per tradurre i pezzi
+      String translatePiece(String engPiece) {
+        switch (engPiece.trim().toLowerCase()) {
+          case 'pawn':
+            return 'il Pedone';
+          case 'knight':
+            return 'il Cavallo';
+          case 'bishop':
+            return "l'Alfiere";
+          case 'rook':
+            return 'la Torre';
+          case 'queen':
+            return 'la Donna';
+          case 'king':
+            return 'il Re';
+          default:
+            return 'il pezzo';
+        }
+      }
+
+      // Cattura Pezzi Peggiori (Makogonov per Alexander) - ORA PRENDE ANCHE LA CASA!
+      final makWhiteMatch = RegExp(
+        r"Makogonov White: Improve (.+?) on ([a-h][1-8])",
+      ).firstMatch(line);
+      if (makWhiteMatch != null) {
+        worstPieceWhite =
+            "${translatePiece(makWhiteMatch.group(1)!)} in ${makWhiteMatch.group(2)!}";
+      }
+
+      final makBlackMatch = RegExp(
+        r"Makogonov Black: Improve (.+?) on ([a-h][1-8])",
+      ).firstMatch(line);
+      if (makBlackMatch != null) {
+        worstPieceBlack =
+            "${translatePiece(makBlackMatch.group(1)!)} in ${makBlackMatch.group(2)!}";
+      }
+
+      // Fine della traccia 'eval'
+      if (line.startsWith("Best move:") ||
+          line.contains("Final static evaluation") ||
+          line.startsWith("*** Note:")) {
+        currentState = CrossedState.baseEval;
+        onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
+        int staticTime = (baseTimeMs * 0.5)
+            .toInt(); // Il 50% del tempo base per l'analisi statica
+        engineManager.sendCommand('go movetime $staticTime');
+      }
+      return;
+    }
+
+    // --- LETTURA DINAMICA (WDL E MOSSE) ---
     final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
     if (wdlMatch != null) {
       int w = int.parse(wdlMatch.group(1)!);
       int d = int.parse(wdlMatch.group(2)!);
       int l = int.parse(wdlMatch.group(3)!);
+      ShashinZone currentZ = analyzeShashinZone(w, d, l);
 
-      if (currentState == CrossedState.studentThinking) {
-        studentZone = analyzeShashinZone(w, d, l);
-      } else if (currentState == CrossedState.masterThinking) {
-        masterZone = analyzeShashinZone(w, d, l);
-      }
+      if (currentState == CrossedState.baseEval)
+        baseZone = currentZ;
+      else if (currentState == CrossedState.studentThinking)
+        studentZone = currentZ;
+      else if (currentState == CrossedState.masterThinking)
+        masterZone = currentZ;
     }
 
-    // Quando scade il tempo, catturiamo la bestmove e passiamo alla fase successiva
     if (line.startsWith("bestmove")) {
       final moveMatch = RegExp(r"bestmove (\w+)").firstMatch(line);
       if (moveMatch != null) {
         String move = moveMatch.group(1)!;
 
-        if (currentState == CrossedState.studentThinking) {
+        // Fine della traccia 'eval'
+        if (line.startsWith("Best move:") ||
+            line.contains("Final static evaluation") ||
+            line.startsWith("*** Note:")) {
+          currentState = CrossedState.baseEval;
+          onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
+          int staticTime = (baseTimeMs * 0.5)
+              .toInt(); // Il 50% del tempo base per l'analisi statica
+          engineManager.sendCommand('go movetime $staticTime');
+        }
+        // ... [più in basso] ...
+        if (currentState == CrossedState.baseEval) {
+          currentState = CrossedState.studentThinking;
+          onLog(
+            "🧑‍🎓 L'Allievo (Scuola $studentSchool - Elo $studentElo) elabora il piano...",
+          );
+          engineManager.sendCommand('position fen $currentFen');
+          engineManager.sendCommand(
+            'setoption name UCI_LimitStrength value true',
+          );
+          engineManager.sendCommand('setoption name UCI_Elo value $studentElo');
+          engineManager.sendCommand(
+            'go movetime $baseTimeMs',
+          ); // <--- Usa il tempo esatto
+        } else if (currentState == CrossedState.studentThinking) {
           studentMove = move;
-          _startMasterAnalysis(); // Tocca al Maestro!
+          _startMasterPhase(); // <-- Sostituiamo tutto il vecchio blocco con questa chiamata
         } else if (currentState == CrossedState.masterThinking) {
           masterMove = move;
-          _finishAndReport(); // Analisi conclusa, generiamo il verdetto!
+          _finishAndReport();
         }
       }
     }
   }
 
-  /// Avvia la valutazione incrociata partendo dall'Allievo
-  void startCrossedEval(String fen, int playerElo) {
-    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
-
-    currentState = CrossedState.studentThinking;
-    onLog("===========================================");
-    onLog("🧑‍🎓 L'Allievo (Elo $playerElo) sta cercando un piano...");
-
-    engineManager.sendCommand('position fen $fen');
-
-    // Per l'MVP simuliamo l'Elo basso limitando fortemente la profondità di ricerca
-    // (Nella versione completa useremo i comandi UCI_LimitStrength e UCI_Elo)
-    int studentDepth = (playerElo < 1500) ? 3 : 6;
-    engineManager.sendCommand('go depth $studentDepth');
-  }
-
-  /// Il Maestro analizza la stessa posizione al massimo della forza
-  void _startMasterAnalysis() {
+  // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
+  Future<void> _startMasterPhase() async {
     currentState = CrossedState.masterThinking;
-    onLog("🧙‍♂️ Il Maestro sta valutando la posizione profonda...");
+    onLog("🧙‍♂️ Preparazione Maestro (Scuola $masterSchool)...");
 
-    // Il maestro pensa molto più a fondo
-    engineManager.sendCommand('go depth 12');
+    if (masterElo >= 3500) {
+      onLog(
+        "🚀 Cambio motore in corso: Spegnimento Alexander -> Avvio ShashChess...",
+      );
+
+      // 1. Uccidiamo il vecchio processo Alexander
+      engineManager.dispose();
+
+      // 2. Inizializziamo ShashChess (con le sue reti neurali)
+      await engineManager.initEngine('shashchess', [
+        'nn-c288c895ea92.nnue',
+        'nn-37f18f62d772.nnue',
+      ]);
+
+      // 3. CRITICO: Ri-agganciamo l'ascoltatore!
+      // Poiché initEngine ha creato un nuovo stream di comunicazione, dobbiamo rimetterci in ascolto.
+      _outputSubscription?.cancel();
+      _outputSubscription = engineManager.engineOutput?.listen(
+        _handleEngineOutput,
+      );
+
+      onLog("✅ ShashChess pronto alla massima forza.");
+    } else {
+      // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
+      engineManager.sendCommand('setoption name UCI_LimitStrength value true');
+      engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
+    }
+
+    // Avvio effettivo della ricerca del Maestro
+    engineManager.sendCommand('position fen $currentFen');
+    int masterTime = (baseTimeMs * 1.5)
+        .toInt(); // +50% di tempo per garantire la qualità del Maestro
+    engineManager.sendCommand('go movetime $masterTime');
   }
 
-  /// Genera il risultato finale
+  // NLP: Genera l'analisi testuale della posizione iniziale (Senza HTML!)
+  String _generateStaticAnalysisText() {
+    String txt = "";
+
+    if (spaceWhite != null && spaceBlack != null) {
+      int diff = spaceWhite! - spaceBlack!;
+      if (diff >= 4)
+        txt +=
+            "Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n";
+      else if (diff >= 1 && diff <= 3)
+        txt += "Il Bianco possiede un lieve vantaggio di spazio.\n";
+      else if (diff <= -4)
+        txt +=
+            "Il Nero ha conquistato un forte vantaggio di spazio, asfissiando i pezzi bianchi.\n";
+      else if (diff >= -3 && diff <= -1)
+        txt += "Il Nero detiene un leggero controllo territoriale superiore.\n";
+      else
+        txt +=
+            "La gestione dello spazio sulla scacchiera è in perfetto equilibrio.\n";
+    }
+
+    String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
+    if (worst != null) {
+      txt +=
+          "Secondo il principio di Makogonov, il pezzo che richiede più urgenza di essere riattivato è $worst.";
+    }
+
+    return txt.isNotEmpty ? txt.trim() : "Valutazione posizionale complessa.";
+  }
+
   void _finishAndReport() {
     currentState = CrossedState.idle;
+    StringBuffer report = StringBuffer();
 
-    if (studentMove != null &&
-        studentZone != null &&
-        masterMove != null &&
-        masterZone != null) {
-      onLog("✅ Valutazione incrociata completata.");
-      onReportReady(studentMove!, studentZone!, masterMove!, masterZone!);
+    // 1. CLOUD
+    report.writeln("🌐 VALUTAZIONI CLOUD:");
+    if (cloudLichess != null &&
+        cloudLichess!.moves.isNotEmpty &&
+        cloudLichess!.moves.first.move != "-") {
+      report.writeln(
+        "• Lichess (Umani): ${cloudLichess!.moves.first.move} (${cloudLichess!.moves.first.description})",
+      );
     } else {
-      onLog("❌ Errore durante l'estrazione delle mosse.");
+      report.writeln("• Lichess (Umani): Nessuna giocata predominante");
     }
+    if (cloudChessDb != null &&
+        cloudChessDb!.moves.isNotEmpty &&
+        cloudChessDb!.moves.first.move != "-") {
+      report.writeln(
+        "• ChessDB (Neurali): ${cloudChessDb!.moves.first.move} (${cloudChessDb!.moves.first.description})",
+      );
+    }
+    report.writeln("");
+
+    // 2. ANALISI PRE-MOSSA
+    report.writeln("📍 SCENOGRAFIA STATICA (Pre-Mossa):");
+    report.writeln(
+      "• Zona: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
+    );
+    report.writeln("ℹ️ ${_generateStaticAnalysisText()}");
+    report.writeln("");
+
+    // 3. ALLIEVO
+    report.writeln("🧑‍🎓 LA TUA IDEA (Scuola $studentSchool):");
+    report.writeln("• Mossa scelta: $studentMove");
+    report.writeln(
+      "• Aspettativa: ${studentZone?.name ?? '-'} (${studentZone?.wp.toStringAsFixed(1)}%)",
+    );
+    report.writeln("");
+
+    // 4. MAESTRO
+    report.writeln("🧙‍♂️ L'IDEA DEL MAESTRO (Scuola $masterSchool):");
+    report.writeln("• Mossa scelta: $masterMove");
+    report.writeln(
+      "• Aspettativa: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
+    );
+    report.writeln("");
+
+    // 5. VERDETTO E NAG
+    report.writeln("💡 VERDETTO DEL COACH:");
+    if (studentMove == masterMove) {
+      report.writeln("🌟 ECCELLENTE!");
+      report.writeln(
+        "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria in questa posizione, rispettando i canoni posizionali estratti nell'analisi statica.",
+      );
+    } else {
+      double sWp = studentZone?.wp ?? 50.0;
+      double mWp = masterZone?.wp ?? 50.0;
+      double drop = mWp - sWp;
+
+      if (drop > 20.0) {
+        report.writeln("❌ NAG: ?? (Grave Errore)");
+        report.writeln(
+          "La tua idea cede un vantaggio letale. Il Maestro suggerisce una via completamente diversa per salvare la posizione o mantenere il dominio strategico.",
+        );
+      } else if (drop > 10.0) {
+        report.writeln("⚠️ NAG: ? (Errore)");
+        report.writeln(
+          "Una svista posizionale o tattica sensibile. La mossa del Maestro massimizza l'energia cinetica dei pezzi in modo decisamente superiore.",
+        );
+      } else if (drop > 4.0) {
+        report.writeln("🤔 NAG: ?! (Imprecisione)");
+        report.writeln(
+          "La tua idea è giocabile ma subottimale. Il Maestro preferisce una sfumatura diversa che garantisce maggiore flessibilità o sicurezza.",
+        );
+      } else if (drop >= -3.0 && drop <= 4.0) {
+        report.writeln("👌 NAG: !? (Interessante)");
+        report.writeln(
+          "Idea validissima! Sei vicinissimo alla valutazione del Maestro. Potrebbe essere solo una questione di puro stile di gioco o di preferenza sui piani a lungo termine.",
+        );
+      } else {
+        report.writeln("✨ NAG: !! (Brillante)");
+        report.writeln(
+          "Incredibile! Hai scovato un'idea che a prima vista sfugge persino al Maestro in base alle statistiche. Una mossa eccezionale che ribalta i dogmi della posizione.",
+        );
+      }
+    }
+
+    onReportReady(report.toString());
+    onLog("✅ Valutazione incrociata e referto del Coach completati.");
+
+    engineManager.sendCommand('setoption name UCI_LimitStrength value false');
   }
 
   void stop() {
     engineManager.sendCommand('stop');
+    engineManager.sendCommand('setoption name UCI_LimitStrength value false');
     currentState = CrossedState.idle;
   }
 

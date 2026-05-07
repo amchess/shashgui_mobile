@@ -1,24 +1,49 @@
 import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
+import '../logic/livebook_scanner.dart';
 
-enum CrossedState { idle, studentThinking, masterThinking }
+enum CrossedState {
+  idle,
+  staticEval,
+  baseEval,
+  studentThinking,
+  masterThinking,
+}
 
 class CrossedEvalOrchestrator {
   final EngineManager engineManager;
-
   CrossedState currentState = CrossedState.idle;
   StreamSubscription<String>? _outputSubscription;
 
-  // Memoria del calcolo
+  String currentFen = "";
+  bool isWhiteToMove = true;
+
+  int baseTimeMs = 2000; // <--- NUOVO
+
+  int studentElo = 1500;
+  int masterElo = 2000;
+  String studentSchool = "";
+  String masterSchool = "";
+
+  LiveBookResult? cloudLichess;
+  LiveBookResult? cloudChessDb;
+
+  ShashinZone? baseZone;
   String? studentMove;
   ShashinZone? studentZone;
   String? masterMove;
   ShashinZone? masterZone;
 
+  // Variabili per l'analisi Statica (comando 'eval')
+  int? spaceWhite;
+  int? spaceBlack;
+  String? worstPieceWhite;
+  String? worstPieceBlack;
+
   // Callback per la UI
   final Function(String) onLog;
-  final Function(String, ShashinZone, String, ShashinZone) onReportReady;
+  final Function(String) onReportReady;
 
   CrossedEvalOrchestrator({
     required this.engineManager,
@@ -30,80 +55,357 @@ class CrossedEvalOrchestrator {
     );
   }
 
+  void _determineSchools(int elo) {
+    studentElo = elo;
+    if (elo < 2000) {
+      studentSchool = "Principianti";
+      masterElo = 2199;
+      masterSchool = "Intermedia";
+    } else if (elo < 2200) {
+      studentSchool = "Intermedia";
+      masterElo = 2399;
+      masterSchool = "Avanzata";
+    } else if (elo < 2500) {
+      // <--- Soglia portata a 2500
+      studentSchool = "Avanzata";
+      masterElo = 3190;
+      masterSchool = "Esperta (Max HCE)";
+    } else {
+      studentSchool = "Esperta";
+      masterElo = 3500; // Flag per ShashChess
+      masterSchool = "Super-Umana (NNUE)";
+    }
+  }
+
+  void startCrossedEval(String fen, int playerElo, int timeMs) async {
+    // <--- Aggiunto int timeMs
+    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
+
+    currentFen = fen;
+    baseTimeMs = timeMs; // <--- Salva il tempo
+    isWhiteToMove = fen.split(' ')[1] == 'w';
+    _determineSchools(playerElo);
+
+    // Reset variabili statiche
+    spaceWhite = null;
+    spaceBlack = null;
+    worstPieceWhite = null;
+    worstPieceBlack = null;
+
+    onLog("===========================================");
+    onLog("🌐 [Coach] Interrogazione Oracoli Cloud (Lichess/ChessDB)...");
+
+    try {
+      cloudLichess = await LiveBookScanner.scan(fen, [], false);
+      cloudChessDb = await LiveBookScanner.scan(fen, [], true);
+    } catch (e) {
+      onLog("⚠️ Errore Cloud: $e");
+    }
+
+    // FASE 1: Estrazione parametri semantici (comando eval)
+    currentState = CrossedState.staticEval;
+    onLog(
+      "📍 [Coach] Scansione semantica della posizione (Makogonov/Spazio)...",
+    );
+    engineManager.sendCommand('position fen $fen');
+    engineManager.sendCommand('eval');
+  }
+
   void _handleEngineOutput(String line) {
-    // Aggiorniamo la zona in base a chi sta pensando
+    // --- LETTURA TRACCIA STATICA (EVAL) ---
+    if (currentState == CrossedState.staticEval) {
+      // Cattura Spazio (Alexander)
+      final spaceMatch = RegExp(
+        r"Total Space: White (\d+) - Black (\d+)",
+      ).firstMatch(line);
+      if (spaceMatch != null) {
+        spaceWhite = int.tryParse(spaceMatch.group(1)!);
+        spaceBlack = int.tryParse(spaceMatch.group(2)!);
+      }
+
+      // Helper interno per tradurre i pezzi
+      String translatePiece(String engPiece) {
+        switch (engPiece.trim().toLowerCase()) {
+          case 'pawn':
+            return 'il Pedone';
+          case 'knight':
+            return 'il Cavallo';
+          case 'bishop':
+            return "l'Alfiere";
+          case 'rook':
+            return 'la Torre';
+          case 'queen':
+            return 'la Donna';
+          case 'king':
+            return 'il Re';
+          default:
+            return 'il pezzo';
+        }
+      }
+
+      // Cattura Pezzi Peggiori (Makogonov per Alexander) - ORA PRENDE ANCHE LA CASA!
+      final makWhiteMatch = RegExp(
+        r"Makogonov White: Improve (.+?) on ([a-h][1-8])",
+      ).firstMatch(line);
+      if (makWhiteMatch != null) {
+        worstPieceWhite =
+            "${translatePiece(makWhiteMatch.group(1)!)} in ${makWhiteMatch.group(2)!}";
+      }
+
+      final makBlackMatch = RegExp(
+        r"Makogonov Black: Improve (.+?) on ([a-h][1-8])",
+      ).firstMatch(line);
+      if (makBlackMatch != null) {
+        worstPieceBlack =
+            "${translatePiece(makBlackMatch.group(1)!)} in ${makBlackMatch.group(2)!}";
+      }
+
+      // Fine della traccia 'eval'
+      if (line.startsWith("Best move:") ||
+          line.contains("Final static evaluation") ||
+          line.startsWith("*** Note:")) {
+        currentState = CrossedState.baseEval;
+        onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
+
+        // Usa esattamente il tempo scelto dall'utente!
+        engineManager.sendCommand('go movetime $baseTimeMs');
+      }
+      return;
+    }
+
+    // --- LETTURA DINAMICA (WDL E MOSSE) ---
     final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
     if (wdlMatch != null) {
       int w = int.parse(wdlMatch.group(1)!);
       int d = int.parse(wdlMatch.group(2)!);
       int l = int.parse(wdlMatch.group(3)!);
+      ShashinZone currentZ = analyzeShashinZone(w, d, l);
 
-      if (currentState == CrossedState.studentThinking) {
-        studentZone = analyzeShashinZone(w, d, l);
-      } else if (currentState == CrossedState.masterThinking) {
-        masterZone = analyzeShashinZone(w, d, l);
-      }
+      if (currentState == CrossedState.baseEval)
+        baseZone = currentZ;
+      else if (currentState == CrossedState.studentThinking)
+        studentZone = currentZ;
+      else if (currentState == CrossedState.masterThinking)
+        masterZone = currentZ;
     }
-
-    // Quando scade il tempo, catturiamo la bestmove e passiamo alla fase successiva
     if (line.startsWith("bestmove")) {
       final moveMatch = RegExp(r"bestmove (\w+)").firstMatch(line);
       if (moveMatch != null) {
         String move = moveMatch.group(1)!;
 
-        if (currentState == CrossedState.studentThinking) {
+        if (currentState == CrossedState.baseEval) {
+          currentState = CrossedState.studentThinking;
+          onLog(
+            "🧑‍🎓 L'Allievo (Scuola $studentSchool - Elo $studentElo) elabora il piano...",
+          );
+          // --- INIZIO PARTE MANCANTE ---
+          engineManager.sendCommand('position fen $currentFen');
+          engineManager.sendCommand(
+            'setoption name UCI_LimitStrength value true',
+          );
+          engineManager.sendCommand('setoption name UCI_Elo value $studentElo');
+          engineManager.sendCommand('go movetime $baseTimeMs');
+        } else if (currentState == CrossedState.studentThinking) {
           studentMove = move;
-          _startMasterAnalysis(); // Tocca al Maestro!
+          _startMasterPhase();
         } else if (currentState == CrossedState.masterThinking) {
           masterMove = move;
-          _finishAndReport(); // Analisi conclusa, generiamo il verdetto!
+          _finishAndReport();
         }
       }
     }
-  }
+  } // <-- Queste sono le parentesi graffe che chiudevano _handleEngineOutput
+  // --- FINE PARTE MANCANTE ---
 
-  /// Avvia la valutazione incrociata partendo dall'Allievo
-  void startCrossedEval(String fen, int playerElo) {
-    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
-
-    currentState = CrossedState.studentThinking;
-    onLog("===========================================");
-    onLog("🧑‍🎓 L'Allievo (Elo $playerElo) sta cercando un piano...");
-
-    engineManager.sendCommand('position fen $fen');
-
-    // Per l'MVP simuliamo l'Elo basso limitando fortemente la profondità di ricerca
-    // (Nella versione completa useremo i comandi UCI_LimitStrength e UCI_Elo)
-    int studentDepth = (playerElo < 1500) ? 3 : 6;
-    engineManager.sendCommand('go depth $studentDepth');
-  }
-
-  /// Il Maestro analizza la stessa posizione al massimo della forza
-  void _startMasterAnalysis() {
+  // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
+  Future<void> _startMasterPhase() async {
     currentState = CrossedState.masterThinking;
-    onLog("🧙‍♂️ Il Maestro sta valutando la posizione profonda...");
+    onLog("🧙‍♂️ Preparazione Maestro (Scuola $masterSchool)...");
 
-    // Il maestro pensa molto più a fondo
-    engineManager.sendCommand('go depth 12');
+    if (masterElo >= 3500) {
+      onLog(
+        "🚀 Cambio motore in corso: Spegnimento Alexander -> Avvio ShashChess...",
+      );
+
+      // 1. Uccidiamo il vecchio processo Alexander
+      engineManager.dispose();
+
+      // 2. Inizializziamo ShashChess (con le sue reti neurali)
+      await engineManager.initEngine('shashchess', [
+        'nn-c288c895ea92.nnue',
+        'nn-37f18f62d772.nnue',
+      ]);
+
+      // 3. CRITICO: Ri-agganciamo l'ascoltatore!
+      // Poiché initEngine ha creato un nuovo stream di comunicazione, dobbiamo rimetterci in ascolto.
+      _outputSubscription?.cancel();
+      _outputSubscription = engineManager.engineOutput?.listen(
+        _handleEngineOutput,
+      );
+
+      onLog("✅ ShashChess pronto alla massima forza.");
+    } else {
+      // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
+      engineManager.sendCommand('setoption name UCI_LimitStrength value true');
+      engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
+    }
+
+    // Avvio effettivo della ricerca del Maestro
+    engineManager.sendCommand('position fen $currentFen');
+    engineManager.sendCommand('go movetime $baseTimeMs');
   }
 
-  /// Genera il risultato finale
+  // NLP: Genera l'analisi testuale della posizione iniziale (Senza HTML!)
+  String _generateStaticAnalysisText() {
+    String txt = "";
+
+    if (spaceWhite != null && spaceBlack != null) {
+      int diff = spaceWhite! - spaceBlack!;
+      if (diff >= 4)
+        txt +=
+            "Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n";
+      else if (diff >= 1 && diff <= 3)
+        txt += "Il Bianco possiede un lieve vantaggio di spazio.\n";
+      else if (diff <= -4)
+        txt +=
+            "Il Nero ha conquistato un forte vantaggio di spazio, asfissiando i pezzi bianchi.\n";
+      else if (diff >= -3 && diff <= -1)
+        txt += "Il Nero detiene un leggero controllo territoriale superiore.\n";
+      else
+        txt +=
+            "La gestione dello spazio sulla scacchiera è in perfetto equilibrio.\n";
+    }
+
+    String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
+    if (worst != null) {
+      txt +=
+          "Secondo il principio di Makogonov, il pezzo che richiede più urgenza di essere riattivato è $worst.";
+    }
+
+    return txt.isNotEmpty ? txt.trim() : "Valutazione posizionale complessa.";
+  }
+
+  // Helper interno per assegnare l'indice di Zona Shashin (0-12)
+  int _getZoneIndex(double wp) {
+    if (wp <= 5) return 0;
+    if (wp <= 10) return 1;
+    if (wp <= 15) return 2;
+    if (wp <= 20) return 3;
+    if (wp <= 24) return 4;
+    if (wp <= 49) return 5;
+    if (wp <= 50) return 6;
+    if (wp <= 75) return 7;
+    if (wp <= 79) return 8;
+    if (wp <= 84) return 9;
+    if (wp <= 89) return 10;
+    if (wp <= 94) return 11;
+    return 12;
+  }
+
   void _finishAndReport() {
     currentState = CrossedState.idle;
+    StringBuffer report = StringBuffer();
 
-    if (studentMove != null &&
-        studentZone != null &&
-        masterMove != null &&
-        masterZone != null) {
-      onLog("✅ Valutazione incrociata completata.");
-      onReportReady(studentMove!, studentZone!, masterMove!, masterZone!);
+    // 1. CLOUD
+    report.writeln("🌐 VALUTAZIONI CLOUD:");
+    if (cloudLichess != null &&
+        cloudLichess!.moves.isNotEmpty &&
+        cloudLichess!.moves.first.move != "-") {
+      report.writeln(
+        "• Lichess (Umani): ${cloudLichess!.moves.first.move} (${cloudLichess!.moves.first.description})",
+      );
     } else {
-      onLog("❌ Errore durante l'estrazione delle mosse.");
+      report.writeln("• Lichess (Umani): Nessuna giocata predominante");
     }
+    if (cloudChessDb != null &&
+        cloudChessDb!.moves.isNotEmpty &&
+        cloudChessDb!.moves.first.move != "-") {
+      report.writeln(
+        "• ChessDB (Neurali): ${cloudChessDb!.moves.first.move} (${cloudChessDb!.moves.first.description})",
+      );
+    }
+    report.writeln("");
+
+    // 2. ANALISI PRE-MOSSA
+    report.writeln("📍 SCENOGRAFIA STATICA (Pre-Mossa):");
+    report.writeln(
+      "• Zona: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
+    );
+    report.writeln("ℹ️ ${_generateStaticAnalysisText()}");
+    report.writeln("");
+
+    // 3. ALLIEVO
+    report.writeln("🧑‍🎓 LA TUA IDEA (Scuola $studentSchool):");
+    report.writeln("• Mossa scelta: $studentMove");
+    report.writeln(
+      "• Aspettativa: ${studentZone?.name ?? '-'} (${studentZone?.wp.toStringAsFixed(1)}%)",
+    );
+    report.writeln("");
+
+    // 4. MAESTRO
+    report.writeln("🧙‍♂️ L'IDEA DEL MAESTRO (Scuola $masterSchool):");
+    report.writeln("• Mossa scelta: $masterMove");
+    report.writeln(
+      "• Aspettativa: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
+    );
+    report.writeln("");
+
+    // 5. VERDETTO E NAG
+    report.writeln("💡 VERDETTO DEL COACH:");
+    if (studentMove == masterMove) {
+      report.writeln("🌟 ECCELLENTE!");
+      report.writeln(
+        "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria in questa posizione, rispettando i canoni posizionali estratti nell'analisi statica.",
+      );
+    } else {
+      double sWp = studentZone?.wp ?? 50.0;
+      double mWp = masterZone?.wp ?? 50.0;
+
+      // Calcoliamo la VERA caduta posizionale tramite gli Indici (0-12)
+      int sIndex = _getZoneIndex(sWp);
+      int mIndex = _getZoneIndex(mWp);
+      int zoneDrop = mIndex - sIndex;
+
+      if (zoneDrop >= 3) {
+        report.writeln("❌ NAG: ?? (Grave Errore)");
+        report.writeln(
+          "La tua idea cede un vantaggio letale facendo crollare la posizione di $zoneDrop Zone Termodinamiche. Il Maestro suggerisce una via completamente diversa per salvare la posizione.",
+        );
+      } else if (zoneDrop == 2) {
+        report.writeln("⚠️ NAG: ? (Errore)");
+        report.writeln(
+          "Una svista posizionale o tattica sensibile. La posizione scende di $zoneDrop Zone rispetto al potenziale massimizzato dal Maestro.",
+        );
+      } else if (zoneDrop == 1) {
+        report.writeln("🤔 NAG: ?! (Imprecisione)");
+        report.writeln(
+          "La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro che garantisce maggiore flessibilità o sicurezza.",
+        );
+      } else {
+        // zoneDrop <= 0: L'Allievo ha mantenuto la stessa identica Zona (o addirittura l'ha migliorata contro le aspettative)
+        report.writeln("👌 NAG: !? (Interessante)");
+
+        if (mWp - sWp > 8.0) {
+          report.writeln(
+            "La mossa del Maestro ($masterMove) oggettivamente spreme più decimi di vantaggio secondo la rete neurale. Tuttavia, la tua idea mantiene il gioco esattamente nella stessa Zona Termodinamica (${studentZone?.name}). Visto il tuo Elo ($studentElo), è assolutamente saggio giocare il piano che comprendi meglio, senza forzare linee incomprensibili.",
+          );
+        } else {
+          report.writeln(
+            "Idea validissima! Sei vicinissimo alla valutazione del Maestro e mantieni intatta la Zona Termodinamica. Ottima scelta pratica per il tuo stile di gioco.",
+          );
+        }
+      }
+    }
+
+    onReportReady(report.toString());
+    onLog("✅ Valutazione incrociata e referto del Coach completati.");
+
+    engineManager.sendCommand('setoption name UCI_LimitStrength value false');
   }
 
   void stop() {
     engineManager.sendCommand('stop');
+    engineManager.sendCommand('setoption name UCI_LimitStrength value false');
     currentState = CrossedState.idle;
   }
 

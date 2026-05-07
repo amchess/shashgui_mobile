@@ -2210,6 +2210,99 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void _startCrossedAnalysis() {
     if (!_isEngineRunning) return;
 
+    int tempCrossedTime = 2; // Default 2 secondi
+    int tempCrossedElo = _eloValue.toInt(); // Peschiamo l'Elo di partenza
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Coach: Analisi Incrociata",
+                style: TextStyle(color: Colors.cyanAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Il tuo Livello (Elo): $tempCrossedElo",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Slider(
+                    value: tempCrossedElo.toDouble(),
+                    min: 1000,
+                    max: 3190,
+                    divisions: 43,
+                    label: tempCrossedElo.toString(),
+                    activeColor: Colors.orangeAccent,
+                    onChanged: (v) {
+                      setPopupState(() {
+                        tempCrossedElo = v.toInt();
+                        _eloValue = v; // Aggiorna anche la variabile globale
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    "Tempo base per valutazione: $tempCrossedTime s",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Slider(
+                    value: tempCrossedTime.toDouble(),
+                    min: 1,
+                    max: 15,
+                    divisions: 14,
+                    label: "$tempCrossedTime s",
+                    activeColor: Colors.cyanAccent,
+                    onChanged: (v) =>
+                        setPopupState(() => tempCrossedTime = v.toInt()),
+                  ),
+                  const Text(
+                    "(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // ORA PASSIAMO SIA IL TEMPO CHE L'ELO SCELTO!
+                    _executeCrossedAnalysis(tempCrossedTime, tempCrossedElo);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.cyan[700],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA COACH"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _executeCrossedAnalysis(int baseTimeSec, int playerElo) {
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
     setState(() {
@@ -2222,63 +2315,39 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
     _engineManager.sendCommand('stop');
 
-    // Diamo 100ms al motore per fermarsi davvero prima di inviargli la nuova posizione
+    // Diamo 100ms al motore per fermarsi davvero
     Future.delayed(const Duration(milliseconds: 100), () {
-      _engineManager.sendCommand('position fen ${_boardController.getFen()}');
-
       _crossedFsm = CrossedEvalOrchestrator(
         engineManager: _engineManager,
         onLog: (msg) {
           setState(() => _outputLines.add(msg));
           Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
         },
-        onReportReady: (studentMove, studentZone, masterMove, masterZone) {
+        onReportReady: (reportText) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
               title: const Text(
-                "🔍 Verdetto Divergenze",
+                "🔍 Coach: Verdetto Incrociato",
                 style: TextStyle(color: Colors.cyanAccent),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Idea Allievo (Elo ${_eloValue.toInt()}):",
-                    style: const TextStyle(color: Colors.grey),
+              content: SingleChildScrollView(
+                child: Text(
+                  reportText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
-                  Text(
-                    "Mossa: $studentMove [${studentZone.name}]",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orangeAccent,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "Risposta Maestro (Profondità 12):",
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  Text(
-                    "Mossa: $masterMove [${masterZone.name}]",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueAccent,
-                    ),
-                  ),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // SICUREZZA: Nessun avvio automatico del motore. Ora l'analisi resta rigorosamente in silenzio!
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text(
                     "Chiudi",
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.blueAccent),
                   ),
                 ),
               ],
@@ -2287,9 +2356,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         },
       );
 
+      // Usiamo l'Elo scelto dall'utente e il tempo in millisecondi!
       _crossedFsm!.startCrossedEval(
         _boardController.getFen(),
-        _eloValue.toInt(),
+        playerElo,
+        baseTimeSec * 1000,
       );
     });
   }
