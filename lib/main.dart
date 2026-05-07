@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'core/logic/livebook_scanner.dart'; // <-- AGGIUNTO PER IL LIVEBOOK
 import 'dart:async';
+import 'core/orchestrators/autoplay_orchestrator.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -82,11 +83,14 @@ class EngineTestScreen extends StatefulWidget {
 }
 
 class _EngineTestScreenState extends State<EngineTestScreen> {
-  final EngineManager _engineManager = EngineManager();
+  final EngineManager _engineManager =
+      EngineManager(); // Motore Bianco/Principale
+  final EngineManager _engineManagerBlack = EngineManager(); // Motore Nero
 
   ShashinFsm? _fsm;
   CrossedEvalOrchestrator? _crossedFsm;
   PlayOrchestrator? _playFsm;
+  AutoplayOrchestrator? _autoplayFsm;
 
   final List<String> _outputLines = [];
   final ChessBoardController _boardController = ChessBoardController();
@@ -241,10 +245,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     _fsm?.stop();
     _crossedFsm?.stop();
     _playFsm?.stop();
-
+    _autoplayFsm?.stop();
     _fsm?.dispose();
     _crossedFsm?.dispose();
     _playFsm?.dispose();
+    _autoplayFsm?.dispose();
+    _autoplayFsm = null;
 
     _fsm = null;
     _crossedFsm = null;
@@ -373,6 +379,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   void dispose() {
     _stopAllOrchestrators();
     _engineManager.dispose();
+    _engineManagerBlack.dispose(); // <-- NUOVO
     _scrollController.dispose();
     super.dispose();
   }
@@ -968,6 +975,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               color: Colors.greenAccent,
                             ),
                             tooltip: "Gioca contro il Motore",
+                          ),
+                          IconButton(
+                            onPressed: _startAutoplayMode,
+                            icon: const Icon(
+                              Icons.smart_toy,
+                              color: Colors.purpleAccent,
+                            ),
+                            tooltip: "Autoplay (Motore vs Motore)",
                           ),
                           IconButton(
                             onPressed: _scanThreats, // <-- Sempre cliccabile
@@ -2277,6 +2292,339 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         _eloValue.toInt(),
       );
     });
+  }
+
+  void _startAutoplayMode() {
+    if (!_isEngineRunning) return;
+
+    String tempWhiteEngine = _selectedEngine;
+    String tempBlackEngine = _selectedEngine;
+    bool tempWhiteLivebook = true;
+    bool tempBlackLivebook = true;
+    int tempTcType = 1;
+    int tempBaseTime = 2;
+    int tempInc = 1;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "Impostazioni Autoplay",
+                style: TextStyle(color: Colors.purpleAccent),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // BIANCO
+                    Container(
+                      color: Colors.white10,
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        children: [
+                          const Text(
+                            "MOTORE BIANCO",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: tempWhiteEngine,
+                            dropdownColor: const Color(0xFF2b2b2b),
+                            style: const TextStyle(color: Colors.white),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'shashchess',
+                                child: Text("ShashChess"),
+                              ),
+                              DropdownMenuItem(
+                                value: 'alexander',
+                                child: Text("Alexander"),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setPopupState(() => tempWhiteEngine = val!),
+                          ),
+                          SwitchListTile(
+                            title: const Text(
+                              "LiveBook",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                            value: tempWhiteLivebook,
+                            activeColor: Colors.greenAccent,
+                            onChanged: (v) =>
+                                setPopupState(() => tempWhiteLivebook = v),
+                          ),
+                          ListTile(
+                            title: const Text(
+                              "Tratti Posizionali",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: Colors.orangeAccent,
+                            ),
+                            dense: true,
+                            onTap: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // NERO
+                    Container(
+                      color: Colors.black45,
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        children: [
+                          const Text(
+                            "MOTORE NERO",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: tempBlackEngine,
+                            dropdownColor: const Color(0xFF2b2b2b),
+                            style: const TextStyle(color: Colors.white),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'shashchess',
+                                child: Text("ShashChess"),
+                              ),
+                              DropdownMenuItem(
+                                value: 'alexander',
+                                child: Text("Alexander"),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setPopupState(() => tempBlackEngine = val!),
+                          ),
+                          SwitchListTile(
+                            title: const Text(
+                              "LiveBook",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                            value: tempBlackLivebook,
+                            activeColor: Colors.greenAccent,
+                            onChanged: (v) =>
+                                setPopupState(() => tempBlackLivebook = v),
+                          ),
+                          ListTile(
+                            title: const Text(
+                              "Tratti Posizionali",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: Colors.orangeAccent,
+                            ),
+                            dense: true,
+                            onTap: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white24),
+                    // CADENZA
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                      value: 0,
+                      groupValue: tempTcType,
+                      activeColor: Colors.purpleAccent,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 3;
+                      }),
+                    ),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                      value: 1,
+                      groupValue: tempTcType,
+                      activeColor: Colors.purpleAccent,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 2;
+                      }),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              tempTcType == 0 ? "Minuti:" : "Secondi:",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            DropdownButton<int>(
+                              value: tempBaseTime,
+                              dropdownColor: const Color(0xFF2b2b2b),
+                              style: const TextStyle(color: Colors.white),
+                              items: [1, 2, 3, 5, 10]
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text("$e"),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setPopupState(() => tempBaseTime = v!),
+                            ),
+                          ],
+                        ),
+                        if (tempTcType == 0)
+                          Column(
+                            children: [
+                              const Text(
+                                "Incremento (s):",
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              DropdownButton<int>(
+                                value: tempInc,
+                                dropdownColor: const Color(0xFF2b2b2b),
+                                style: const TextStyle(color: Colors.white),
+                                items: [0, 1, 2, 3]
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text("$e"),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setPopupState(() => tempInc = v!),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annulla"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _executeAutoplayModeStartup(
+                      tempWhiteEngine,
+                      tempBlackEngine,
+                      tempWhiteLivebook,
+                      tempBlackLivebook,
+                      tempTcType,
+                      tempBaseTime,
+                      tempInc,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purpleAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("AVVIA MATCH"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _executeAutoplayModeStartup(
+    String wEng,
+    String bEng,
+    bool wLb,
+    bool bLb,
+    int tcType,
+    int baseTime,
+    int inc,
+  ) async {
+    _stopAllOrchestrators();
+
+    setState(() {
+      _isPlayingMode = true;
+      _outputLines.clear();
+      _arrowsNotifier.value = [];
+    });
+
+    _zoneNotifier.value = ShashinZone(
+      "Autoplay Match",
+      "⚔️",
+      Colors.purple,
+      50.0,
+      ["assets/images/capablanca.png"],
+    );
+
+    // Accendiamo il motore secondario se necessario
+    if (_engineManagerBlack.engineOutput == null) {
+      await _engineManagerBlack.initEngine(bEng, [
+        'nn-c288c895ea92.nnue',
+        'nn-37f18f62d772.nnue',
+      ]);
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    _autoplayFsm = AutoplayOrchestrator(
+      whiteEngine: _engineManager,
+      blackEngine: _engineManagerBlack,
+      boardController: _boardController,
+      whiteUseLivebook: wLb,
+      blackUseLivebook: bLb,
+      tcType: tcType,
+      baseTimeMs: tcType == 0 ? (baseTime * 60 * 1000) : (baseTime * 1000),
+      incMs: inc * 1000,
+      onLog: (line) {
+        setState(() => _outputLines.add(line));
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      },
+      onGameOver: (messaggio) => _showGameOverDialog(messaggio!),
+    );
+
+    // Resettiamo la scacchiera e partiamo!
+    _boardController.loadFen(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    );
+    _autoplayFsm!.startMatch();
   }
 }
 
