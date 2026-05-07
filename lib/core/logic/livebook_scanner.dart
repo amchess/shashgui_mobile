@@ -258,31 +258,48 @@ class LiveBookScanner {
           bool isWhiteTurn = fen.split(' ')[1] == 'w';
           List<Map<String, dynamic>> processedMoves = [];
 
+          // 1. Calcoliamo il totale per estrarre la Frequenza (Popolarità)
+          int globalTot = 0;
+          for (var move in moves) {
+            globalTot +=
+                ((move['white'] ?? 0) +
+                        (move['draws'] ?? 0) +
+                        (move['black'] ?? 0))
+                    as int;
+          }
+          if (globalTot == 0) globalTot = 1;
+
           for (var move in moves) {
             int w = move['white'] ?? 0;
             int d = move['draws'] ?? 0;
             int b = move['black'] ?? 0;
             int total = w + d + b;
-            if (total < 5) continue;
 
-            double wp = isWhiteTurn
-                ? ((w + d / 2.0) / total) * 100
-                : ((b + d / 2.0) / total) * 100;
-            processedMoves.add({'uci': move['uci'], 'wp': wp, 'total': total});
+            double freqPct = (total / globalTot) * 100.0;
+
+            // Filtro anti-rumore e scarto mosse < 0.5%
+            if (total < 1 || (total / globalTot) < 0.005) continue;
+
+            double wpPura = isWhiteTurn
+                ? ((w + d / 2.0) / total) * 100.0
+                : ((b + d / 2.0) / total) * 100.0;
+
+            // LA VERA WIN PROBABILITY (70% Risultato + 30% Frequenza)
+            double pEff = (wpPura * 0.70) + (freqPct * 0.30);
+
+            processedMoves.add({'uci': move['uci'], 'pEff': pEff});
           }
 
-          processedMoves.sort((a, b) {
-            double wpA = a['wp'];
-            double wpB = b['wp'];
-            if (wpB.compareTo(wpA) != 0) return wpB.compareTo(wpA);
-            return (b['total'] as int).compareTo(a['total'] as int);
-          });
+          // Ordiniamo per la nuova Win Probability Effettiva
+          processedMoves.sort(
+            (a, b) => (b['pEff'] as double).compareTo(a['pEff'] as double),
+          );
 
           for (var pm in processedMoves) {
             results.add(
               LiveBookMove(
                 move: pm['uci'] as String,
-                description: "${(pm['wp'] as double).toStringAsFixed(2)}%",
+                description: "${(pm['pEff'] as double).toStringAsFixed(1)}%",
               ),
             );
           }

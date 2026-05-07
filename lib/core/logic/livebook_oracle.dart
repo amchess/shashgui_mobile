@@ -44,22 +44,36 @@ class LiveBookOracle {
         String? bestUci;
         bool isWhiteTurn = fen.split(' ')[1] == 'w';
 
+        int globalTot = 0;
+        for (var move in moves) {
+          globalTot +=
+              ((move['white'] ?? 0) +
+                      (move['draws'] ?? 0) +
+                      (move['black'] ?? 0))
+                  as int;
+        }
+        if (globalTot == 0) globalTot = 1;
+
         for (var move in moves) {
           int w = move['white'];
           int d = move['draws'];
           int b = move['black'];
           int total = w + d + b;
 
-          // Filtro anti-rumore: ignoriamo mosse giocate in meno di 5 partite Master
-          if (total < 5) continue;
+          double popularity = total / globalTot;
 
-          // Calcolo Win Probability (WP = (Vittorie + Patte/2) / Totale)
-          double wp = isWhiteTurn
-              ? ((w + d / 2) / total)
-              : ((b + d / 2) / total);
+          // Filtro anti-rumore (< 0.5% popolarità)
+          if (total < 1 || popularity < 0.005) continue;
 
-          if (wp > bestScore) {
-            bestScore = wp;
+          double wpPura = isWhiteTurn
+              ? ((w + d / 2.0) / total) * 100.0
+              : ((b + d / 2.0) / total) * 100.0;
+
+          // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
+          double pEff = (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+
+          if (pEff > bestScore) {
+            bestScore = pEff;
             bestUci = move['uci'];
           }
         }

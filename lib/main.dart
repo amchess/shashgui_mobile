@@ -280,7 +280,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _updateLiveBook() async {
-    bool isShash = _selectedEngine.toLowerCase().contains("shash");
+    // FIX: Forziamo sempre Lichess per il pannello visivo in modo da avere statistiche umane con la Frequenza!
+    bool isShash = false;
 
     // Calcoliamo la cronologia delle mosse (SAN) dall'inizio alla posizione corrente
     List<String> history = [];

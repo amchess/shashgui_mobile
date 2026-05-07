@@ -775,7 +775,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _updateLiveBook() async {
-    bool isShash = _selectedEngine.toLowerCase().contains("shash");
+    // FIX: Forziamo sempre Lichess per il pannello visivo in modo da avere statistiche umane con la Frequenza!
+    bool isShash = false;
 
     // Calcoliamo la cronologia delle mosse (SAN) dall'inizio alla posizione corrente
     List<String> history = [];
@@ -2090,6 +2091,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // Variabili temporanee per il popup
     bool tempLivebook = true;
     PlayerColor tempColor = PlayerColor.white;
+    int tempTcType = 0; // 0 = Fischer, 1 = Fisso
+    int tempBaseTime = 5; // Minuti o Secondi base
+    int tempInc = 3; // Incremento in secondi
 
     showDialog(
       context: context,
@@ -2102,98 +2106,214 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 "Impostazioni Sfida",
                 style: TextStyle(color: Colors.orangeAccent),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. SCELTA COLORE UMANO
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Giochi col:"),
-                      DropdownButton<PlayerColor>(
-                        value: tempColor,
-                        dropdownColor: const Color(0xFF2b2b2b),
-                        style: const TextStyle(color: Colors.white),
-                        items: const [
-                          DropdownMenuItem(
-                            value: PlayerColor.white,
-                            child: Text("Bianco"),
-                          ),
-                          DropdownMenuItem(
-                            value: PlayerColor.black,
-                            child: Text("Nero"),
-                          ),
-                        ],
-                        onChanged: (val) =>
-                            setPopupState(() => tempColor = val!),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white24),
-
-                  // 2. TOGGLE LIVEBOOK
-                  SwitchListTile(
-                    title: const Text(
-                      "Usa LiveBook Cloud",
-                      style: TextStyle(fontSize: 14),
+              content: SingleChildScrollView(
+                // Evita overflow su schermi piccoli
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. SCELTA COLORE UMANO
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Giochi col:",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        DropdownButton<PlayerColor>(
+                          value: tempColor,
+                          dropdownColor: const Color(0xFF2b2b2b),
+                          style: const TextStyle(color: Colors.white),
+                          items: const [
+                            DropdownMenuItem(
+                              value: PlayerColor.white,
+                              child: Text("Bianco"),
+                            ),
+                            DropdownMenuItem(
+                              value: PlayerColor.black,
+                              child: Text("Nero"),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setPopupState(() => tempColor = val!),
+                        ),
+                      ],
                     ),
-                    subtitle: const Text(
-                      "Il motore pescherà le aperture dal database online.",
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    value: tempLivebook,
-                    activeColor: Colors.greenAccent,
-                    onChanged: (v) => setPopupState(() => tempLivebook = v),
-                  ),
-                  const Divider(color: Colors.white24),
+                    const Divider(color: Colors.white24),
 
-                  if (_selectedEngine == 'alexander') ...[
+                    // 2. LIVEBOOK E TRATTI (PREMIUM)
                     SwitchListTile(
                       title: const Text(
-                        "Limita Forza",
-                        style: TextStyle(fontSize: 14),
+                        "Usa LiveBook Cloud",
+                        style: TextStyle(fontSize: 14, color: Colors.white),
                       ),
-                      value: _limitStrength,
-                      onChanged: (v) => setPopupState(() => _limitStrength = v),
+                      subtitle: const Text(
+                        "Il motore pescherà le aperture dal web.",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                      value: tempLivebook,
+                      activeColor: Colors.greenAccent,
+                      onChanged: (v) => setPopupState(() => tempLivebook = v),
                     ),
-                    if (_limitStrength) ...[
-                      Text(
-                        "Livello ELO: ${_eloValue.toInt()}",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    ListTile(
+                      title: const Text(
+                        "Filtri Tratti Posizionali",
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                      Slider(
-                        value: _eloValue,
-                        min: 1000,
-                        max: 2850,
-                        divisions: 37,
-                        label: _eloValue.toInt().toString(),
-                        onChanged: (v) => setPopupState(() => _eloValue = v),
+                      subtitle: const Text(
+                        "Aggiunge bias strategico alle mosse.",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
+                      trailing: const Icon(
+                        Icons.lock,
+                        color: Colors.orangeAccent,
+                      ),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "I Filtri sui Tratti Posizionali sono un'esclusiva della versione Premium!",
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(color: Colors.white24),
+
+                    // 3. LIMITA FORZA
+                    if (_selectedEngine == 'alexander') ...[
+                      SwitchListTile(
+                        title: const Text(
+                          "Limita Forza",
+                          style: TextStyle(fontSize: 14, color: Colors.white),
+                        ),
+                        value: _limitStrength,
+                        activeColor: Colors.blueAccent,
+                        onChanged: (v) =>
+                            setPopupState(() => _limitStrength = v),
+                      ),
+                      if (_limitStrength) ...[
+                        Text(
+                          "Livello ELO: ${_eloValue.toInt()}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Slider(
+                          value: _eloValue,
+                          min: 1000,
+                          max: 2850,
+                          divisions: 37,
+                          label: _eloValue.toInt().toString(),
+                          activeColor: Colors.blueAccent,
+                          onChanged: (v) => setPopupState(() => _eloValue = v),
+                        ),
+                      ],
+                      const Divider(color: Colors.white24),
                     ],
-                  ],
 
-                  // --- NUOVO SLIDER TEMPO DI RIFLESSIONE ---
-                  const Divider(color: Colors.white24),
-                  Text(
-                    "Tempo del Motore: ${_playTimeSec.toInt()} sec",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.orangeAccent,
+                    // 4. OROLOGIO E CADENZE (REPLICA DESKTOP)
+                    const Text(
+                      "Orologio (Cadenza)",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orangeAccent,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  Slider(
-                    value: _playTimeSec,
-                    min: 1,
-                    max: 15, // Massimo 15 secondi per mossa
-                    divisions: 14,
-                    label: "${_playTimeSec.toInt()} s",
-                    activeColor: Colors.orangeAccent,
-                    onChanged: (v) => setPopupState(() => _playTimeSec = v),
-                  ),
+                    const SizedBox(height: 5),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      value: 0,
+                      groupValue: tempTcType,
+                      activeColor: Colors.orangeAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 5;
+                      }),
+                    ),
+                    RadioListTile<int>(
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      value: 1,
+                      groupValue: tempTcType,
+                      activeColor: Colors.orangeAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => setPopupState(() {
+                        tempTcType = v!;
+                        tempBaseTime = 3;
+                      }),
+                    ),
 
-                  // ------------------------------------------
-                ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              tempTcType == 0 ? "Minuti:" : "Secondi:",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            DropdownButton<int>(
+                              value: tempBaseTime,
+                              dropdownColor: const Color(0xFF2b2b2b),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              items:
+                                  (tempTcType == 0
+                                          ? [1, 2, 3, 5, 10, 15, 30]
+                                          : [1, 2, 3, 5, 10, 15])
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text("$e"),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (v) =>
+                                  setPopupState(() => tempBaseTime = v!),
+                            ),
+                          ],
+                        ),
+                        if (tempTcType == 0)
+                          Column(
+                            children: [
+                              const Text(
+                                "Incremento (s):",
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              DropdownButton<int>(
+                                value: tempInc,
+                                dropdownColor: const Color(0xFF2b2b2b),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                items: [0, 1, 2, 3, 5, 10, 15]
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text("$e"),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setPopupState(() => tempInc = v!),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -2205,7 +2325,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     Navigator.pop(context);
                     // Applichiamo le scelte!
                     setState(() => _boardOrientation = tempColor);
-                    _executePlayModeStartup(useLivebook: tempLivebook);
+                    _executePlayModeStartup(
+                      useLivebook: tempLivebook,
+                      tcType: tempTcType,
+                      baseTime: tempBaseTime,
+                      increment: tempInc,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
@@ -2222,7 +2347,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   // Aggiorna anche la firma di questa funzione subito sotto:
-  void _executePlayModeStartup({bool useLivebook = true}) {
+  void _executePlayModeStartup({
+    bool useLivebook = true,
+    int tcType = 1,
+    int baseTime = 3,
+    int increment = 0,
+  }) {
     _stopAllOrchestrators();
 
     if (_selectedEngine == 'alexander') {
@@ -2254,13 +2384,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       ["assets/images/capablanca.png"], // <-- Messo tra parentesi quadre
     );
 
-    // PASSAGGIO DEL PARAMETRO LIVEBOOK ALL'ORCHESTRATORE
+    // PASSAGGIO DEI PARAMETRI OROLOGIO ALL'ORCHESTRATORE
     _playFsm = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: _boardController,
-      useLivebook: useLivebook, // <-- NUOVO PARAMETRO
-      thinkTimeMs: (_playTimeSec * 1000)
-          .toInt(), // <-- PASSIAMO IL TEMPO IN MILLISECONDI
+      useLivebook: useLivebook,
+      tcType: tcType,
+      // Convertiamo minuti in millisecondi (Fischer) o secondi in millisecondi (Fisso)
+      baseTimeMs: tcType == 0 ? (baseTime * 60 * 1000) : (baseTime * 1000),
+      incMs: increment * 1000,
       onLog: (line) {
         setState(() => _outputLines.add(line));
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
@@ -2928,22 +3060,36 @@ class LiveBookOracle {
         String? bestUci;
         bool isWhiteTurn = fen.split(' ')[1] == 'w';
 
+        int globalTot = 0;
+        for (var move in moves) {
+          globalTot +=
+              ((move['white'] ?? 0) +
+                      (move['draws'] ?? 0) +
+                      (move['black'] ?? 0))
+                  as int;
+        }
+        if (globalTot == 0) globalTot = 1;
+
         for (var move in moves) {
           int w = move['white'];
           int d = move['draws'];
           int b = move['black'];
           int total = w + d + b;
 
-          // Filtro anti-rumore: ignoriamo mosse giocate in meno di 5 partite Master
-          if (total < 5) continue;
+          double popularity = total / globalTot;
 
-          // Calcolo Win Probability (WP = (Vittorie + Patte/2) / Totale)
-          double wp = isWhiteTurn
-              ? ((w + d / 2) / total)
-              : ((b + d / 2) / total);
+          // Filtro anti-rumore (< 0.5% popolarità)
+          if (total < 1 || popularity < 0.005) continue;
 
-          if (wp > bestScore) {
-            bestScore = wp;
+          double wpPura = isWhiteTurn
+              ? ((w + d / 2.0) / total) * 100.0
+              : ((b + d / 2.0) / total) * 100.0;
+
+          // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
+          double pEff = (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+
+          if (pEff > bestScore) {
+            bestScore = pEff;
             bestUci = move['uci'];
           }
         }
@@ -3246,31 +3392,48 @@ class LiveBookScanner {
           bool isWhiteTurn = fen.split(' ')[1] == 'w';
           List<Map<String, dynamic>> processedMoves = [];
 
+          // 1. Calcoliamo il totale per estrarre la Frequenza (Popolarità)
+          int globalTot = 0;
+          for (var move in moves) {
+            globalTot +=
+                ((move['white'] ?? 0) +
+                        (move['draws'] ?? 0) +
+                        (move['black'] ?? 0))
+                    as int;
+          }
+          if (globalTot == 0) globalTot = 1;
+
           for (var move in moves) {
             int w = move['white'] ?? 0;
             int d = move['draws'] ?? 0;
             int b = move['black'] ?? 0;
             int total = w + d + b;
-            if (total < 5) continue;
 
-            double wp = isWhiteTurn
-                ? ((w + d / 2.0) / total) * 100
-                : ((b + d / 2.0) / total) * 100;
-            processedMoves.add({'uci': move['uci'], 'wp': wp, 'total': total});
+            double freqPct = (total / globalTot) * 100.0;
+
+            // Filtro anti-rumore e scarto mosse < 0.5%
+            if (total < 1 || (total / globalTot) < 0.005) continue;
+
+            double wpPura = isWhiteTurn
+                ? ((w + d / 2.0) / total) * 100.0
+                : ((b + d / 2.0) / total) * 100.0;
+
+            // LA VERA WIN PROBABILITY (70% Risultato + 30% Frequenza)
+            double pEff = (wpPura * 0.70) + (freqPct * 0.30);
+
+            processedMoves.add({'uci': move['uci'], 'pEff': pEff});
           }
 
-          processedMoves.sort((a, b) {
-            double wpA = a['wp'];
-            double wpB = b['wp'];
-            if (wpB.compareTo(wpA) != 0) return wpB.compareTo(wpA);
-            return (b['total'] as int).compareTo(a['total'] as int);
-          });
+          // Ordiniamo per la nuova Win Probability Effettiva
+          processedMoves.sort(
+            (a, b) => (b['pEff'] as double).compareTo(a['pEff'] as double),
+          );
 
           for (var pm in processedMoves) {
             results.add(
               LiveBookMove(
                 move: pm['uci'] as String,
-                description: "${(pm['wp'] as double).toStringAsFixed(2)}%",
+                description: "${(pm['pEff'] as double).toStringAsFixed(1)}%",
               ),
             );
           }
@@ -3628,7 +3791,16 @@ class PlayOrchestrator {
   final Function(String) onLog;
   final Function(String?) onGameOver;
   final bool useLivebook;
-  final int thinkTimeMs;
+
+  // --- NUOVE VARIABILI OROLOGIO ---
+  final int tcType; // 0 = Fischer, 1 = Fisso
+  final int baseTimeMs;
+  final int incMs;
+
+  int _wtime = 0;
+  int _btime = 0;
+  DateTime? _lastEngineStart;
+  // --------------------------------
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
@@ -3640,8 +3812,15 @@ class PlayOrchestrator {
     required this.onLog,
     required this.onGameOver,
     this.useLivebook = true,
-    this.thinkTimeMs = 1500,
-  });
+    this.tcType = 1,
+    this.baseTimeMs = 3000,
+    this.incMs = 0,
+  }) {
+    if (tcType == 0) {
+      _wtime = baseTimeMs;
+      _btime = baseTimeMs;
+    }
+  }
 
   void startGame() {
     onLog("🎮 Partita iniziata! Buona fortuna.");
@@ -3688,7 +3867,17 @@ class PlayOrchestrator {
 
     // --- ANALISI MOTORE NORMALE ---
     engineManager.sendCommand('position fen ${boardController.getFen()}');
-    engineManager.sendCommand('go movetime $thinkTimeMs');
+
+    if (tcType == 1) {
+      // Tempo fisso per mossa
+      engineManager.sendCommand('go movetime $baseTimeMs');
+    } else {
+      // Orologio Fischer (invia il tempo residuo)
+      _lastEngineStart = DateTime.now();
+      engineManager.sendCommand(
+        'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
+      );
+    }
   }
 
   // --- TRADUZIONE ESATTA DALLA TUA VERSIONE PYTHON ---
@@ -3759,7 +3948,6 @@ class PlayOrchestrator {
   void _executeMoveOnBoard(String uciMove) {
     String fromSq = uciMove.substring(0, 2);
     String toSq = uciMove.substring(2, 4);
-
     if (uciMove.length == 5) {
       boardController.makeMoveWithPromotion(
         from: fromSq,
@@ -3772,6 +3960,20 @@ class PlayOrchestrator {
 
     onLog("🤖 Computer gioca: $uciMove");
     _isEngineThinking = false;
+
+    // --- AGGIORNAMENTO OROLOGIO INTERNO ---
+    if (tcType == 0 && _lastEngineStart != null) {
+      int elapsed = DateTime.now().difference(_lastEngineStart!).inMilliseconds;
+      // Diamo al motore un limite minimo di 1 secondo per evitare crash da timeout
+      if (boardController.getFen().contains(" b ")) {
+        // È il turno del nero, quindi ha appena mosso il bianco (motore)
+        _wtime = (_wtime - elapsed + incMs).clamp(1000, 9999999);
+      } else {
+        _btime = (_btime - elapsed + incMs).clamp(1000, 9999999);
+      }
+    }
+    // --------------------------------------
+
     _checkStatus();
   }
 
