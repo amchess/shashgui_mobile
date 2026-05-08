@@ -129,21 +129,21 @@ class LiveBookScanner {
         aiComment = "From $side view the position is ";
         if (bestWp >= 60.0) {
           aiComment += "clearly dominant, offering excellent winning chances. ";
-        } else if (bestWp >= 53.0)
+        } else if (bestWp >= 53.0) {
           aiComment +=
               "slightly better, with a solid edge and a promising initiative. ";
-        else if (bestWp <= 40.0)
+        } else if (bestWp <= 40.0) {
           aiComment += "critical: $oppSide has seized control of the game. ";
-        else if (bestWp <= 47.0)
+        } else if (bestWp <= 47.0) {
           aiComment += "under uncomfortable pressure from $oppSide. ";
-        else
+        } else {
           aiComment +=
               "perfectly balanced, with no clear advantage either side; any of the usual opening moves maintain equality and simply set the stage for the ensuing struggle. ";
+        }
 
         aiComment +=
             "The strongest continuation is $bestSan (${bestWp.toStringAsFixed(1)}%).";
       }
-
       if (results.isEmpty) {
         results.add(
           LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),

@@ -1,11 +1,10 @@
-import 'package:flutter_localizations/flutter_localizations.dart';
+// ignore_for_file: deprecated_member_use
 import 'l10n/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart'; // Per il manuale
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io'; // <-- AGGIUNTO PER GESTIRE I FILE
 import 'package:path_provider/path_provider.dart'; // <-- AGGIUNTO PER TROVARE LA CARTELLA DELLO SMARTPHONE
-import 'package:shashgui_mobile/core/widgets/about_dialog.dart';
 
 import 'core/logic/shashin_logic.dart';
 import 'core/orchestrators/shashin_fsm.dart';
@@ -152,12 +151,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   double _baseTimeSec = 2.0; // Cambiato in double per lo slider
 
   // Variabili per l'handicap (Modalità Gioco)
-  final double _playTimeSec =
-      2.0; // <-- 1. NUOVA VARIABILE PER IL TEMPO DI GIOCO
   bool _limitStrength = false;
   double _eloValue = 1500;
-  final bool _simulateBlunders = false;
-
   // --- VARIABILI REINSERITE ---
   SharedPreferences? _prefs;
   String _selectedEngine = 'shashchess';
@@ -1293,8 +1288,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     String black = "Engine",
   }) {
     final game = _boardController.game;
-    final fen =
-        _currentNode.fen; // Usiamo la FEN del nodo radice dell'albero attuale
 
     // Calcolo del risultato
     String result = "*";
@@ -1778,6 +1771,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       builder: (context) =>
           SetupPositionDialog(initialFen: _boardController.getFen()),
     );
+
+    if (!mounted) return; // <--- ECCO LA RIGA CHE FA SPARIRE IL WARNING
 
     if (newFen != null && newFen.isNotEmpty) {
       try {
@@ -2425,8 +2420,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 BoardArrow(
                   from: parts[1].substring(0, 2),
                   to: parts[1].substring(2, 4),
-                  color: Colors.red.withOpacity(
-                    0.85,
+                  color: Colors.red.withValues(
+                    alpha: 0.85,
                   ), // Un rosso più intenso per le minacce
                 ),
               ];
@@ -3147,8 +3142,8 @@ class PremiumShowcaseScreen extends StatelessWidget {
         padding: const EdgeInsets.all(4.0),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: color.withOpacity(
-              0.2,
+            backgroundColor: color.withValues(
+              alpha: 0.2,
             ), // Sintassi Flutter moderna per i colori trasparenti
             radius: 22,
             child: Icon(icon, color: color, size: 24),

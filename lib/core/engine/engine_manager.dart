@@ -26,7 +26,7 @@ class EngineManager {
     List<String> nnueFiles, {
     Function(String)? onLine,
   }) async {
-    print("Inizializzazione motore $engineName in corso...");
+    debugPrint("Inizializzazione motore $engineName in corso...");
     final String libDir = await platform.invokeMethod('getNativeLibDir');
     final String enginePath = p.join(libDir, 'lib$engineName.so');
 
@@ -41,13 +41,15 @@ class EngineManager {
       if (!needsExtraction) {
         final size = await file.length();
         if (size != byteData.lengthInBytes) {
-          print("Rete $nnue corrotta ($size bytes). Re-estrazione forzata...");
+          debugPrint(
+            "Rete $nnue corrotta ($size bytes). Re-estrazione forzata...",
+          );
           needsExtraction = true;
         }
       }
 
       if (needsExtraction) {
-        print("Estrazione rete neurale: $nnue...");
+        debugPrint("Estrazione rete neurale: $nnue...");
         // compute() esegue la scrittura in un isolate separato, sbloccando la UI
         await compute(_writeNnueFile, {
           'path': file.path,
@@ -104,7 +106,7 @@ class EngineManager {
 
   void sendCommand(String command) {
     if (_process != null) {
-      print("-> INVIATO: $command");
+      debugPrint("-> INVIATO: $command");
       _process!.stdin.writeln(command);
     }
   }
