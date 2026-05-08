@@ -493,6 +493,9 @@ FILE: ios\Runner\Runner-Bridging-Header.h
 FILE: lib\main.dart
 ================================================================================
 
+import 'dart:io'; // <-- AGGIUNTO PER GESTIRE I FILE
+import 'package:path_provider/path_provider.dart'; // <-- AGGIUNTO PER TROVARE LA CARTELLA DELLO SMARTPHONE
+
 import 'core/logic/shashin_logic.dart';
 import 'core/orchestrators/shashin_fsm.dart';
 import 'core/orchestrators/crossed_eval.dart';
@@ -1713,6 +1716,77 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     }
   }
 
+  // Metodo per generare la stringa PGN completa di Header
+  String _buildPgnString({
+    String event = "ShashGui Match",
+    String white = "Player",
+    String black = "Engine",
+  }) {
+    final game = _boardController.game;
+    final fen =
+        _currentNode.fen; // Usiamo la FEN del nodo radice dell'albero attuale
+
+    // Calcolo del risultato
+    String result = "*";
+    if (game.game_over) {
+      // <-- CORRETTO: rimosse le parentesi, è una proprietà!
+      if (game.in_draw)
+        result = "1/2-1/2";
+      else
+        result = (game.turn.toString() == 'w') ? "0-1" : "1-0";
+    }
+
+    String date =
+        "${DateTime.now().year}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().day.toString().padLeft(2, '0')}";
+
+    StringBuffer sb = StringBuffer();
+    sb.writeln('[Event "$event"]');
+    sb.writeln('[Site "Mobile Device"]');
+    sb.writeln('[Date "$date"]');
+    sb.writeln('[Round "-"]');
+    sb.writeln('[White "$white"]');
+    sb.writeln('[Black "$black"]');
+    sb.writeln('[Result "$result"]');
+
+    // Se la partita non inizia dalla posizione standard, aggiungiamo Setup e FEN
+    if (_rootNode.fen !=
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+      sb.writeln('[FEN "${_rootNode.fen}"]');
+      sb.writeln('[SetUp "1"]');
+    }
+
+    sb.writeln("");
+    sb.writeln(game.pgn());
+    return sb.toString();
+  }
+
+  // Metodo per il salvataggio fisico su file
+  Future<void> _savePgnToFile() async {
+    final pgnData = _buildPgnString();
+
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = "game_${DateTime.now().millisecondsSinceEpoch}.pgn";
+      final file = File('${directory.path}/$fileName');
+
+      await file.writeAsString(pgnData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Partita salvata in: $fileName 💾"),
+            action: SnackBarAction(
+              label: "COPIA",
+              onPressed: () => Clipboard.setData(ClipboardData(text: pgnData)),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Errore salvataggio: $e");
+    }
+  }
+
   Widget _buildNotationPanel() {
     List<Widget> widgets = [];
 
@@ -1813,6 +1887,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                 tooltip: "Importa FEN",
                 onPressed:
                     _showImportDialog, // <-- CHIAMA IL NOSTRO NUOVO POPUP
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.save, // Icona del floppy per il salvataggio
+                  size: 20,
+                  color: Colors.blueAccent,
+                ),
+                tooltip: "Salva Partita (.pgn)",
+                onPressed: _savePgnToFile, // Chiamata al nuovo metodo
               ),
               IconButton(
                 icon: const Icon(
