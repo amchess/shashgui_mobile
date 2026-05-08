@@ -11,6 +11,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'core/logic/livebook_scanner.dart'; // <-- AGGIUNTO PER IL LIVEBOOK
 import 'dart:async';
 import 'core/orchestrators/autoplay_orchestrator.dart';
+import 'core/widgets/setup_position_dialog.dart';
 
 void main() {
   runApp(const ShashGuiApp());
@@ -1410,80 +1411,40 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     );
   }
 
-  // Metodo per importare un FEN esterno
-  void _showImportDialog() {
-    TextEditingController fenController = TextEditingController();
-
-    showDialog(
+  // Metodo per importare un FEN esterno TRAMITE EDITOR VISIVO
+  void _showImportDialog() async {
+    final newFen = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2b2b2b),
-          title: const Text(
-            "Importa Posizione",
-            style: TextStyle(color: Colors.orangeAccent),
-          ),
-          content: TextField(
-            controller: fenController,
-            decoration: const InputDecoration(
-              hintText: "Incolla qui la stringa FEN...",
-              hintStyle: TextStyle(color: Colors.white38),
-            ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "Annulla",
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                String fen = fenController.text.trim();
-                if (fen.isNotEmpty) {
-                  try {
-                    // 1. Carica la posizione
-                    _boardController.loadFen(fen);
-
-                    // 2. Resetta l'albero delle mosse partendo da qui
-                    setState(() {
-                      _rootNode = MoveNode(
-                        fen: fen,
-                        san: 'Posizione Importata',
-                      );
-                      _currentNode = _rootNode;
-                      _arrowsNotifier.value = []; // Pulisce eventuali frecce
-                    });
-
-                    Navigator.pop(context); // Chiude il popup
-
-                    // 3. Se il motore è acceso, analizza subito la nuova posizione!
-                    if (_isEngineRunning && !_isPlayingMode) {
-                      _startNormalAnalysis();
-                    }
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Errore: Formato FEN non valido!"),
-                      ),
-                    );
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orangeAccent,
-              ),
-              child: const Text(
-                "Importa",
-                style: TextStyle(color: Colors.black),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (context) =>
+          SetupPositionDialog(initialFen: _boardController.getFen()),
     );
+
+    if (newFen != null && newFen.isNotEmpty) {
+      try {
+        // 1. Carica la posizione
+        _boardController.loadFen(newFen);
+
+        // 2. Resetta l'albero delle mosse partendo da qui
+        setState(() {
+          _rootNode = MoveNode(fen: newFen, san: 'Posizione Impostata');
+          _currentNode = _rootNode;
+          _arrowsNotifier.value = []; // Pulisce eventuali frecce
+        });
+
+        // 3. Se il motore è acceso, analizza subito la nuova posizione!
+        if (_isEngineRunning && !_isPlayingMode) {
+          _startNormalAnalysis();
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Errore: La scacchiera non ha potuto validare il FEN!",
+            ),
+          ),
+        );
+      }
+    }
   }
 
   // CALCOLO MATERIALE CATTURATO
