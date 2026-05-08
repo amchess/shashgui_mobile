@@ -1,7 +1,11 @@
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart'; // Per il manuale
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io'; // <-- AGGIUNTO PER GESTIRE I FILE
 import 'package:path_provider/path_provider.dart'; // <-- AGGIUNTO PER TROVARE LA CARTELLA DELLO SMARTPHONE
+import 'package:shashgui_mobile/core/widgets/about_dialog.dart';
 
 import 'core/logic/shashin_logic.dart';
 import 'core/orchestrators/shashin_fsm.dart';
@@ -18,7 +22,19 @@ import 'dart:async';
 import 'core/orchestrators/autoplay_orchestrator.dart';
 import 'core/widgets/setup_position_dialog.dart';
 
-void main() {
+// Notifier globale per gestire il cambio lingua istantaneo
+final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('it'));
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // LEGGE la lingua salvata in memoria (se non c'è, usa l'italiano 'it' di default)
+  final prefs = await SharedPreferences.getInstance();
+  final savedLang = prefs.getString('language') ?? 'it';
+
+  // Imposta la lingua letta
+  appLocale.value = Locale(savedLang);
+
   runApp(const ShashGuiApp());
 }
 
@@ -27,21 +43,28 @@ class ShashGuiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ShashGui MVP',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2b2b2b),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      home: const MainNavigationWrapper(),
+    return ValueListenableBuilder<Locale>(
+      valueListenable: appLocale,
+      builder: (context, locale, child) {
+        return MaterialApp(
+          title: 'ShashGui MVP',
+          locale: locale, // <-- FORZA LA LINGUA SELEZIONATA!
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2b2b2b),
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          home: const MainNavigationWrapper(),
+        );
+      },
     );
   }
-}
+} // --- IL WRAPPER DELLA NAVIGAZIONE ---
 
-// --- IL WRAPPER DELLA NAVIGAZIONE ---
 class MainNavigationWrapper extends StatefulWidget {
   const MainNavigationWrapper({super.key});
 
@@ -395,9 +418,47 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // Opzionale: usa la traduzione anche per il titolo della schermata se l'hai inserita nel file .arb
         title: const Text('ShashGui Laboratorio'),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
+        actions: [
+          // --- NUOVO: SELETTORE LINGUA A TENDINA ---
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.language, color: Colors.cyanAccent),
+            color: const Color(0xFF2b2b2b), // Sfondo scuro per il menu
+            tooltip: 'Cambia Lingua',
+            onSelected: (String langCode) async {
+              // 1. Salva la scelta nel telefono
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('language', langCode);
+              // 2. Forza l'aggiornamento istantaneo dell'interfaccia
+              appLocale.value = Locale(langCode);
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'it',
+                child: Text(
+                  '🇮🇹 Italiano',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'en',
+                child: Text(
+                  '🇬🇧 English',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+
+          // ----------------------------------------
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.orangeAccent),
+            onPressed: () => showShashGuiAboutDialog(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -2958,7 +3019,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 }
 
-// --- LA SCHERMATA VETRINA (MOCKUP) ---
+// --- LA SCHERMATA VETRINA (MOCKUP PREMIUM CLOUD) ---
 class PremiumShowcaseScreen extends StatelessWidget {
   const PremiumShowcaseScreen({super.key});
 
@@ -2974,42 +3035,87 @@ class PremiumShowcaseScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            "FUNZIONALITÀ CLOUD (COMING SOON)",
+            "IL POTERE DEI SERVER CLOUD",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.orangeAccent,
+              fontSize: 16,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
+          const Text(
+            "Le seguenti funzionalità richiedono un'enorme potenza di calcolo (Multi-Core e analisi profonda prolungata). Passando a Premium, l'elaborazione non peserà sul tuo dispositivo: verrà demandata ai nostri server Cloud dedicati ad alte prestazioni.",
+            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+            textAlign: TextAlign.justify,
+          ),
+          const SizedBox(height: 20),
+
           _buildPremiumCard(
             title: "ChessBeauty Analyzer",
             desc:
-                "Valutazione estetica e qualimetrica della tua partita tramite algoritmi batch in remoto.",
+                "Valutazione estetica e qualimetrica di intere partite tramite i canoni di Le Lionnais.",
             icon: Icons.auto_awesome,
             color: Colors.pinkAccent,
           ),
           _buildPremiumCard(
             title: "Nuggets Explorer",
             desc:
-                "Accedi a migliaia di pepite tattiche estratte dai database storici dei grandi campioni.",
+                "Data-mining su interi database per estrarre 'Pepite' tattiche con Win Probability asimmetrica.",
             icon: Icons.savings,
             color: Colors.amber,
           ),
           _buildPremiumCard(
             title: "Dossier Divergenze XAI",
             desc:
-                "Scopri esattamente dove la Rete Neurale e i Grandi Maestri Umani non sono d'accordo.",
+                "Generazione del report visivo che scova le divergenze strategiche tra Umani e Reti Neurali.",
             icon: Icons.psychology,
             color: Colors.cyanAccent,
           ),
+          _buildPremiumCard(
+            title: "ShashIDEA Lab",
+            desc:
+                "Costruzione interattiva profonda di alberi d'apertura e generazione di repertori Polyglot (.bin).",
+            icon: Icons.account_tree,
+            color: Colors.greenAccent,
+          ),
+          _buildPremiumCard(
+            title: "Avatar & Player Card",
+            desc:
+                "Profilazione algoritmica di un giocatore estraendo debolezze e stile da migliaia di partite PGN.",
+            icon: Icons.portrait,
+            color: Colors.deepPurpleAccent,
+          ),
+          _buildPremiumCard(
+            title: "Analisi Batch Completa",
+            desc:
+                "Annotazione in linguaggio naturale e assegnazione NAG massiva su interi database.",
+            icon: Icons.batch_prediction,
+            color: Colors.blueAccent,
+          ),
+          _buildPremiumCard(
+            title: "ShashQL & DB Manager",
+            desc:
+                "Interrogazioni SQL complesse e gestione di database immensi nel formato proprietario SGDB.",
+            icon: Icons.storage,
+            color: Colors.orange,
+          ),
+          _buildPremiumCard(
+            title: "Tratti & R-Learning",
+            desc:
+                "Estrazione di Tratti Posizionali (.ptr) e consolidamento della memoria di apprendimento (.exp).",
+            icon: Icons.memory,
+            color: Colors.tealAccent,
+          ),
+
           const SizedBox(height: 30),
           ElevatedButton.icon(
             onPressed: () {
-              // Qui andrà l'integrazione con gli acquisti In-App
+              // Qui andrà l'integrazione nativa con gli acquisti In-App (Apple/Google)
             },
-            icon: const Icon(Icons.workspace_premium),
+            icon: const Icon(Icons.cloud_sync),
             label: const Text(
-              "SBLOCCA TUTTO (9.99€/mese)",
+              "SBLOCCA IL CLOUD (9.99€/mese)",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
@@ -3018,6 +3124,7 @@ class PremiumShowcaseScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 15),
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -3031,26 +3138,35 @@ class PremiumShowcaseScreen extends StatelessWidget {
   }) {
     return Card(
       color: const Color(0xFF2b2b2b),
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.all(4.0),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.2),
-            radius: 25,
-            child: Icon(icon, color: color, size: 28),
+            backgroundColor: color.withOpacity(
+              0.2,
+            ), // Sintassi Flutter moderna per i colori trasparenti
+            radius: 22,
+            child: Icon(icon, color: color, size: 24),
           ),
           title: Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(desc, style: TextStyle(color: Colors.grey[400])),
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              desc,
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+            ),
           ),
-          trailing: const Icon(Icons.lock_outline, color: Colors.grey),
+          trailing: const Icon(
+            Icons.lock_outline,
+            color: Colors.grey,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -3064,4 +3180,184 @@ class MoveNode {
   List<MoveNode> children = [];
 
   MoveNode({required this.fen, required this.san, this.parent});
+}
+
+// --- SCHERMATA DEL MANUALE UTENTE DINAMICO ---
+class HelpManualScreen extends StatelessWidget {
+  const HelpManualScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Modo nativo blindato per recuperare la traduzione:
+    final titleText =
+        AppLocalizations.of(context)?.appTitle ?? "Manuale ShashGui";
+
+    // Legge la lingua corrente del dispositivo/app (es. 'it' o 'en')
+    final langCode = Localizations.localeOf(context).languageCode;
+
+    // Costruisce il percorso del file
+    final helpFile = 'assets/help/help_$langCode.html';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(titleText),
+        backgroundColor: const Color(0xFF1e1e1e),
+      ),
+      backgroundColor: const Color(0xFF1e1e1e),
+      body: FutureBuilder<String>(
+        future: rootBundle.loadString(helpFile).catchError((_) {
+          // Fallback di sicurezza
+          return rootBundle.loadString('assets/help/help_en.html');
+        }),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: HtmlWidget(
+                snapshot.data!,
+                textStyle: const TextStyle(
+                  color: Color(0xFFd4d4d4),
+                  fontSize: 14,
+                ),
+                customStylesBuilder: (element) {
+                  if (element.localName == 'h1') return {'color': '#f1c40f'};
+                  if (element.localName == 'h2') return {'color': '#4ea8de'};
+                  if (element.localName == 'h3') return {'color': '#2ecc71'};
+                  return null;
+                },
+              ),
+            );
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                "Errore caricamento manuale: ${snapshot.error}",
+                style: const TextStyle(color: Colors.red),
+              ),
+            );
+          }
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.orangeAccent),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- ABOUT DIALOG MULTILINGUE ---
+void showShashGuiAboutDialog(BuildContext context) {
+  // Sicurezza anti-crash
+  final loc = AppLocalizations.of(context);
+  final isLoaded = loc != null;
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orangeAccent, width: 2),
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/icon.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // Titolo
+            Text(
+              isLoaded ? loc.appTitle : "ShashGUI",
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            const Text(
+              "Beyond the eval",
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: Colors.cyanAccent,
+              ),
+            ),
+            const Divider(color: Colors.white24, height: 30),
+
+            // Info Testuali Tradotte
+            Text(
+              isLoaded ? loc.aboutDev : "Sviluppatore: Andrea Manzo",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isLoaded
+                  ? loc.aboutEngines
+                  : "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 15),
+            Text(
+              isLoaded ? loc.aboutDesc : "Interfaccia grafica avanzata.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Pulsante Manuale
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HelpManualScreen()),
+                );
+              },
+              icon: const Icon(Icons.menu_book),
+              label: Text(
+                isLoaded ? loc.readManualBtn : "LEGGI IL MANUALE UTENTE",
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              isLoaded ? loc.closeBtn : "CHIUDI",
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }

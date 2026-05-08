@@ -49,6 +49,17 @@ extensions:
 
 
 ================================================================================
+FILE: l10n.yaml
+================================================================================
+
+arb-dir: lib/l10n
+template-arb-file: app_it.arb
+output-localization-file: app_localizations.dart
+output-dir: lib/l10n      # <--- AGGIUNTO
+synthetic-package: false  # <--- AGGIUNTO
+
+
+================================================================================
 FILE: pubspec.yaml
 ================================================================================
 
@@ -93,37 +104,30 @@ dependencies:
   http: ^1.2.0
   html: ^0.15.4
   file_picker: ^11.0.2
+  
+  # --- AGGIUNTE PER L'INTERNAZIONALIZZAZIONE E IL MANUALE ---
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
+  flutter_widget_from_html: ^0.15.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
-
-  # --- PACCHETTI AGGIUNTI PER ICONA E SPLASH SCREEN ---
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.1
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
+  generate: true # <-- AGGIUNTO: Attiva il generatore di traduzioni!
   uses-material-design: true
 
   assets:
     - assets/demo/
     - assets/images/
     - assets/engine/
+    - assets/help/ # <-- AGGIUNTO: Per far leggere il manuale HTML all'app
 
 # ==========================================
 # CONFIGURAZIONI AGGIUNTIVE SHASHGUI MOBILE
@@ -494,10 +498,14 @@ FILE: ios\Runner\Runner-Bridging-Header.h
 FILE: lib\main.dart
 ================================================================================
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart'; // Per il manuale
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io'; // <-- AGGIUNTO PER GESTIRE I FILE
 import 'package:path_provider/path_provider.dart'; // <-- AGGIUNTO PER TROVARE LA CARTELLA DELLO SMARTPHONE
+import 'package:shashgui_mobile/core/widgets/about_dialog.dart';
 
 import 'core/logic/shashin_logic.dart';
 import 'core/orchestrators/shashin_fsm.dart';
@@ -514,7 +522,19 @@ import 'dart:async';
 import 'core/orchestrators/autoplay_orchestrator.dart';
 import 'core/widgets/setup_position_dialog.dart';
 
-void main() {
+// Notifier globale per gestire il cambio lingua istantaneo
+final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('it'));
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // LEGGE la lingua salvata in memoria (se non c'è, usa l'italiano 'it' di default)
+  final prefs = await SharedPreferences.getInstance();
+  final savedLang = prefs.getString('language') ?? 'it';
+
+  // Imposta la lingua letta
+  appLocale.value = Locale(savedLang);
+
   runApp(const ShashGuiApp());
 }
 
@@ -523,21 +543,28 @@ class ShashGuiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ShashGui MVP',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2b2b2b),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      home: const MainNavigationWrapper(),
+    return ValueListenableBuilder<Locale>(
+      valueListenable: appLocale,
+      builder: (context, locale, child) {
+        return MaterialApp(
+          title: 'ShashGui MVP',
+          locale: locale, // <-- FORZA LA LINGUA SELEZIONATA!
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2b2b2b),
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          home: const MainNavigationWrapper(),
+        );
+      },
     );
   }
-}
+} // --- IL WRAPPER DELLA NAVIGAZIONE ---
 
-// --- IL WRAPPER DELLA NAVIGAZIONE ---
 class MainNavigationWrapper extends StatefulWidget {
   const MainNavigationWrapper({super.key});
 
@@ -891,9 +918,47 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // Opzionale: usa la traduzione anche per il titolo della schermata se l'hai inserita nel file .arb
         title: const Text('ShashGui Laboratorio'),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
+        actions: [
+          // --- NUOVO: SELETTORE LINGUA A TENDINA ---
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.language, color: Colors.cyanAccent),
+            color: const Color(0xFF2b2b2b), // Sfondo scuro per il menu
+            tooltip: 'Cambia Lingua',
+            onSelected: (String langCode) async {
+              // 1. Salva la scelta nel telefono
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('language', langCode);
+              // 2. Forza l'aggiornamento istantaneo dell'interfaccia
+              appLocale.value = Locale(langCode);
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'it',
+                child: Text(
+                  '🇮🇹 Italiano',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'en',
+                child: Text(
+                  '🇬🇧 English',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+
+          // ----------------------------------------
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.orangeAccent),
+            onPressed: () => showShashGuiAboutDialog(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -3454,7 +3519,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 }
 
-// --- LA SCHERMATA VETRINA (MOCKUP) ---
+// --- LA SCHERMATA VETRINA (MOCKUP PREMIUM CLOUD) ---
 class PremiumShowcaseScreen extends StatelessWidget {
   const PremiumShowcaseScreen({super.key});
 
@@ -3470,42 +3535,87 @@ class PremiumShowcaseScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            "FUNZIONALITÀ CLOUD (COMING SOON)",
+            "IL POTERE DEI SERVER CLOUD",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.orangeAccent,
+              fontSize: 16,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
+          const Text(
+            "Le seguenti funzionalità richiedono un'enorme potenza di calcolo (Multi-Core e analisi profonda prolungata). Passando a Premium, l'elaborazione non peserà sul tuo dispositivo: verrà demandata ai nostri server Cloud dedicati ad alte prestazioni.",
+            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+            textAlign: TextAlign.justify,
+          ),
+          const SizedBox(height: 20),
+
           _buildPremiumCard(
             title: "ChessBeauty Analyzer",
             desc:
-                "Valutazione estetica e qualimetrica della tua partita tramite algoritmi batch in remoto.",
+                "Valutazione estetica e qualimetrica di intere partite tramite i canoni di Le Lionnais.",
             icon: Icons.auto_awesome,
             color: Colors.pinkAccent,
           ),
           _buildPremiumCard(
             title: "Nuggets Explorer",
             desc:
-                "Accedi a migliaia di pepite tattiche estratte dai database storici dei grandi campioni.",
+                "Data-mining su interi database per estrarre 'Pepite' tattiche con Win Probability asimmetrica.",
             icon: Icons.savings,
             color: Colors.amber,
           ),
           _buildPremiumCard(
             title: "Dossier Divergenze XAI",
             desc:
-                "Scopri esattamente dove la Rete Neurale e i Grandi Maestri Umani non sono d'accordo.",
+                "Generazione del report visivo che scova le divergenze strategiche tra Umani e Reti Neurali.",
             icon: Icons.psychology,
             color: Colors.cyanAccent,
           ),
+          _buildPremiumCard(
+            title: "ShashIDEA Lab",
+            desc:
+                "Costruzione interattiva profonda di alberi d'apertura e generazione di repertori Polyglot (.bin).",
+            icon: Icons.account_tree,
+            color: Colors.greenAccent,
+          ),
+          _buildPremiumCard(
+            title: "Avatar & Player Card",
+            desc:
+                "Profilazione algoritmica di un giocatore estraendo debolezze e stile da migliaia di partite PGN.",
+            icon: Icons.portrait,
+            color: Colors.deepPurpleAccent,
+          ),
+          _buildPremiumCard(
+            title: "Analisi Batch Completa",
+            desc:
+                "Annotazione in linguaggio naturale e assegnazione NAG massiva su interi database.",
+            icon: Icons.batch_prediction,
+            color: Colors.blueAccent,
+          ),
+          _buildPremiumCard(
+            title: "ShashQL & DB Manager",
+            desc:
+                "Interrogazioni SQL complesse e gestione di database immensi nel formato proprietario SGDB.",
+            icon: Icons.storage,
+            color: Colors.orange,
+          ),
+          _buildPremiumCard(
+            title: "Tratti & R-Learning",
+            desc:
+                "Estrazione di Tratti Posizionali (.ptr) e consolidamento della memoria di apprendimento (.exp).",
+            icon: Icons.memory,
+            color: Colors.tealAccent,
+          ),
+
           const SizedBox(height: 30),
           ElevatedButton.icon(
             onPressed: () {
-              // Qui andrà l'integrazione con gli acquisti In-App
+              // Qui andrà l'integrazione nativa con gli acquisti In-App (Apple/Google)
             },
-            icon: const Icon(Icons.workspace_premium),
+            icon: const Icon(Icons.cloud_sync),
             label: const Text(
-              "SBLOCCA TUTTO (9.99€/mese)",
+              "SBLOCCA IL CLOUD (9.99€/mese)",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
@@ -3514,6 +3624,7 @@ class PremiumShowcaseScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 15),
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -3527,26 +3638,35 @@ class PremiumShowcaseScreen extends StatelessWidget {
   }) {
     return Card(
       color: const Color(0xFF2b2b2b),
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.all(4.0),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.2),
-            radius: 25,
-            child: Icon(icon, color: color, size: 28),
+            backgroundColor: color.withOpacity(
+              0.2,
+            ), // Sintassi Flutter moderna per i colori trasparenti
+            radius: 22,
+            child: Icon(icon, color: color, size: 24),
           ),
           title: Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(desc, style: TextStyle(color: Colors.grey[400])),
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              desc,
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+            ),
           ),
-          trailing: const Icon(Icons.lock_outline, color: Colors.grey),
+          trailing: const Icon(
+            Icons.lock_outline,
+            color: Colors.grey,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -3560,6 +3680,186 @@ class MoveNode {
   List<MoveNode> children = [];
 
   MoveNode({required this.fen, required this.san, this.parent});
+}
+
+// --- SCHERMATA DEL MANUALE UTENTE DINAMICO ---
+class HelpManualScreen extends StatelessWidget {
+  const HelpManualScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Modo nativo blindato per recuperare la traduzione:
+    final titleText =
+        AppLocalizations.of(context)?.appTitle ?? "Manuale ShashGui";
+
+    // Legge la lingua corrente del dispositivo/app (es. 'it' o 'en')
+    final langCode = Localizations.localeOf(context).languageCode;
+
+    // Costruisce il percorso del file
+    final helpFile = 'assets/help/help_$langCode.html';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(titleText),
+        backgroundColor: const Color(0xFF1e1e1e),
+      ),
+      backgroundColor: const Color(0xFF1e1e1e),
+      body: FutureBuilder<String>(
+        future: rootBundle.loadString(helpFile).catchError((_) {
+          // Fallback di sicurezza
+          return rootBundle.loadString('assets/help/help_en.html');
+        }),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: HtmlWidget(
+                snapshot.data!,
+                textStyle: const TextStyle(
+                  color: Color(0xFFd4d4d4),
+                  fontSize: 14,
+                ),
+                customStylesBuilder: (element) {
+                  if (element.localName == 'h1') return {'color': '#f1c40f'};
+                  if (element.localName == 'h2') return {'color': '#4ea8de'};
+                  if (element.localName == 'h3') return {'color': '#2ecc71'};
+                  return null;
+                },
+              ),
+            );
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                "Errore caricamento manuale: ${snapshot.error}",
+                style: const TextStyle(color: Colors.red),
+              ),
+            );
+          }
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.orangeAccent),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- ABOUT DIALOG MULTILINGUE ---
+void showShashGuiAboutDialog(BuildContext context) {
+  // Sicurezza anti-crash
+  final loc = AppLocalizations.of(context);
+  final isLoaded = loc != null;
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orangeAccent, width: 2),
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/icon.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // Titolo
+            Text(
+              isLoaded ? loc.appTitle : "ShashGUI",
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            const Text(
+              "Beyond the eval",
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: Colors.cyanAccent,
+              ),
+            ),
+            const Divider(color: Colors.white24, height: 30),
+
+            // Info Testuali Tradotte
+            Text(
+              isLoaded ? loc.aboutDev : "Sviluppatore: Andrea Manzo",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isLoaded
+                  ? loc.aboutEngines
+                  : "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 15),
+            Text(
+              isLoaded ? loc.aboutDesc : "Interfaccia grafica avanzata.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Pulsante Manuale
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HelpManualScreen()),
+                );
+              },
+              icon: const Icon(Icons.menu_book),
+              label: Text(
+                isLoaded ? loc.readManualBtn : "LEGGI IL MANUALE UTENTE",
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              isLoaded ? loc.closeBtn : "CHIUDI",
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 
@@ -5555,6 +5855,97 @@ class ShashinFsm {
 
 
 ================================================================================
+FILE: lib\core\widgets\about_dialog.dart
+================================================================================
+
+import 'package:flutter/material.dart';
+
+void showShashGuiAboutDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // --- LOGO ---
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orangeAccent, width: 2),
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/icon.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // --- TITOLO E SOTTOTITOLO ---
+            const Text(
+              "ShashGUI",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            const Text(
+              "Beyond the eval",
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.cyanAccent,
+              ),
+            ),
+            const Divider(color: Colors.white24, height: 30),
+
+            // --- INFO TESTUALI ---
+            const Text(
+              "Sviluppatore: Andrea Manzo",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              "Interfaccia grafica avanzata per l'analisi posizionale a due fasi, l'elaborazione di dati scacchistici e l'estrazione di tratti dinamici.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              "CHIUDI",
+              style: TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
+
+================================================================================
 FILE: lib\core\widgets\setup_position_dialog.dart
 ================================================================================
 
@@ -5921,6 +6312,257 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
       ),
     );
   }
+}
+
+
+
+================================================================================
+FILE: lib\l10n\app_localizations.dart
+================================================================================
+
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart' as intl;
+
+import 'app_localizations_en.dart';
+import 'app_localizations_it.dart';
+
+// ignore_for_file: type=lint
+
+/// Callers can lookup localized strings with an instance of AppLocalizations
+/// returned by `AppLocalizations.of(context)`.
+///
+/// Applications need to include `AppLocalizations.delegate()` in their app's
+/// `localizationDelegates` list, and the locales they support in the app's
+/// `supportedLocales` list. For example:
+///
+/// ```dart
+/// import 'l10n/app_localizations.dart';
+///
+/// return MaterialApp(
+///   localizationsDelegates: AppLocalizations.localizationsDelegates,
+///   supportedLocales: AppLocalizations.supportedLocales,
+///   home: MyApplicationHome(),
+/// );
+/// ```
+///
+/// ## Update pubspec.yaml
+///
+/// Please make sure to update your pubspec.yaml to include the following
+/// packages:
+///
+/// ```yaml
+/// dependencies:
+///   # Internationalization support.
+///   flutter_localizations:
+///     sdk: flutter
+///   intl: any # Use the pinned version from flutter_localizations
+///
+///   # Rest of dependencies
+/// ```
+///
+/// ## iOS Applications
+///
+/// iOS applications define key application metadata, including supported
+/// locales, in an Info.plist file that is built into the application bundle.
+/// To configure the locales supported by your app, you’ll need to edit this
+/// file.
+///
+/// First, open your project’s ios/Runner.xcworkspace Xcode workspace file.
+/// Then, in the Project Navigator, open the Info.plist file under the Runner
+/// project’s Runner folder.
+///
+/// Next, select the Information Property List item, select Add Item from the
+/// Editor menu, then select Localizations from the pop-up menu.
+///
+/// Select and expand the newly-created Localizations item then, for each
+/// locale your application supports, add a new item and select the locale
+/// you wish to add from the pop-up menu in the Value field. This list should
+/// be consistent with the languages listed in the AppLocalizations.supportedLocales
+/// property.
+abstract class AppLocalizations {
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+
+  final String localeName;
+
+  static AppLocalizations? of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations);
+  }
+
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
+
+  /// A list of this localizations delegate along with the default localizations
+  /// delegates.
+  ///
+  /// Returns a list of localizations delegates containing this delegate along with
+  /// GlobalMaterialLocalizations.delegate, GlobalCupertinoLocalizations.delegate,
+  /// and GlobalWidgetsLocalizations.delegate.
+  ///
+  /// Additional delegates can be added by appending to this list in
+  /// MaterialApp. This list does not have to be used at all if a custom list
+  /// of delegates is preferred or required.
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
+
+  /// A list of this localizations delegate's supported locales.
+  static const List<Locale> supportedLocales = <Locale>[
+    Locale('en'),
+    Locale('it'),
+  ];
+
+  /// No description provided for @appTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'ShashGui'**
+  String get appTitle;
+
+  /// No description provided for @aboutDev.
+  ///
+  /// In it, this message translates to:
+  /// **'Sviluppatore: Andrea Manzo'**
+  String get aboutDev;
+
+  /// No description provided for @aboutEngines.
+  ///
+  /// In it, this message translates to:
+  /// **'Motori Integrati: ShashChess (NNUE) & Alexander (HCE)'**
+  String get aboutEngines;
+
+  /// No description provided for @aboutDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.'**
+  String get aboutDesc;
+
+  /// No description provided for @closeBtn.
+  ///
+  /// In it, this message translates to:
+  /// **'CHIUDI'**
+  String get closeBtn;
+
+  /// No description provided for @readManualBtn.
+  ///
+  /// In it, this message translates to:
+  /// **'LEGGI IL MANUALE UTENTE'**
+  String get readManualBtn;
+}
+
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
+
+  @override
+  Future<AppLocalizations> load(Locale locale) {
+    return SynchronousFuture<AppLocalizations>(lookupAppLocalizations(locale));
+  }
+
+  @override
+  bool isSupported(Locale locale) =>
+      <String>['en', 'it'].contains(locale.languageCode);
+
+  @override
+  bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when only language code is specified.
+  switch (locale.languageCode) {
+    case 'en':
+      return AppLocalizationsEn();
+    case 'it':
+      return AppLocalizationsIt();
+  }
+
+  throw FlutterError(
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.',
+  );
+}
+
+
+
+================================================================================
+FILE: lib\l10n\app_localizations_en.dart
+================================================================================
+
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for English (`en`).
+class AppLocalizationsEn extends AppLocalizations {
+  AppLocalizationsEn([String locale = 'en']) : super(locale);
+
+  @override
+  String get appTitle => 'ShashGui';
+
+  @override
+  String get aboutDev => 'Developer: Andrea Manzo';
+
+  @override
+  String get aboutEngines =>
+      'Integrated Engines: ShashChess (NNUE) & Alexander (HCE)';
+
+  @override
+  String get aboutDesc =>
+      'Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic trait extraction.';
+
+  @override
+  String get closeBtn => 'CLOSE';
+
+  @override
+  String get readManualBtn => 'READ USER MANUAL';
+}
+
+
+
+================================================================================
+FILE: lib\l10n\app_localizations_it.dart
+================================================================================
+
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Italian (`it`).
+class AppLocalizationsIt extends AppLocalizations {
+  AppLocalizationsIt([String locale = 'it']) : super(locale);
+
+  @override
+  String get appTitle => 'ShashGui';
+
+  @override
+  String get aboutDev => 'Sviluppatore: Andrea Manzo';
+
+  @override
+  String get aboutEngines =>
+      'Motori Integrati: ShashChess (NNUE) & Alexander (HCE)';
+
+  @override
+  String get aboutDesc =>
+      'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.';
+
+  @override
+  String get closeBtn => 'CHIUDI';
+
+  @override
+  String get readManualBtn => 'LEGGI IL MANUALE UTENTE';
 }
 
 

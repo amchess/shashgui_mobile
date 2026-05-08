@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Manuale Utente ShashGui Mobile</title>
+  <style>
+   body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 {
+            color: #f1c40f;
+            border-bottom: 2px solid #555;
+            padding-bottom: 10px;
+            font-size: 1.8em;
+        }
+        h2 {
+            color: #4ea8de;
+            margin-top: 40px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+            font-size: 1.4em;
+        }
+        h3 {
+            color: #2ecc71;
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+        p {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        ul {
+            margin-bottom: 20px;
+            background-color: #252525;
+            padding: 15px 15px 15px 30px;
+            border-radius: 5px;
+            border-left: 4px solid #8e44ad;
+        }
+        li {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .note {
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+        .warning {
+            background-color: #4a2323;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+  </style>
+</head>
+<body>
+  <h1 id="introduzione">Manuale Utente ShashGui: Oltre la Valutazione</h1>
+  <p>
+   Benvenuto in <b>ShashGui Mobile</b>. A differenza delle interfacce scacchistiche tradizionali che si limitano a mostrarti una fredda valutazione numerica (es. +1.50), ShashGui è un vero e proprio laboratorio portatile progettato per <i>comprendere</i> gli scacchi. L'obiettivo non è dirti chi sta vincendo, ma <b>perché</b> e <b>come</b> continuare a giocare, traducendo il pensiero dei motori in concetti umani tramite la <b>Teoria di Alexander Shashin</b>.
+  </p>
+  
+  <div class="warning">
+   <b style="color: #e74c3c; font-size: 15px;">⚠️ ATTENZIONE - REQUISITO CLOUD FONDAMENTALE:</b><br/>
+   <p style="margin-top: 8px; margin-bottom: 0;">
+    ShashGui Mobile è progettato come un client leggero ad alte prestazioni. Per garantire il corretto funzionamento dell'Oracolo (LiveBook) e delle valutazioni estese, <b>è richiesta una connessione a Internet attiva</b>. Le analisi massive e i salvataggi dei database pesanti vengono demandati ai nostri server Cloud.
+   </p>
+  </div>
+
+  <h2>📚 La Teoria di Shashin: La Fisica degli Scacchi</h2>
+  <p>
+   Alla base dell'intero sistema vi è il framework sviluppato dal fisico e maestro russo Alexander Shashin. Shashin scompone ogni posizione misurando fattori fondamentali: Materiale, Tempo, Sicurezza, Compattezza e Spazio. In base all'equilibrio termodinamico tra questi elementi, la posizione viene classificata in uno dei tre "stati" strategici, incarnati dallo stile di tre leggendari Campioni del Mondo:
+  </p>
+  
+  <ul>
+   <li>
+    <b style="color: #e74c3c;">🔥 Mikhail Tal (Attacco / Espansione):</b><br/>
+    Quando c'è un vantaggio dinamico o grande caos sulla scacchiera. L'obiettivo è massimizzare la tensione e cercare complicazioni tattiche per distruggere le difese avversarie.
+   </li>
+   <li>
+    <b style="color: #3498db;">⚖️ José Raúl Capablanca (Strategia / Equilibrio):</b><br/>
+    Quando la posizione è stabile e l'equilibrio è perfetto. L'obiettivo è l'accumulo di piccoli vantaggi, la centralizzazione armonica e la manovra posizionale precisa e senza rischi.
+   </li>
+   <li>
+    <b style="color: #f39c12;">🛡️ Tigran Petrosian (Difesa / Contrazione):</b><br/>
+    Quando si è sotto attacco o in lieve svantaggio. L'obiettivo è la profilassi assoluta, la costruzione di fortezze inespugnabili e la neutralizzazione dell'iniziativa avversaria.
+   </li>
+  </ul>
+
+  <h2>📱 Il Laboratorio: Strumenti a tua disposizione</h2>
+  <p>
+   L'interfaccia mobile di ShashGui è suddivisa in aree funzionali progettate per l'utilizzo touch:
+  </p>
+
+  <h3>1. La Scacchiera e i Controlli</h3>
+  <ul>
+   <li><b>Interazione:</b> Trascina o clicca i pezzi per muovere.</li>
+   <li><b>Navigazione:</b> Usa la barra grigia sotto la scacchiera per scorrere avanti e indietro nell'albero delle mosse. Il tasto blu con le due frecce inverte l'orientamento della scacchiera.</li>
+   <li><b>Editor Visivo FEN (🧩):</b> Cliccando l'icona della griglia verde nella barra in basso, aprirai un editor completo per impostare posizioni personalizzate inserendo pedoni e pezzi manualmente.</li>
+  </ul>
+
+  <h3>2. Il Motore (Engine) e l'Analisi</h3>
+  <p>
+   Usa la barra inferiore per accendere il motore (Alexander o ShashChess). Una volta acceso, sbloccherai le funzioni avanzate:
+  </p>
+  <ul>
+   <li><b style="color: #3498db;">⚙️ Impostazioni:</b> Apri le opzioni interne del motore (es. Hash, Threads, LimitStrength).</li>
+   <li><b style="color: #e67e22;">🧠 Analisi Continua:</b> Permette di lanciare la Macchina a Stati a 2-Fasi. Il motore determinerà prima la Zona Shashin (es. Tal) e poi adatterà la sua "personalità" di calcolo per esplorarla.</li>
+   <li><b style="color: #2ecc71;">⚔️ Gioca (Handicap):</b> Sfida il motore direttamente sul telefono impostando una cadenza (Fischer o fissa) e un limite di Elo per simulare un avversario umano.</li>
+  </ul>
+
+  <h3>3. Il Cloud LiveBook (Oracolo)</h3>
+  <p>
+   Situato sotto la scacchiera, il LiveBook interroga in tempo reale i più grandi database mondiali:
+  </p>
+  <ul>
+   <li><b>Lichess Masters:</b> Mostra le mosse storicamente più giocate dai Grandi Maestri umani. Ideale per studiare le aperture.</li>
+   <li><b>Smart Import (🔗):</b> Cliccando sull'icona della catena azzurra, puoi incollare il link di una partita di Lichess.org o una stringa PGN. L'app scaricherà e costruirà automaticamente l'albero delle mosse per fartelo esplorare!</li>
+  </ul>
+
+  <div class="note">
+   <b>💡 Win Probability e Frecce:</b><br/>
+   Mentre navighi l'albero, noterai che ShashGui non mostra un punteggio "+1.50", ma una percentuale di vittoria (es. 72% Tal). Le frecce sulla scacchiera prendono automaticamente il colore della zona termodinamica rilevata (es. Verde per vantaggio, Giallo/Arancio per difesa).
+  </div>
+
+  <h2>⚔️ Valutazione Incrociata (Coach)</h2>
+  <p>
+   Strumento didattico avanzato (icona verde con doppia freccia 🔀). Non si limita a indicare la mossa migliore, ma agisce come un ponte tra il tuo intuito e il giudizio di un mentore.
+  </p>
+  <ul>
+   <li><b>Come funziona:</b> Inserisci il tuo Elo stimato. Il sistema assegnerà il "Maestro" appropriato (da Alexander limitato per i principianti, a ShashChess puro per gli Esperti).</li>
+   <li><b>Il Dialogo:</b> L'Allievo proporrà dei piani tattici, e il Maestro li valuterà restituendo un report scritto in italiano chiaro, spiegando se l'idea è buona o se cede un vantaggio strutturale.</li>
+  </ul>
+
+  <h2>⚠️ Rilevamento Minacce (Threat Scanner)</h2>
+  <p>
+   Spesso quando analizziamo ci concentriamo solo sui nostri piani. Il Threat Scanner (icona rossa a mirino 🎯) esegue un algoritmo di "Mossa Nulla": passa forzatamente il turno all'avversario per scoprire quali minacce ha in serbo.
+   Se rileva un attacco pericoloso, disegnerà una freccia rossa intensa sulla scacchiera!
+  </p>
+
+  <h2>☁️ ShashGui Premium</h2>
+  <p>
+   Le operazioni massive (come la generazione di un tuo Avatar digitale analizzando migliaia di tue partite, l'estrazione di file Polyglot .bin, o la ricerca di "Pepite" tattiche tramite Data Mining) prosciugherebbero la batteria e la RAM di uno smartphone in pochi minuti. 
+   <br/><br/>
+   Passando al livello <b>Premium</b>, l'app delegherà tutti questi calcoli complessi (ChessBeauty, Dossier XAI, DB Improver) ai nostri server Cloud dedicati, restituendoti i risultati direttamente sul dispositivo.
+  </p>
+
+</body>
+</html>

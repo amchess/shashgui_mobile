@@ -1,0 +1,9 @@
+{
+  "@@locale": "it",
+  "appTitle": "ShashGui",
+  "aboutDev": "Sviluppatore: Andrea Manzo",
+  "aboutEngines": "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
+  "aboutDesc": "Interfaccia grafica avanzata per l'analisi posizionale a due fasi, l'elaborazione di dati scacchistici e l'estrazione di tratti dinamici.",
+  "closeBtn": "CHIUDI",
+  "readManualBtn": "LEGGI IL MANUALE UTENTE"
+}

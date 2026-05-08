@@ -1,0 +1,9 @@
+{
+  "@@locale": "en",
+  "appTitle": "ShashGui",
+  "aboutDev": "Developer: Andrea Manzo",
+  "aboutEngines": "Integrated Engines: ShashChess (NNUE) & Alexander (HCE)",
+  "aboutDesc": "Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic trait extraction.",
+  "closeBtn": "CLOSE",
+  "readManualBtn": "READ USER MANUAL"
+}
