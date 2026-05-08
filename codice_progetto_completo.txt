@@ -4330,6 +4330,7 @@ enum CrossedState {
   staticEval,
   baseEval,
   studentThinking,
+  masterStaticEval, // <--- NUOVO STATO
   masterThinking,
 }
 
@@ -4362,6 +4363,8 @@ class CrossedEvalOrchestrator {
   int? spaceBlack;
   String? worstPieceWhite;
   String? worstPieceBlack;
+
+  String? worstPieceNnue;
 
   // Callback per la UI
   final Function(String) onLog;
@@ -4434,6 +4437,45 @@ class CrossedEvalOrchestrator {
   }
 
   void _handleEngineOutput(String line) {
+    // --- LETTURA TRACCIA NEURALE (SHASHCHESS EVAL) ---
+    if (currentState == CrossedState.masterStaticEval) {
+      String targetColor = isWhiteToMove ? "White" : "Black";
+      final match = RegExp(
+        "($targetColor) pieces \\(worst to best static activity\\):\\s*([A-Z]?)([a-h][1-8])\\((-?\\d+)\\)\\s*<-- Worst unit",
+      ).firstMatch(line);
+
+      if (match != null) {
+        String pieceChar = match.group(2)!;
+        String sq = match.group(3)!;
+
+        switch (pieceChar) {
+          case 'N':
+            worstPieceNnue = 'il Cavallo in $sq';
+            break;
+          case 'B':
+            worstPieceNnue = "l'Alfiere in $sq";
+            break;
+          case 'R':
+            worstPieceNnue = 'la Torre in $sq';
+            break;
+          case 'Q':
+            worstPieceNnue = 'la Donna in $sq';
+            break;
+          case 'K':
+            worstPieceNnue = 'il Re in $sq';
+            break;
+          default:
+            worstPieceNnue = 'il Pedone in $sq';
+        }
+      }
+
+      if (line.startsWith("*** Note: Static activity")) {
+        // Fine lettura neurale, avvia il pensiero del Maestro!
+        currentState = CrossedState.masterThinking;
+        engineManager.sendCommand('go movetime $baseTimeMs');
+      }
+      return;
+    }
     // --- LETTURA TRACCIA STATICA (EVAL) ---
     if (currentState == CrossedState.staticEval) {
       // Cattura Spazio (Alexander)
@@ -4488,9 +4530,9 @@ class CrossedEvalOrchestrator {
           line.startsWith("*** Note:")) {
         currentState = CrossedState.baseEval;
         onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
-        int staticTime = (baseTimeMs * 0.5)
-            .toInt(); // Il 50% del tempo base per l'analisi statica
-        engineManager.sendCommand('go movetime $staticTime');
+
+        // Usa esattamente il tempo scelto dall'utente!
+        engineManager.sendCommand('go movetime $baseTimeMs');
       }
       return;
     }
@@ -4510,46 +4552,34 @@ class CrossedEvalOrchestrator {
       else if (currentState == CrossedState.masterThinking)
         masterZone = currentZ;
     }
-
     if (line.startsWith("bestmove")) {
       final moveMatch = RegExp(r"bestmove (\w+)").firstMatch(line);
       if (moveMatch != null) {
         String move = moveMatch.group(1)!;
 
-        // Fine della traccia 'eval'
-        if (line.startsWith("Best move:") ||
-            line.contains("Final static evaluation") ||
-            line.startsWith("*** Note:")) {
-          currentState = CrossedState.baseEval;
-          onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
-          int staticTime = (baseTimeMs * 0.5)
-              .toInt(); // Il 50% del tempo base per l'analisi statica
-          engineManager.sendCommand('go movetime $staticTime');
-        }
-        // ... [più in basso] ...
         if (currentState == CrossedState.baseEval) {
           currentState = CrossedState.studentThinking;
           onLog(
             "🧑‍🎓 L'Allievo (Scuola $studentSchool - Elo $studentElo) elabora il piano...",
           );
+          // --- INIZIO PARTE MANCANTE ---
           engineManager.sendCommand('position fen $currentFen');
           engineManager.sendCommand(
             'setoption name UCI_LimitStrength value true',
           );
           engineManager.sendCommand('setoption name UCI_Elo value $studentElo');
-          engineManager.sendCommand(
-            'go movetime $baseTimeMs',
-          ); // <--- Usa il tempo esatto
+          engineManager.sendCommand('go movetime $baseTimeMs');
         } else if (currentState == CrossedState.studentThinking) {
           studentMove = move;
-          _startMasterPhase(); // <-- Sostituiamo tutto il vecchio blocco con questa chiamata
+          _startMasterPhase();
         } else if (currentState == CrossedState.masterThinking) {
           masterMove = move;
           _finishAndReport();
         }
       }
     }
-  }
+  } // <-- Queste sono le parentesi graffe che chiudevano _handleEngineOutput
+  // --- FINE PARTE MANCANTE ---
 
   // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
   Future<void> _startMasterPhase() async {
@@ -4578,17 +4608,21 @@ class CrossedEvalOrchestrator {
       );
 
       onLog("✅ ShashChess pronto alla massima forza.");
+
+      // Chiediamo a ShashChess di valutare i suoi pezzi peggiori
+      currentState = CrossedState.masterStaticEval;
+      engineManager.sendCommand('position fen $currentFen');
+      engineManager.sendCommand('eval');
+      return; // Usciamo, il 'go movetime' verrà lanciato dal listener di sopra!
     } else {
       // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
       engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
-    }
 
-    // Avvio effettivo della ricerca del Maestro
-    engineManager.sendCommand('position fen $currentFen');
-    int masterTime = (baseTimeMs * 1.5)
-        .toInt(); // +50% di tempo per garantire la qualità del Maestro
-    engineManager.sendCommand('go movetime $masterTime');
+      currentState = CrossedState.masterThinking;
+      engineManager.sendCommand('position fen $currentFen');
+      engineManager.sendCommand('go movetime $baseTimeMs');
+    }
   }
 
   // NLP: Genera l'analisi testuale della posizione iniziale (Senza HTML!)
@@ -4619,6 +4653,23 @@ class CrossedEvalOrchestrator {
     }
 
     return txt.isNotEmpty ? txt.trim() : "Valutazione posizionale complessa.";
+  }
+
+  // Helper interno per assegnare l'indice di Zona Shashin (0-12)
+  int _getZoneIndex(double wp) {
+    if (wp <= 5) return 0;
+    if (wp <= 10) return 1;
+    if (wp <= 15) return 2;
+    if (wp <= 20) return 3;
+    if (wp <= 24) return 4;
+    if (wp <= 49) return 5;
+    if (wp <= 50) return 6;
+    if (wp <= 75) return 7;
+    if (wp <= 79) return 8;
+    if (wp <= 84) return 9;
+    if (wp <= 89) return 10;
+    if (wp <= 94) return 11;
+    return 12;
   }
 
   void _finishAndReport() {
@@ -4667,6 +4718,11 @@ class CrossedEvalOrchestrator {
     report.writeln(
       "• Aspettativa: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
     );
+
+    // NUOVO: Integrazione Makogonov ShashChess sempre visibile
+    if (worstPieceNnue != null) {
+      report.writeln("🔍 Pezzo peggiore per la Rete Neurale: $worstPieceNnue");
+    }
     report.writeln("");
 
     // 5. VERDETTO E NAG
@@ -4674,44 +4730,68 @@ class CrossedEvalOrchestrator {
     if (studentMove == masterMove) {
       report.writeln("🌟 ECCELLENTE!");
       report.writeln(
-        "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria in questa posizione, rispettando i canoni posizionali estratti nell'analisi statica.",
+        "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell'analisi statica.",
       );
     } else {
       double sWp = studentZone?.wp ?? 50.0;
       double mWp = masterZone?.wp ?? 50.0;
-      double drop = mWp - sWp;
+      int sIndex = _getZoneIndex(sWp);
+      int mIndex = _getZoneIndex(mWp);
+      int zoneDrop = mIndex - sIndex;
 
-      if (drop > 20.0) {
+      if (zoneDrop >= 3) {
         report.writeln("❌ NAG: ?? (Grave Errore)");
         report.writeln(
-          "La tua idea cede un vantaggio letale. Il Maestro suggerisce una via completamente diversa per salvare la posizione o mantenere il dominio strategico.",
+          "La tua idea cede un vantaggio letale facendo crollare la posizione di $zoneDrop Zone. Il Maestro suggerisce una via diversa per salvare la posizione.",
         );
-      } else if (drop > 10.0) {
+      } else if (zoneDrop == 2) {
         report.writeln("⚠️ NAG: ? (Errore)");
         report.writeln(
-          "Una svista posizionale o tattica sensibile. La mossa del Maestro massimizza l'energia cinetica dei pezzi in modo decisamente superiore.",
+          "Una svista posizionale o tattica. La posizione scende di $zoneDrop Zone rispetto al potenziale massimizzato dal Maestro.",
         );
-      } else if (drop > 4.0) {
+      } else if (zoneDrop == 1) {
         report.writeln("🤔 NAG: ?! (Imprecisione)");
         report.writeln(
-          "La tua idea è giocabile ma subottimale. Il Maestro preferisce una sfumatura diversa che garantisce maggiore flessibilità o sicurezza.",
-        );
-      } else if (drop >= -3.0 && drop <= 4.0) {
-        report.writeln("👌 NAG: !? (Interessante)");
-        report.writeln(
-          "Idea validissima! Sei vicinissimo alla valutazione del Maestro. Potrebbe essere solo una questione di puro stile di gioco o di preferenza sui piani a lungo termine.",
+          "La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.",
         );
       } else {
-        report.writeln("✨ NAG: !! (Brillante)");
-        report.writeln(
-          "Incredibile! Hai scovato un'idea che a prima vista sfugge persino al Maestro in base alle statistiche. Una mossa eccezionale che ribalta i dogmi della posizione.",
-        );
+        report.writeln("👌 NAG: !? (Interessante)");
+        if (mWp - sWp > 8.0) {
+          report.writeln(
+            "La mossa del Maestro ($masterMove) spreme più vantaggio, ma la tua idea mantiene la stessa Zona (${studentZone?.name}). È saggio giocare il piano che comprendi meglio.",
+          );
+        } else {
+          report.writeln(
+            "Idea validissima! Sei vicino alla valutazione del Maestro e mantieni intatta la Zona Termodinamica.",
+          );
+        }
+      }
+    }
+
+    // 6. VISIONE AVANZATA (Solo ShashChess e se le mosse differiscono)
+    if (masterElo >= 3500 &&
+        worstPieceNnue != null &&
+        studentMove != masterMove) {
+      String worstBase = isWhiteToMove
+          ? (worstPieceWhite ?? "")
+          : (worstPieceBlack ?? "");
+      if (worstBase.isNotEmpty) {
+        report.writeln("");
+        report.writeln("👁️ VISIONE AVANZATA DEL MAESTRO:");
+        if (worstBase != worstPieceNnue) {
+          report.writeln(
+            "Il Maestro ha identificato il problema su $worstBase e lo ha risolto. Ora il punto debole è diventato $worstPieceNnue.",
+          );
+        } else {
+          report.writeln(
+            "Il Maestro ignora la passività di $worstBase, indicando un attacco tattico o un sacrificio dinamico (la mossa $masterMove garantisce il picco di attività).",
+          );
+        }
       }
     }
 
     onReportReady(report.toString());
-    onLog("✅ Valutazione incrociata e referto del Coach completati.");
-
+    onLog("✅ Valutazione incrociata completata.");
     engineManager.sendCommand('setoption name UCI_LimitStrength value false');
   }
 
