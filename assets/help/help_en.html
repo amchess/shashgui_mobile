@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>ShashGui Mobile User Manual</title>
+  <style>
+   body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 {
+            color: #f1c40f;
+            border-bottom: 2px solid #555;
+            padding-bottom: 10px;
+            font-size: 1.8em;
+        }
+        h2 {
+            color: #4ea8de;
+            margin-top: 40px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+            font-size: 1.4em;
+        }
+        h3 {
+            color: #2ecc71;
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+        p {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        ul {
+            margin-bottom: 20px;
+            background-color: #252525;
+            padding: 15px 15px 15px 30px;
+            border-radius: 5px;
+            border-left: 4px solid #8e44ad;
+        }
+        li {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .note {
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+        .warning {
+            background-color: #4a2323;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+  </style>
+</head>
+<body>
+  <h1 id="introduction">ShashGui User Manual: Beyond the Eval</h1>
+  <p>
+   Welcome to <b>ShashGui Mobile</b>. Unlike traditional chess interfaces that simply show a cold numerical evaluation (e.g., +1.50), ShashGui is a true portable laboratory designed to <i>understand</i> chess. The goal isn't to tell you who is winning, but <b>why</b> and <b>how</b> to continue playing, translating engine thought into human concepts via <b>Alexander Shashin's Theory</b>.
+  </p>
+  
+  <div class="warning">
+   <b style="color: #e74c3c; font-size: 15px;">⚠️ WARNING - FUNDAMENTAL CLOUD REQUIREMENT:</b><br/>
+   <p style="margin-top: 8px; margin-bottom: 0;">
+    ShashGui Mobile is designed as a lightweight, high-performance client. To ensure the proper functioning of the Oracle (LiveBook) and extended evaluations, <b>an active Internet connection is required</b>. Massive analyses and heavy database saving operations are delegated to our Cloud servers.
+   </p>
+  </div>
+
+  <h2>📚 Shashin's Theory: The Physics of Chess</h2>
+  <p>
+   At the core of the entire system is the framework developed by Russian physicist and master Alexander Shashin. Shashin breaks down each position by measuring fundamental factors: Material, Time, Safety, Compactness, and Space. Based on the thermodynamic balance between these elements, the position is classified into one of three strategic "states", embodied by the styles of three legendary World Champions:
+  </p>
+  
+  <ul>
+   <li>
+    <b style="color: #e74c3c;">🔥 Mikhail Tal (Attack / Expansion):</b><br/>
+    When there is a dynamic advantage or great chaos on the board. The goal is to maximize tension and seek tactical complications to destroy opponent defenses.
+   </li>
+   <li>
+    <b style="color: #3498db;">⚖️ José Raúl Capablanca (Strategy / Equilibrium):</b><br/>
+    When the position is stable and perfectly balanced. The goal is the accumulation of small advantages, harmonious centralization, and precise, risk-free positional maneuvering.
+   </li>
+   <li>
+    <b style="color: #f39c12;">🛡️ Tigran Petrosian (Defense / Contraction):</b><br/>
+    When under attack or at a slight disadvantage. The goal is absolute prophylaxis, building impregnable fortresses, and neutralizing the opponent's initiative.
+   </li>
+  </ul>
+
+  <h2>📱 The Laboratory: Tools at your disposal</h2>
+  <p>
+   ShashGui's mobile interface is divided into functional areas designed for touch use:
+  </p>
+
+  <h3>1. The Board and Controls</h3>
+  <ul>
+   <li><b>Interaction:</b> Drag or tap pieces to move.</li>
+   <li><b>Navigation:</b> Use the gray bar below the board to scroll back and forth through the move tree. The blue button with two arrows flips the board orientation.</li>
+   <li><b>Visual FEN Editor (🧩):</b> Tapping the green grid icon in the bottom bar opens a full editor to set custom positions by placing pawns and pieces manually.</li>
+  </ul>
+
+  <h3>2. The Engine and Analysis</h3>
+  <p>
+   Use the bottom bar to power on the engine (Alexander or ShashChess). Once on, you will unlock advanced features:
+  </p>
+  <ul>
+   <li><b style="color: #3498db;">⚙️ Settings:</b> Open internal engine options (e.g., Hash, Threads, LimitStrength).</li>
+   <li><b style="color: #e67e22;">🧠 Continuous Analysis:</b> Launches the 2-Phase State Machine. The engine will first determine the Shashin Zone (e.g., Tal) and then adapt its calculation "personality" to explore it.</li>
+   <li><b style="color: #2ecc71;">⚔️ Play (Handicap):</b> Challenge the engine directly on your phone by setting a time control (Fischer or fixed) and an Elo limit to simulate a human opponent.</li>
+  </ul>
+
+  <h3>3. The Cloud LiveBook (Oracle)</h3>
+  <p>
+   Located below the board, the LiveBook queries the largest global databases in real-time:
+  </p>
+  <ul>
+   <li><b>Lichess Masters:</b> Shows the moves historically played most by human Grandmasters. Ideal for studying openings.</li>
+   <li><b>Smart Import (🔗):</b> Tapping the blue chain icon lets you paste a Lichess.org game link or a PGN string. The app will automatically download and build the move tree for you to explore!</li>
+  </ul>
+
+  <div class="note">
+   <b>💡 Win Probability and Arrows:</b><br/>
+   As you navigate the tree, you'll notice ShashGui doesn't show a cold "+1.50" score, but a win percentage (e.g., 72% Tal). The arrows on the board automatically take the color of the detected thermodynamic zone (e.g., Green for advantage, Yellow/Orange for defense).
+  </div>
+
+  <h2>⚔️ Crossed Evaluation (Coach)</h2>
+  <p>
+   An advanced educational tool (green crossed-arrows icon 🔀). It doesn't just point out the best move, but acts as a bridge between your intuition and a mentor's judgment.
+  </p>
+  <ul>
+   <li><b>How it works:</b> Enter your estimated Elo. The system will assign the appropriate "Master" (from a limited Alexander for beginners, to pure ShashChess for Experts).</li>
+   <li><b>The Dialogue:</b> The Student proposes tactical plans, and the Master evaluates them, returning a clear written report explaining whether the idea is good or yields a structural advantage.</li>
+  </ul>
+
+  <h2>⚠️ Threat Detection (Threat Scanner)</h2>
+  <p>
+   Often when analyzing, we only focus on our own plans. The Threat Scanner (red crosshair icon 🎯) executes a "Null Move" algorithm: it forcibly passes the turn to the opponent to discover what threats they have in store.
+   If it detects a dangerous attack, it will draw a deep red arrow on the board!
+  </p>
+
+  <h2>☁️ ShashGui Premium</h2>
+  <p>
+   Massive operations (like generating your digital Avatar by analyzing thousands of your games, extracting Polyglot .bin files, or data-mining tactical "Nuggets") would drain a smartphone's battery and RAM in minutes. 
+   <br/><br/>
+   By upgrading to the <b>Premium</b> tier, the app delegates all these complex calculations (ChessBeauty, XAI Dossier, DB Manager) to our dedicated high-performance Cloud servers, returning the results directly to your device.
+  </p>
+
+</body>
+</html>

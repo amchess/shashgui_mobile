@@ -83,7 +83,6 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
@@ -92,12 +91,12 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         selectedItemColor: Colors.orangeAccent,
         unselectedItemColor: Colors.grey,
         backgroundColor: const Color(0xFF1e1e1e),
-        items: [
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.science),
-            label: loc.laboratorio,
+            label: 'Laboratorio',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.star), label: loc.premium),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Premium'),
         ],
       ),
     );
@@ -417,12 +416,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-
     return Scaffold(
       appBar: AppBar(
         // Opzionale: usa la traduzione anche per il titolo della schermata se l'hai inserita nel file .arb
-        title: Text(loc.shashguiLaboratorio),
+        title: const Text('ShashGui Laboratorio'),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
         actions: [
@@ -430,7 +427,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.language, color: Colors.cyanAccent),
             color: const Color(0xFF2b2b2b), // Sfondo scuro per il menu
-            tooltip: loc.cambiaLingua,
+            tooltip: 'Cambia Lingua',
             onSelected: (String langCode) async {
               // 1. Salva la scelta nel telefono
               final prefs = await SharedPreferences.getInstance();
@@ -439,16 +436,19 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               appLocale.value = Locale(langCode);
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'it',
                 child: Text(
-                  loc.italiano,
+                  '🇮🇹 Italiano',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'en',
-                child: Text(loc.english, style: TextStyle(color: Colors.white)),
+                child: Text(
+                  '🇬🇧 English',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -605,9 +605,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 child: TextButton.icon(
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
+                                      const SnackBar(
                                         content: Text(
-                                          loc.funzioneTrattiPosizionaliBlocc,
+                                          "Funzione Tratti Posizionali bloccata (Versione Premium)",
                                         ),
                                       ),
                                     );
@@ -617,8 +617,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                     size: 12,
                                     color: Colors.orangeAccent,
                                   ),
-                                  label: Text(
-                                    loc.traits,
+                                  label: const Text(
+                                    "TRAITS",
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: Colors.orangeAccent,
@@ -634,12 +634,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           const SizedBox(height: 5),
 
                           // INTESTAZIONI DI COLONNA ALLINEATE
-                          Row(
+                          const Row(
                             children: [
                               SizedBox(
                                 width: 70,
                                 child: Text(
-                                  loc.mossa,
+                                  "MOSSA",
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.grey,
@@ -648,7 +648,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 ),
                               ),
                               Text(
-                                loc.valutazione,
+                                "VALUTAZIONE",
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.grey,
@@ -664,8 +664,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             flex: 3, // Diamo il 60% di spazio alle mosse
                             child: SingleChildScrollView(
                               child: _liveBookResult == null
-                                  ? Text(
-                                      loc.scanningCloudData,
+                                  ? const Text(
+                                      "Scanning cloud data...",
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontStyle: FontStyle.italic,
@@ -797,7 +797,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  loc.petrosian,
+                                  "🛡️ Petrosian",
                                   style: TextStyle(
                                     color: Colors.red[300],
                                     fontSize: 11,
@@ -835,7 +835,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
                                 // ----------------------------------------
                                 Text(
-                                  loc.tal,
+                                  "Tal 🔥",
                                   style: TextStyle(
                                     color: Colors.green[300],
                                     fontSize: 11,
@@ -961,14 +961,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             height: 2,
                             color: Colors.blueAccent,
                           ),
-                          items: [
+                          items: const [
                             DropdownMenuItem(
                               value: 'shashchess',
-                              child: Text(loc.shashchess),
+                              child: Text("ShashChess"),
                             ),
                             DropdownMenuItem(
                               value: 'alexander',
-                              child: Text(loc.alexander),
+                              child: Text("Alexander"),
                             ),
                           ],
                           onChanged: (String? newValue) {
@@ -992,9 +992,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           onPressed: () {
                             if (_isEngineRunning) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
+                                const SnackBar(
                                   content: Text(
-                                    loc.spegniIlMotorePerModificareIPa,
+                                    "Spegni il motore per modificare i parametri!",
                                   ),
                                 ),
                               );
@@ -1008,7 +1008,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 ? Colors.grey
                                 : Colors.white70,
                           ),
-                          tooltip: loc.configuraParametri,
+                          tooltip: "Configura Parametri",
                         ),
                         // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
                         if (_isEngineRunning) ...[
@@ -1042,7 +1042,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.sports_esports,
                               color: Colors.greenAccent,
                             ),
-                            tooltip: loc.giocaControIlMotore,
+                            tooltip: "Gioca contro il Motore",
                           ),
                           IconButton(
                             onPressed: _startAutoplayMode,
@@ -1050,7 +1050,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.smart_toy,
                               color: Colors.purpleAccent,
                             ),
-                            tooltip: loc.autoplayMotoreVsMotore,
+                            tooltip: "Autoplay (Motore vs Motore)",
                           ),
                           IconButton(
                             onPressed: _scanThreats, // <-- Sempre cliccabile
@@ -1058,7 +1058,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.crisis_alert,
                               color: Colors.redAccent,
                             ),
-                            tooltip: loc.rilevaMinacce,
+                            tooltip: "Rileva Minacce",
                           ),
                           IconButton(
                             onPressed: _startCrossedAnalysis,
@@ -1069,7 +1069,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               size:
                                   38, // ⬅️ Ingrandito rispetto agli altri bottoni per dargli risalto
                             ),
-                            tooltip: loc.valutazioneIncrociata,
+                            tooltip: "Valutazione Incrociata",
                           ),
                         ],
                       ],
@@ -1098,7 +1098,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   ElevatedButton.icon(
                     onPressed: _isLoadingOptions ? null : _startEngine,
                     icon: const Icon(Icons.power),
-                    label: Text(loc.accendi),
+                    label: const Text('Accendi'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
@@ -1333,7 +1333,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Metodo per il salvataggio fisico su file
   Future<void> _savePgnToFile() async {
-    final loc = AppLocalizations.of(context)!;
     final pgnData = _buildPgnString();
 
     try {
@@ -1348,7 +1347,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           SnackBar(
             content: Text("Partita salvata in: $fileName 💾"),
             action: SnackBarAction(
-              label: loc.copia,
+              label: "COPIA",
               onPressed: () => Clipboard.setData(ClipboardData(text: pgnData)),
             ),
           ),
@@ -1393,21 +1392,20 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // 2. Finestra di dialogo per Testo o Link Lichess
   void _showSmartImportDialog() {
-    final loc = AppLocalizations.of(context)!;
     TextEditingController textController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2b2b2b),
-        title: Text(
-          loc.importaTestoLichess,
+        title: const Text(
+          "Importa Testo / Lichess",
           style: TextStyle(color: Colors.cyanAccent),
         ),
         content: TextField(
           controller: textController,
           maxLines: 3,
-          decoration: InputDecoration(
-            hintText: loc.incollaUnLinkLichessUnFenOUnPg,
+          decoration: const InputDecoration(
+            hintText: "Incolla un Link Lichess, un FEN o un PGN intero...",
             hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
           ),
           style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -1415,7 +1413,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(loc.annulla, style: TextStyle(color: Colors.grey)),
+            child: const Text("Annulla", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1425,7 +1423,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan[700]),
-            child: Text(loc.importa, style: TextStyle(color: Colors.white)),
+            child: const Text("Importa", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1487,7 +1485,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // 4. Costruttore dell'Albero delle mosse da un PGN
   void _loadPgnGame(String pgn) {
-    final loc = AppLocalizations.of(context)!;
     try {
       // Usiamo una scacchiera temporanea invisibile per parsare il file
       final tempBoard = ChessBoardController();
@@ -1542,8 +1539,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(loc.partitaCaricataConSuccesso),
+        const SnackBar(
+          content: Text("Partita caricata con successo! ✅"),
           backgroundColor: Colors.green,
         ),
       );
@@ -1554,7 +1551,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   Widget _buildNotationPanel() {
-    final loc = AppLocalizations.of(context)!;
     List<Widget> widgets = [];
 
     void buildNotation(MoveNode node, int moveCount) {
@@ -1630,8 +1626,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             child: Wrap(
               children: widgets.isEmpty
                   ? [
-                      Text(
-                        loc.iniziaAMuovere,
+                      const Text(
+                        "Inizia a muovere...",
                         style: TextStyle(color: Colors.grey),
                       ),
                     ]
@@ -1651,7 +1647,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.amberAccent,
                 ),
-                tooltip: loc.apriFilePgnfen,
+                tooltip: "Apri File (PGN/FEN)",
                 onPressed: _pickAndLoadFile, // <-- APRE IL FILE SYSTEM
               ),
               IconButton(
@@ -1660,7 +1656,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.cyanAccent,
                 ),
-                tooltip: loc.importaLinkLichessIncollaPgn,
+                tooltip: "Importa Link Lichess / Incolla PGN",
                 onPressed: _showSmartImportDialog, // <-- APRE LO SMART IMPORT
               ),
               IconButton(
@@ -1669,7 +1665,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.greenAccent,
                 ),
-                tooltip: loc.editorVisivoFen,
+                tooltip: "Editor Visivo FEN",
                 onPressed: _showImportDialog, // <-- IL TUO EDITOR FEN VISIVO
               ),
               IconButton(
@@ -1678,7 +1674,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.blueAccent,
                 ),
-                tooltip: loc.salvaPartitaInLocale,
+                tooltip: "Salva Partita in locale",
                 onPressed: _savePgnToFile,
               ),
               IconButton(
@@ -1687,12 +1683,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.orangeAccent,
                 ),
-                tooltip: loc.copiaPgnInMemoria,
+                tooltip: "Copia PGN in memoria",
                 onPressed: () {
                   String pgn = _boardController.game.pgn();
                   Clipboard.setData(ClipboardData(text: pgn));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(loc.pgnCopiatoNegliAppunti)),
+                    const SnackBar(
+                      content: Text("PGN copiato negli appunti! 📋"),
+                    ),
                   );
                 },
               ),
@@ -1705,18 +1703,19 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Mostra il popup quando si crea una diramazione
   Future<String?> _showBranchingDialog() async {
-    final loc = AppLocalizations.of(context)!;
     return showDialog<String>(
       context: context,
       barrierDismissible: false, // L'utente deve scegliere o annullare
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2b2b2b),
-          title: Text(
-            loc.diramazioneRilevata,
+          title: const Text(
+            "Diramazione rilevata",
             style: TextStyle(color: Colors.orangeAccent),
           ),
-          content: Text(loc.esisteGiUnaContinuazionePerQue),
+          content: const Text(
+            "Esiste già una continuazione per questa posizione. Cosa vuoi fare?",
+          ),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             Column(
@@ -1727,8 +1726,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
                   ),
-                  child: Text(
-                    loc.nuovaLineaPrincipale,
+                  child: const Text(
+                    "Nuova Linea Principale",
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -1738,8 +1737,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[700],
                   ),
-                  child: Text(
-                    loc.aggiungiComeVariante,
+                  child: const Text(
+                    "Aggiungi come Variante",
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -1749,16 +1748,16 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[700],
                   ),
-                  child: Text(
-                    loc.sovrascriviTutto,
+                  child: const Text(
+                    "Sovrascrivi tutto",
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.pop(context, 'cancel'),
-                  child: Text(
-                    loc.annullaMossa,
+                  child: const Text(
+                    "Annulla mossa",
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
@@ -1772,7 +1771,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Metodo per importare un FEN esterno TRAMITE EDITOR VISIVO
   void _showImportDialog() async {
-    final loc = AppLocalizations.of(context)!;
     final newFen = await showDialog<String>(
       context: context,
       builder: (context) =>
@@ -1797,7 +1795,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(loc.erroreLaScacchieraNonHaPotutoV)),
+          const SnackBar(
+            content: Text(
+              "Errore: La scacchiera non ha potuto validare il FEN!",
+            ),
+          ),
         );
       }
     }
@@ -1923,7 +1925,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _startPlayMode() {
-    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     // Variabili temporanee per il popup
@@ -1940,8 +1941,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: Text(
-                loc.impostazioniSfida,
+              title: const Text(
+                "Impostazioni Sfida",
                 style: TextStyle(color: Colors.orangeAccent),
               ),
               content: SingleChildScrollView(
@@ -1953,22 +1954,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          loc.giochiCol,
+                        const Text(
+                          "Giochi col:",
                           style: TextStyle(color: Colors.white),
                         ),
                         DropdownButton<PlayerColor>(
                           value: tempColor,
                           dropdownColor: const Color(0xFF2b2b2b),
                           style: const TextStyle(color: Colors.white),
-                          items: [
+                          items: const [
                             DropdownMenuItem(
                               value: PlayerColor.white,
-                              child: Text(loc.bianco),
+                              child: Text("Bianco"),
                             ),
                             DropdownMenuItem(
                               value: PlayerColor.black,
-                              child: Text(loc.nero),
+                              child: Text("Nero"),
                             ),
                           ],
                           onChanged: (val) =>
@@ -1980,12 +1981,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
                     // 2. LIVEBOOK E TRATTI (PREMIUM)
                     SwitchListTile(
-                      title: Text(
-                        loc.usaLivebookCloud,
+                      title: const Text(
+                        "Usa LiveBook Cloud",
                         style: TextStyle(fontSize: 14, color: Colors.white),
                       ),
-                      subtitle: Text(
-                        loc.ilMotorePescherLeApertureDalWe,
+                      subtitle: const Text(
+                        "Il motore pescherà le aperture dal web.",
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       value: tempLivebook,
@@ -1993,12 +1994,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       onChanged: (v) => setPopupState(() => tempLivebook = v),
                     ),
                     ListTile(
-                      title: Text(
-                        loc.filtriTrattiPosizionali,
+                      title: const Text(
+                        "Filtri Tratti Posizionali",
                         style: TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                      subtitle: Text(
-                        loc.aggiungeBiasStrategicoAlleMoss,
+                      subtitle: const Text(
+                        "Aggiunge bias strategico alle mosse.",
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       trailing: const Icon(
@@ -2007,7 +2008,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       ),
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text(
                               "I Filtri sui Tratti Posizionali sono un'esclusiva della versione Premium!",
                             ),
@@ -2020,8 +2021,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     // 3. LIMITA FORZA
                     if (_selectedEngine == 'alexander') ...[
                       SwitchListTile(
-                        title: Text(
-                          loc.limitaForza,
+                        title: const Text(
+                          "Limita Forza",
                           style: TextStyle(fontSize: 14, color: Colors.white),
                         ),
                         value: _limitStrength,
@@ -2051,8 +2052,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ],
 
                     // 4. OROLOGIO E CADENZE (REPLICA DESKTOP)
-                    Text(
-                      loc.orologioCadenza,
+                    const Text(
+                      "Orologio (Cadenza)",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.orangeAccent,
@@ -2061,8 +2062,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ),
                     const SizedBox(height: 5),
                     RadioListTile<int>(
-                      title: Text(
-                        loc.tempoGlobaleFischer,
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
                         style: TextStyle(fontSize: 13, color: Colors.white),
                       ),
                       value: 0,
@@ -2075,8 +2076,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       }),
                     ),
                     RadioListTile<int>(
-                      title: Text(
-                        loc.tempoFissoPerMossa,
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
                         style: TextStyle(fontSize: 13, color: Colors.white),
                       ),
                       value: 1,
@@ -2124,8 +2125,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         if (tempTcType == 0)
                           Column(
                             children: [
-                              Text(
-                                loc.incrementoS,
+                              const Text(
+                                "Incremento (s):",
                                 style: TextStyle(color: Colors.white70),
                               ),
                               DropdownButton<int>(
@@ -2156,7 +2157,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(loc.annulla),
+                  child: const Text("Annulla"),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -2174,7 +2175,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(loc.gioca),
+                  child: const Text("GIOCA"),
                 ),
               ],
             );
@@ -2249,14 +2250,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- 3. POPUP FINE PARTITA ---
   void _showGameOverDialog(String messaggio) {
-    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2b2b2b),
-        title: Text(
-          loc.finePartita,
+        title: const Text(
+          "Fine Partita",
           style: TextStyle(color: Colors.orangeAccent),
         ),
         content: Text(messaggio, style: const TextStyle(color: Colors.white)),
@@ -2269,8 +2269,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               // Rimettiamo il motore in analisi automatica
               if (_isEngineRunning) _startNormalAnalysis();
             },
-            child: Text(
-              loc.tornaAlLaboratorio,
+            child: const Text(
+              "TORNA AL LABORATORIO",
               style: TextStyle(color: Colors.blueAccent),
             ),
           ),
@@ -2280,7 +2280,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _showUciSettings() {
-    final loc = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Permette al menu di occupare più spazio
@@ -2320,9 +2319,10 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               // QUI GENERIAMO DINAMICAMENTE TUTTE LE OPZIONI TROVATE DALLA SONDA
               Expanded(
                 child: _engineOptionsMetadata.isEmpty
-                    ? Center(
-                        // <-- TOLTO IL CONST QUI!
-                        child: Text(loc.nessunaOpzioneTrovataOCaricame),
+                    ? const Center(
+                        child: Text(
+                          "Nessuna opzione trovata o caricamento in corso...",
+                        ),
                       )
                     : ListView.builder(
                         itemCount: _engineOptionsMetadata.length,
@@ -2376,13 +2376,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER IL THREAT DETECTOR (MOSSA NULLA) ---
   void _scanThreats() async {
-    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning || _isPlayingMode || _isScanningThreat) return;
 
     // 1. REGOLE SCACCHISTICHE: Niente mossa nulla se siamo sotto scacco
     if (_boardController.game.in_check) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(loc.impossibileAnalizzareLeMinacce)),
+        const SnackBar(
+          content: Text("Impossibile analizzare le minacce sotto scacco!"),
+        ),
       );
       return;
     }
@@ -2392,7 +2393,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // 2. REGOLE SCACCHISTICHE: Niente mossa nulla alla primissima mossa
     if (currentFen.contains("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(loc.nessunaMinacciaAllaMossaInizia)),
+        const SnackBar(content: Text("Nessuna minaccia alla mossa iniziale!")),
       );
       return;
     }
@@ -2451,7 +2452,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER IL POPUP DELL'ANALISI CONTINUA ---
   void _showAnalysisSetupDialog() {
-    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) {
@@ -2459,15 +2459,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: Text(
-                loc.impostazioniAnalisi,
+              title: const Text(
+                "Impostazioni Analisi",
                 style: TextStyle(color: Colors.orangeAccent),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    loc.tempoInizialeT1PerMossa,
+                  const Text(
+                    "Tempo iniziale (T1) per mossa:",
                     style: TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 15),
@@ -2488,8 +2488,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     activeColor: Colors.blueAccent,
                     onChanged: (v) => setPopupState(() => _baseTimeSec = v),
                   ),
-                  Text(
-                    loc.ilTempoRaddoppierAutomaticamen,
+                  const Text(
+                    "Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.",
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.grey,
@@ -2502,8 +2502,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    loc.annulla,
+                  child: const Text(
+                    "Annulla",
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
@@ -2516,7 +2516,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(loc.avviaAnalisi),
+                  child: const Text("AVVIA ANALISI"),
                 ),
               ],
             );
@@ -2528,7 +2528,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER L'ANALISI INCROCIATA (Doppie Frecce) ---
   void _startCrossedAnalysis() {
-    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     int tempCrossedTime = 2; // Default 2 secondi
@@ -2541,8 +2540,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: Text(
-                loc.coachAnalisiIncrociata,
+              title: const Text(
+                "Coach: Analisi Incrociata",
                 style: TextStyle(color: Colors.cyanAccent),
               ),
               content: Column(
@@ -2587,8 +2586,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     onChanged: (v) =>
                         setPopupState(() => tempCrossedTime = v.toInt()),
                   ),
-                  Text(
-                    loc.da2500EloInPoiIlMaestroSarLaRe,
+                  const Text(
+                    "(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)",
                     style: TextStyle(
                       color: Colors.grey,
                       fontSize: 10,
@@ -2601,7 +2600,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(loc.annulla),
+                  child: const Text("Annulla"),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -2613,7 +2612,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.cyan[700],
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(loc.avviaCoach),
+                  child: const Text("AVVIA COACH"),
                 ),
               ],
             );
@@ -2624,7 +2623,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _executeCrossedAnalysis(int baseTimeSec, int playerElo) {
-    final loc = AppLocalizations.of(context)!;
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
     setState(() {
@@ -2641,7 +2639,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     Future.delayed(const Duration(milliseconds: 100), () {
       _crossedFsm = CrossedEvalOrchestrator(
         engineManager: _engineManager,
-        loc: loc,
         onLog: (msg) {
           setState(() => _outputLines.add(msg));
           Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
@@ -2651,8 +2648,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: Text(
-                loc.coachVerdettoIncrociato,
+              title: const Text(
+                "🔍 Coach: Verdetto Incrociato",
                 style: TextStyle(color: Colors.cyanAccent),
               ),
               content: SingleChildScrollView(
@@ -2668,8 +2665,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    loc.chiudi,
+                  child: const Text(
+                    "Chiudi",
                     style: TextStyle(color: Colors.blueAccent),
                   ),
                 ),
@@ -2689,7 +2686,6 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _startAutoplayMode() {
-    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     String tempWhiteEngine = _selectedEngine;
@@ -2707,8 +2703,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: Text(
-                loc.impostazioniAutoplay,
+              title: const Text(
+                "Impostazioni Autoplay",
                 style: TextStyle(color: Colors.purpleAccent),
               ),
               content: SingleChildScrollView(
@@ -2721,8 +2717,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       padding: const EdgeInsets.all(8),
                       child: Column(
                         children: [
-                          Text(
-                            loc.motoreBianco,
+                          const Text(
+                            "MOTORE BIANCO",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -2732,22 +2728,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             value: tempWhiteEngine,
                             dropdownColor: const Color(0xFF2b2b2b),
                             style: const TextStyle(color: Colors.white),
-                            items: [
+                            items: const [
                               DropdownMenuItem(
                                 value: 'shashchess',
-                                child: Text(loc.shashchess),
+                                child: Text("ShashChess"),
                               ),
                               DropdownMenuItem(
                                 value: 'alexander',
-                                child: Text(loc.alexander),
+                                child: Text("Alexander"),
                               ),
                             ],
                             onChanged: (val) =>
                                 setPopupState(() => tempWhiteEngine = val!),
                           ),
                           SwitchListTile(
-                            title: Text(
-                              loc.livebook,
+                            title: const Text(
+                              "LiveBook",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -2759,8 +2755,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 setPopupState(() => tempWhiteLivebook = v),
                           ),
                           ListTile(
-                            title: Text(
-                              loc.trattiPosizionali,
+                            title: const Text(
+                              "Tratti Posizionali",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -2774,7 +2770,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             dense: true,
                             onTap: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(loc.esclusivaPremium)),
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
                                 ),
                           ),
                         ],
@@ -2787,8 +2785,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       padding: const EdgeInsets.all(8),
                       child: Column(
                         children: [
-                          Text(
-                            loc.motoreNero,
+                          const Text(
+                            "MOTORE NERO",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -2798,22 +2796,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             value: tempBlackEngine,
                             dropdownColor: const Color(0xFF2b2b2b),
                             style: const TextStyle(color: Colors.white),
-                            items: [
+                            items: const [
                               DropdownMenuItem(
                                 value: 'shashchess',
-                                child: Text(loc.shashchess),
+                                child: Text("ShashChess"),
                               ),
                               DropdownMenuItem(
                                 value: 'alexander',
-                                child: Text(loc.alexander),
+                                child: Text("Alexander"),
                               ),
                             ],
                             onChanged: (val) =>
                                 setPopupState(() => tempBlackEngine = val!),
                           ),
                           SwitchListTile(
-                            title: Text(
-                              loc.livebook,
+                            title: const Text(
+                              "LiveBook",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -2825,8 +2823,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 setPopupState(() => tempBlackLivebook = v),
                           ),
                           ListTile(
-                            title: Text(
-                              loc.trattiPosizionali,
+                            title: const Text(
+                              "Tratti Posizionali",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -2840,7 +2838,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             dense: true,
                             onTap: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(loc.esclusivaPremium)),
+                                  const SnackBar(
+                                    content: Text("Esclusiva Premium!"),
+                                  ),
                                 ),
                           ),
                         ],
@@ -2849,8 +2849,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     const Divider(color: Colors.white24),
                     // CADENZA
                     RadioListTile<int>(
-                      title: Text(
-                        loc.tempoGlobaleFischer,
+                      title: const Text(
+                        "Tempo Globale (Fischer)",
                         style: TextStyle(fontSize: 12, color: Colors.white),
                       ),
                       value: 0,
@@ -2862,8 +2862,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       }),
                     ),
                     RadioListTile<int>(
-                      title: Text(
-                        loc.tempoFissoPerMossa,
+                      title: const Text(
+                        "Tempo Fisso per Mossa",
                         style: TextStyle(fontSize: 12, color: Colors.white),
                       ),
                       value: 1,
@@ -2903,8 +2903,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         if (tempTcType == 0)
                           Column(
                             children: [
-                              Text(
-                                loc.incrementoS,
+                              const Text(
+                                "Incremento (s):",
                                 style: TextStyle(color: Colors.white70),
                               ),
                               DropdownButton<int>(
@@ -2932,7 +2932,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(loc.annulla),
+                  child: const Text("Annulla"),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -2951,7 +2951,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.purpleAccent,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(loc.avviaMatch),
+                  child: const Text("AVVIA MATCH"),
                 ),
               ],
             );
@@ -3025,19 +3025,17 @@ class PremiumShowcaseScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(loc.shashguiPremium),
+        title: const Text("ShashGui Premium ✨"),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            loc.ilPotereDeiServerCloud,
+          const Text(
+            "IL POTERE DEI SERVER CLOUD",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.orangeAccent,
@@ -3116,8 +3114,8 @@ class PremiumShowcaseScreen extends StatelessWidget {
               // Qui andrà l'integrazione nativa con gli acquisti In-App (Apple/Google)
             },
             icon: const Icon(Icons.cloud_sync),
-            label: Text(
-              loc.sbloccaIlCloud999mese,
+            label: const Text(
+              "SBLOCCA IL CLOUD (9.99€/mese)",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
@@ -3285,8 +3283,8 @@ void showShashGuiAboutDialog(BuildContext context) {
                 color: Colors.orangeAccent,
               ),
             ),
-            Text(
-              isLoaded ? loc.beyondTheEval : "Beyond the eval",
+            const Text(
+              "Beyond the eval",
               style: TextStyle(
                 fontSize: 13,
                 fontStyle: FontStyle.italic,

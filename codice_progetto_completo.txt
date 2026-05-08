@@ -55,8 +55,7 @@ FILE: l10n.yaml
 arb-dir: lib/l10n
 template-arb-file: app_it.arb
 output-localization-file: app_localizations.dart
-output-dir: lib/l10n      # <--- AGGIUNTO
-synthetic-package: false  # <--- AGGIUNTO
+output-dir: lib/l10n
 
 
 ================================================================================
@@ -583,6 +582,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
@@ -591,12 +591,12 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         selectedItemColor: Colors.orangeAccent,
         unselectedItemColor: Colors.grey,
         backgroundColor: const Color(0xFF1e1e1e),
-        items: const [
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.science),
-            label: 'Laboratorio',
+            label: loc.laboratorio,
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Premium'),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: loc.premium),
         ],
       ),
     );
@@ -916,10 +916,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
         // Opzionale: usa la traduzione anche per il titolo della schermata se l'hai inserita nel file .arb
-        title: const Text('ShashGui Laboratorio'),
+        title: Text(loc.shashguiLaboratorio),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
         actions: [
@@ -927,7 +929,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.language, color: Colors.cyanAccent),
             color: const Color(0xFF2b2b2b), // Sfondo scuro per il menu
-            tooltip: 'Cambia Lingua',
+            tooltip: loc.cambiaLingua,
             onSelected: (String langCode) async {
               // 1. Salva la scelta nel telefono
               final prefs = await SharedPreferences.getInstance();
@@ -936,19 +938,16 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               appLocale.value = Locale(langCode);
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
+              PopupMenuItem<String>(
                 value: 'it',
                 child: Text(
-                  '🇮🇹 Italiano',
+                  loc.italiano,
                   style: TextStyle(color: Colors.white),
                 ),
               ),
-              const PopupMenuItem<String>(
+              PopupMenuItem<String>(
                 value: 'en',
-                child: Text(
-                  '🇬🇧 English',
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: Text(loc.english, style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -1105,9 +1104,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 child: TextButton.icon(
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                      SnackBar(
                                         content: Text(
-                                          "Funzione Tratti Posizionali bloccata (Versione Premium)",
+                                          loc.funzioneTrattiPosizionaliBlocc,
                                         ),
                                       ),
                                     );
@@ -1117,8 +1116,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                     size: 12,
                                     color: Colors.orangeAccent,
                                   ),
-                                  label: const Text(
-                                    "TRAITS",
+                                  label: Text(
+                                    loc.traits,
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: Colors.orangeAccent,
@@ -1134,12 +1133,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           const SizedBox(height: 5),
 
                           // INTESTAZIONI DI COLONNA ALLINEATE
-                          const Row(
+                          Row(
                             children: [
                               SizedBox(
                                 width: 70,
                                 child: Text(
-                                  "MOSSA",
+                                  loc.mossa,
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.grey,
@@ -1148,7 +1147,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 ),
                               ),
                               Text(
-                                "VALUTAZIONE",
+                                loc.valutazione,
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.grey,
@@ -1164,8 +1163,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             flex: 3, // Diamo il 60% di spazio alle mosse
                             child: SingleChildScrollView(
                               child: _liveBookResult == null
-                                  ? const Text(
-                                      "Scanning cloud data...",
+                                  ? Text(
+                                      loc.scanningCloudData,
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontStyle: FontStyle.italic,
@@ -1297,7 +1296,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  "🛡️ Petrosian",
+                                  loc.petrosian,
                                   style: TextStyle(
                                     color: Colors.red[300],
                                     fontSize: 11,
@@ -1335,7 +1334,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
                                 // ----------------------------------------
                                 Text(
-                                  "Tal 🔥",
+                                  loc.tal,
                                   style: TextStyle(
                                     color: Colors.green[300],
                                     fontSize: 11,
@@ -1461,14 +1460,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             height: 2,
                             color: Colors.blueAccent,
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: 'shashchess',
-                              child: Text("ShashChess"),
+                              child: Text(loc.shashchess),
                             ),
                             DropdownMenuItem(
                               value: 'alexander',
-                              child: Text("Alexander"),
+                              child: Text(loc.alexander),
                             ),
                           ],
                           onChanged: (String? newValue) {
@@ -1492,9 +1491,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           onPressed: () {
                             if (_isEngineRunning) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
+                                SnackBar(
                                   content: Text(
-                                    "Spegni il motore per modificare i parametri!",
+                                    loc.spegniIlMotorePerModificareIPa,
                                   ),
                                 ),
                               );
@@ -1508,7 +1507,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 ? Colors.grey
                                 : Colors.white70,
                           ),
-                          tooltip: "Configura Parametri",
+                          tooltip: loc.configuraParametri,
                         ),
                         // SE IL MOTORE E' ACCESO, MOSTRIAMO I CONTROLLI AVANZATI
                         if (_isEngineRunning) ...[
@@ -1542,7 +1541,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.sports_esports,
                               color: Colors.greenAccent,
                             ),
-                            tooltip: "Gioca contro il Motore",
+                            tooltip: loc.giocaControIlMotore,
                           ),
                           IconButton(
                             onPressed: _startAutoplayMode,
@@ -1550,7 +1549,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.smart_toy,
                               color: Colors.purpleAccent,
                             ),
-                            tooltip: "Autoplay (Motore vs Motore)",
+                            tooltip: loc.autoplayMotoreVsMotore,
                           ),
                           IconButton(
                             onPressed: _scanThreats, // <-- Sempre cliccabile
@@ -1558,7 +1557,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               Icons.crisis_alert,
                               color: Colors.redAccent,
                             ),
-                            tooltip: "Rileva Minacce",
+                            tooltip: loc.rilevaMinacce,
                           ),
                           IconButton(
                             onPressed: _startCrossedAnalysis,
@@ -1569,7 +1568,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               size:
                                   38, // ⬅️ Ingrandito rispetto agli altri bottoni per dargli risalto
                             ),
-                            tooltip: "Valutazione Incrociata",
+                            tooltip: loc.valutazioneIncrociata,
                           ),
                         ],
                       ],
@@ -1598,7 +1597,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   ElevatedButton.icon(
                     onPressed: _isLoadingOptions ? null : _startEngine,
                     icon: const Icon(Icons.power),
-                    label: const Text('Accendi'),
+                    label: Text(loc.accendi),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
@@ -1833,6 +1832,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Metodo per il salvataggio fisico su file
   Future<void> _savePgnToFile() async {
+    final loc = AppLocalizations.of(context)!;
     final pgnData = _buildPgnString();
 
     try {
@@ -1847,7 +1847,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           SnackBar(
             content: Text("Partita salvata in: $fileName 💾"),
             action: SnackBarAction(
-              label: "COPIA",
+              label: loc.copia,
               onPressed: () => Clipboard.setData(ClipboardData(text: pgnData)),
             ),
           ),
@@ -1892,20 +1892,21 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // 2. Finestra di dialogo per Testo o Link Lichess
   void _showSmartImportDialog() {
+    final loc = AppLocalizations.of(context)!;
     TextEditingController textController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2b2b2b),
-        title: const Text(
-          "Importa Testo / Lichess",
+        title: Text(
+          loc.importaTestoLichess,
           style: TextStyle(color: Colors.cyanAccent),
         ),
         content: TextField(
           controller: textController,
           maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: "Incolla un Link Lichess, un FEN o un PGN intero...",
+          decoration: InputDecoration(
+            hintText: loc.incollaUnLinkLichessUnFenOUnPg,
             hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
           ),
           style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -1913,7 +1914,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Annulla", style: TextStyle(color: Colors.grey)),
+            child: Text(loc.annulla, style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1923,7 +1924,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan[700]),
-            child: const Text("Importa", style: TextStyle(color: Colors.white)),
+            child: Text(loc.importa, style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1985,6 +1986,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // 4. Costruttore dell'Albero delle mosse da un PGN
   void _loadPgnGame(String pgn) {
+    final loc = AppLocalizations.of(context)!;
     try {
       // Usiamo una scacchiera temporanea invisibile per parsare il file
       final tempBoard = ChessBoardController();
@@ -2039,8 +2041,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Partita caricata con successo! ✅"),
+        SnackBar(
+          content: Text(loc.partitaCaricataConSuccesso),
           backgroundColor: Colors.green,
         ),
       );
@@ -2051,6 +2053,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   Widget _buildNotationPanel() {
+    final loc = AppLocalizations.of(context)!;
     List<Widget> widgets = [];
 
     void buildNotation(MoveNode node, int moveCount) {
@@ -2126,8 +2129,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             child: Wrap(
               children: widgets.isEmpty
                   ? [
-                      const Text(
-                        "Inizia a muovere...",
+                      Text(
+                        loc.iniziaAMuovere,
                         style: TextStyle(color: Colors.grey),
                       ),
                     ]
@@ -2147,7 +2150,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.amberAccent,
                 ),
-                tooltip: "Apri File (PGN/FEN)",
+                tooltip: loc.apriFilePgnfen,
                 onPressed: _pickAndLoadFile, // <-- APRE IL FILE SYSTEM
               ),
               IconButton(
@@ -2156,7 +2159,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.cyanAccent,
                 ),
-                tooltip: "Importa Link Lichess / Incolla PGN",
+                tooltip: loc.importaLinkLichessIncollaPgn,
                 onPressed: _showSmartImportDialog, // <-- APRE LO SMART IMPORT
               ),
               IconButton(
@@ -2165,7 +2168,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.greenAccent,
                 ),
-                tooltip: "Editor Visivo FEN",
+                tooltip: loc.editorVisivoFen,
                 onPressed: _showImportDialog, // <-- IL TUO EDITOR FEN VISIVO
               ),
               IconButton(
@@ -2174,7 +2177,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.blueAccent,
                 ),
-                tooltip: "Salva Partita in locale",
+                tooltip: loc.salvaPartitaInLocale,
                 onPressed: _savePgnToFile,
               ),
               IconButton(
@@ -2183,14 +2186,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.orangeAccent,
                 ),
-                tooltip: "Copia PGN in memoria",
+                tooltip: loc.copiaPgnInMemoria,
                 onPressed: () {
                   String pgn = _boardController.game.pgn();
                   Clipboard.setData(ClipboardData(text: pgn));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("PGN copiato negli appunti! 📋"),
-                    ),
+                    SnackBar(content: Text(loc.pgnCopiatoNegliAppunti)),
                   );
                 },
               ),
@@ -2203,19 +2204,18 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Mostra il popup quando si crea una diramazione
   Future<String?> _showBranchingDialog() async {
+    final loc = AppLocalizations.of(context)!;
     return showDialog<String>(
       context: context,
       barrierDismissible: false, // L'utente deve scegliere o annullare
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2b2b2b),
-          title: const Text(
-            "Diramazione rilevata",
+          title: Text(
+            loc.diramazioneRilevata,
             style: TextStyle(color: Colors.orangeAccent),
           ),
-          content: const Text(
-            "Esiste già una continuazione per questa posizione. Cosa vuoi fare?",
-          ),
+          content: Text(loc.esisteGiUnaContinuazionePerQue),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             Column(
@@ -2226,8 +2226,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
                   ),
-                  child: const Text(
-                    "Nuova Linea Principale",
+                  child: Text(
+                    loc.nuovaLineaPrincipale,
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -2237,8 +2237,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[700],
                   ),
-                  child: const Text(
-                    "Aggiungi come Variante",
+                  child: Text(
+                    loc.aggiungiComeVariante,
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -2248,16 +2248,16 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[700],
                   ),
-                  child: const Text(
-                    "Sovrascrivi tutto",
+                  child: Text(
+                    loc.sovrascriviTutto,
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.pop(context, 'cancel'),
-                  child: const Text(
-                    "Annulla mossa",
+                  child: Text(
+                    loc.annullaMossa,
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
@@ -2271,6 +2271,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // Metodo per importare un FEN esterno TRAMITE EDITOR VISIVO
   void _showImportDialog() async {
+    final loc = AppLocalizations.of(context)!;
     final newFen = await showDialog<String>(
       context: context,
       builder: (context) =>
@@ -2295,11 +2296,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Errore: La scacchiera non ha potuto validare il FEN!",
-            ),
-          ),
+          SnackBar(content: Text(loc.erroreLaScacchieraNonHaPotutoV)),
         );
       }
     }
@@ -2425,6 +2422,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _startPlayMode() {
+    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     // Variabili temporanee per il popup
@@ -2441,8 +2439,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: const Text(
-                "Impostazioni Sfida",
+              title: Text(
+                loc.impostazioniSfida,
                 style: TextStyle(color: Colors.orangeAccent),
               ),
               content: SingleChildScrollView(
@@ -2454,22 +2452,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          "Giochi col:",
+                        Text(
+                          loc.giochiCol,
                           style: TextStyle(color: Colors.white),
                         ),
                         DropdownButton<PlayerColor>(
                           value: tempColor,
                           dropdownColor: const Color(0xFF2b2b2b),
                           style: const TextStyle(color: Colors.white),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: PlayerColor.white,
-                              child: Text("Bianco"),
+                              child: Text(loc.bianco),
                             ),
                             DropdownMenuItem(
                               value: PlayerColor.black,
-                              child: Text("Nero"),
+                              child: Text(loc.nero),
                             ),
                           ],
                           onChanged: (val) =>
@@ -2481,12 +2479,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
                     // 2. LIVEBOOK E TRATTI (PREMIUM)
                     SwitchListTile(
-                      title: const Text(
-                        "Usa LiveBook Cloud",
+                      title: Text(
+                        loc.usaLivebookCloud,
                         style: TextStyle(fontSize: 14, color: Colors.white),
                       ),
-                      subtitle: const Text(
-                        "Il motore pescherà le aperture dal web.",
+                      subtitle: Text(
+                        loc.ilMotorePescherLeApertureDalWe,
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       value: tempLivebook,
@@ -2494,12 +2492,12 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       onChanged: (v) => setPopupState(() => tempLivebook = v),
                     ),
                     ListTile(
-                      title: const Text(
-                        "Filtri Tratti Posizionali",
+                      title: Text(
+                        loc.filtriTrattiPosizionali,
                         style: TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                      subtitle: const Text(
-                        "Aggiunge bias strategico alle mosse.",
+                      subtitle: Text(
+                        loc.aggiungeBiasStrategicoAlleMoss,
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       trailing: const Icon(
@@ -2508,7 +2506,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       ),
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
+                          SnackBar(
                             content: Text(
                               "I Filtri sui Tratti Posizionali sono un'esclusiva della versione Premium!",
                             ),
@@ -2521,8 +2519,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     // 3. LIMITA FORZA
                     if (_selectedEngine == 'alexander') ...[
                       SwitchListTile(
-                        title: const Text(
-                          "Limita Forza",
+                        title: Text(
+                          loc.limitaForza,
                           style: TextStyle(fontSize: 14, color: Colors.white),
                         ),
                         value: _limitStrength,
@@ -2552,8 +2550,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ],
 
                     // 4. OROLOGIO E CADENZE (REPLICA DESKTOP)
-                    const Text(
-                      "Orologio (Cadenza)",
+                    Text(
+                      loc.orologioCadenza,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.orangeAccent,
@@ -2562,8 +2560,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     ),
                     const SizedBox(height: 5),
                     RadioListTile<int>(
-                      title: const Text(
-                        "Tempo Globale (Fischer)",
+                      title: Text(
+                        loc.tempoGlobaleFischer,
                         style: TextStyle(fontSize: 13, color: Colors.white),
                       ),
                       value: 0,
@@ -2576,8 +2574,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       }),
                     ),
                     RadioListTile<int>(
-                      title: const Text(
-                        "Tempo Fisso per Mossa",
+                      title: Text(
+                        loc.tempoFissoPerMossa,
                         style: TextStyle(fontSize: 13, color: Colors.white),
                       ),
                       value: 1,
@@ -2625,8 +2623,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         if (tempTcType == 0)
                           Column(
                             children: [
-                              const Text(
-                                "Incremento (s):",
+                              Text(
+                                loc.incrementoS,
                                 style: TextStyle(color: Colors.white70),
                               ),
                               DropdownButton<int>(
@@ -2657,7 +2655,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Annulla"),
+                  child: Text(loc.annulla),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -2675,7 +2673,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("GIOCA"),
+                  child: Text(loc.gioca),
                 ),
               ],
             );
@@ -2750,13 +2748,14 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- 3. POPUP FINE PARTITA ---
   void _showGameOverDialog(String messaggio) {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2b2b2b),
-        title: const Text(
-          "Fine Partita",
+        title: Text(
+          loc.finePartita,
           style: TextStyle(color: Colors.orangeAccent),
         ),
         content: Text(messaggio, style: const TextStyle(color: Colors.white)),
@@ -2769,8 +2768,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               // Rimettiamo il motore in analisi automatica
               if (_isEngineRunning) _startNormalAnalysis();
             },
-            child: const Text(
-              "TORNA AL LABORATORIO",
+            child: Text(
+              loc.tornaAlLaboratorio,
               style: TextStyle(color: Colors.blueAccent),
             ),
           ),
@@ -2780,6 +2779,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _showUciSettings() {
+    final loc = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Permette al menu di occupare più spazio
@@ -2819,10 +2819,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               // QUI GENERIAMO DINAMICAMENTE TUTTE LE OPZIONI TROVATE DALLA SONDA
               Expanded(
                 child: _engineOptionsMetadata.isEmpty
-                    ? const Center(
-                        child: Text(
-                          "Nessuna opzione trovata o caricamento in corso...",
-                        ),
+                    ? Center(
+                        // <-- TOLTO IL CONST QUI!
+                        child: Text(loc.nessunaOpzioneTrovataOCaricame),
                       )
                     : ListView.builder(
                         itemCount: _engineOptionsMetadata.length,
@@ -2876,14 +2875,13 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER IL THREAT DETECTOR (MOSSA NULLA) ---
   void _scanThreats() async {
+    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning || _isPlayingMode || _isScanningThreat) return;
 
     // 1. REGOLE SCACCHISTICHE: Niente mossa nulla se siamo sotto scacco
     if (_boardController.game.in_check) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Impossibile analizzare le minacce sotto scacco!"),
-        ),
+        SnackBar(content: Text(loc.impossibileAnalizzareLeMinacce)),
       );
       return;
     }
@@ -2893,7 +2891,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     // 2. REGOLE SCACCHISTICHE: Niente mossa nulla alla primissima mossa
     if (currentFen.contains("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Nessuna minaccia alla mossa iniziale!")),
+        SnackBar(content: Text(loc.nessunaMinacciaAllaMossaInizia)),
       );
       return;
     }
@@ -2952,6 +2950,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER IL POPUP DELL'ANALISI CONTINUA ---
   void _showAnalysisSetupDialog() {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) {
@@ -2959,15 +2958,15 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: const Text(
-                "Impostazioni Analisi",
+              title: Text(
+                loc.impostazioniAnalisi,
                 style: TextStyle(color: Colors.orangeAccent),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    "Tempo iniziale (T1) per mossa:",
+                  Text(
+                    loc.tempoInizialeT1PerMossa,
                     style: TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 15),
@@ -2988,8 +2987,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     activeColor: Colors.blueAccent,
                     onChanged: (v) => setPopupState(() => _baseTimeSec = v),
                   ),
-                  const Text(
-                    "Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.",
+                  Text(
+                    loc.ilTempoRaddoppierAutomaticamen,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.grey,
@@ -3002,8 +3001,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    "Annulla",
+                  child: Text(
+                    loc.annulla,
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
@@ -3016,7 +3015,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("AVVIA ANALISI"),
+                  child: Text(loc.avviaAnalisi),
                 ),
               ],
             );
@@ -3028,6 +3027,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- METODO PER L'ANALISI INCROCIATA (Doppie Frecce) ---
   void _startCrossedAnalysis() {
+    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     int tempCrossedTime = 2; // Default 2 secondi
@@ -3040,8 +3040,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: const Text(
-                "Coach: Analisi Incrociata",
+              title: Text(
+                loc.coachAnalisiIncrociata,
                 style: TextStyle(color: Colors.cyanAccent),
               ),
               content: Column(
@@ -3086,8 +3086,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     onChanged: (v) =>
                         setPopupState(() => tempCrossedTime = v.toInt()),
                   ),
-                  const Text(
-                    "(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)",
+                  Text(
+                    loc.da2500EloInPoiIlMaestroSarLaRe,
                     style: TextStyle(
                       color: Colors.grey,
                       fontSize: 10,
@@ -3100,7 +3100,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Annulla"),
+                  child: Text(loc.annulla),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -3112,7 +3112,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.cyan[700],
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("AVVIA COACH"),
+                  child: Text(loc.avviaCoach),
                 ),
               ],
             );
@@ -3123,6 +3123,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _executeCrossedAnalysis(int baseTimeSec, int playerElo) {
+    final loc = AppLocalizations.of(context)!;
     _stopAllOrchestrators(); // Stoppa l'analisi normale
 
     setState(() {
@@ -3139,6 +3140,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     Future.delayed(const Duration(milliseconds: 100), () {
       _crossedFsm = CrossedEvalOrchestrator(
         engineManager: _engineManager,
+        loc: loc,
         onLog: (msg) {
           setState(() => _outputLines.add(msg));
           Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
@@ -3148,8 +3150,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: const Text(
-                "🔍 Coach: Verdetto Incrociato",
+              title: Text(
+                loc.coachVerdettoIncrociato,
                 style: TextStyle(color: Colors.cyanAccent),
               ),
               content: SingleChildScrollView(
@@ -3165,8 +3167,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    "Chiudi",
+                  child: Text(
+                    loc.chiudi,
                     style: TextStyle(color: Colors.blueAccent),
                   ),
                 ),
@@ -3186,6 +3188,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   }
 
   void _startAutoplayMode() {
+    final loc = AppLocalizations.of(context)!;
     if (!_isEngineRunning) return;
 
     String tempWhiteEngine = _selectedEngine;
@@ -3203,8 +3206,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
           builder: (context, setPopupState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF2b2b2b),
-              title: const Text(
-                "Impostazioni Autoplay",
+              title: Text(
+                loc.impostazioniAutoplay,
                 style: TextStyle(color: Colors.purpleAccent),
               ),
               content: SingleChildScrollView(
@@ -3217,8 +3220,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       padding: const EdgeInsets.all(8),
                       child: Column(
                         children: [
-                          const Text(
-                            "MOTORE BIANCO",
+                          Text(
+                            loc.motoreBianco,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -3228,22 +3231,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             value: tempWhiteEngine,
                             dropdownColor: const Color(0xFF2b2b2b),
                             style: const TextStyle(color: Colors.white),
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: 'shashchess',
-                                child: Text("ShashChess"),
+                                child: Text(loc.shashchess),
                               ),
                               DropdownMenuItem(
                                 value: 'alexander',
-                                child: Text("Alexander"),
+                                child: Text(loc.alexander),
                               ),
                             ],
                             onChanged: (val) =>
                                 setPopupState(() => tempWhiteEngine = val!),
                           ),
                           SwitchListTile(
-                            title: const Text(
-                              "LiveBook",
+                            title: Text(
+                              loc.livebook,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -3255,8 +3258,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 setPopupState(() => tempWhiteLivebook = v),
                           ),
                           ListTile(
-                            title: const Text(
-                              "Tratti Posizionali",
+                            title: Text(
+                              loc.trattiPosizionali,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -3270,9 +3273,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             dense: true,
                             onTap: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Esclusiva Premium!"),
-                                  ),
+                                  SnackBar(content: Text(loc.esclusivaPremium)),
                                 ),
                           ),
                         ],
@@ -3285,8 +3286,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       padding: const EdgeInsets.all(8),
                       child: Column(
                         children: [
-                          const Text(
-                            "MOTORE NERO",
+                          Text(
+                            loc.motoreNero,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -3296,22 +3297,22 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             value: tempBlackEngine,
                             dropdownColor: const Color(0xFF2b2b2b),
                             style: const TextStyle(color: Colors.white),
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: 'shashchess',
-                                child: Text("ShashChess"),
+                                child: Text(loc.shashchess),
                               ),
                               DropdownMenuItem(
                                 value: 'alexander',
-                                child: Text("Alexander"),
+                                child: Text(loc.alexander),
                               ),
                             ],
                             onChanged: (val) =>
                                 setPopupState(() => tempBlackEngine = val!),
                           ),
                           SwitchListTile(
-                            title: const Text(
-                              "LiveBook",
+                            title: Text(
+                              loc.livebook,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -3323,8 +3324,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                                 setPopupState(() => tempBlackLivebook = v),
                           ),
                           ListTile(
-                            title: const Text(
-                              "Tratti Posizionali",
+                            title: Text(
+                              loc.trattiPosizionali,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -3338,9 +3339,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                             dense: true,
                             onTap: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Esclusiva Premium!"),
-                                  ),
+                                  SnackBar(content: Text(loc.esclusivaPremium)),
                                 ),
                           ),
                         ],
@@ -3349,8 +3348,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     const Divider(color: Colors.white24),
                     // CADENZA
                     RadioListTile<int>(
-                      title: const Text(
-                        "Tempo Globale (Fischer)",
+                      title: Text(
+                        loc.tempoGlobaleFischer,
                         style: TextStyle(fontSize: 12, color: Colors.white),
                       ),
                       value: 0,
@@ -3362,8 +3361,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                       }),
                     ),
                     RadioListTile<int>(
-                      title: const Text(
-                        "Tempo Fisso per Mossa",
+                      title: Text(
+                        loc.tempoFissoPerMossa,
                         style: TextStyle(fontSize: 12, color: Colors.white),
                       ),
                       value: 1,
@@ -3403,8 +3402,8 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         if (tempTcType == 0)
                           Column(
                             children: [
-                              const Text(
-                                "Incremento (s):",
+                              Text(
+                                loc.incrementoS,
                                 style: TextStyle(color: Colors.white70),
                               ),
                               DropdownButton<int>(
@@ -3432,7 +3431,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Annulla"),
+                  child: Text(loc.annulla),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -3451,7 +3450,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                     backgroundColor: Colors.purpleAccent,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("AVVIA MATCH"),
+                  child: Text(loc.avviaMatch),
                 ),
               ],
             );
@@ -3525,17 +3524,19 @@ class PremiumShowcaseScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("ShashGui Premium ✨"),
+        title: Text(loc.shashguiPremium),
         backgroundColor: const Color(0xFF1e1e1e),
         centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            "IL POTERE DEI SERVER CLOUD",
+          Text(
+            loc.ilPotereDeiServerCloud,
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.orangeAccent,
@@ -3614,8 +3615,8 @@ class PremiumShowcaseScreen extends StatelessWidget {
               // Qui andrà l'integrazione nativa con gli acquisti In-App (Apple/Google)
             },
             icon: const Icon(Icons.cloud_sync),
-            label: const Text(
-              "SBLOCCA IL CLOUD (9.99€/mese)",
+            label: Text(
+              loc.sbloccaIlCloud999mese,
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
@@ -3783,8 +3784,8 @@ void showShashGuiAboutDialog(BuildContext context) {
                 color: Colors.orangeAccent,
               ),
             ),
-            const Text(
-              "Beyond the eval",
+            Text(
+              isLoaded ? loc.beyondTheEval : "Beyond the eval",
               style: TextStyle(
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
@@ -4893,6 +4894,7 @@ import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
 import '../logic/livebook_scanner.dart';
+import '../../l10n/app_localizations.dart'; // <--- IMPORT CRITICO AGGIUNTO QUI!
 
 enum CrossedState {
   idle,
@@ -4905,6 +4907,7 @@ enum CrossedState {
 
 class CrossedEvalOrchestrator {
   final EngineManager engineManager;
+  final AppLocalizations loc; // <--- VARIABILE LINGUA AGGIUNTA
   CrossedState currentState = CrossedState.idle;
   StreamSubscription<String>? _outputSubscription;
 
@@ -4943,6 +4946,7 @@ class CrossedEvalOrchestrator {
     required this.engineManager,
     required this.onLog,
     required this.onReportReady,
+    required this.loc, // <--- RICHIESTO NEL COSTRUTTORE
   }) {
     _outputSubscription = engineManager.engineOutput?.listen(
       _handleEngineOutput,
@@ -4952,28 +4956,30 @@ class CrossedEvalOrchestrator {
   void _determineSchools(int elo) {
     studentElo = elo;
     if (elo < 2000) {
-      studentSchool = "Principianti";
+      studentSchool = loc.schoolBeginner;
       masterElo = 2199;
-      masterSchool = "Intermedia";
+      masterSchool = loc.schoolIntermediate;
     } else if (elo < 2200) {
-      studentSchool = "Intermedia";
+      studentSchool = loc.schoolIntermediate;
       masterElo = 2399;
-      masterSchool = "Avanzata";
+      masterSchool = loc.schoolAdvanced;
     } else if (elo < 2500) {
       // <--- Soglia portata a 2500
-      studentSchool = "Avanzata";
+      studentSchool = loc.schoolAdvanced;
       masterElo = 3190;
-      masterSchool = "Esperta (Max HCE)";
+      masterSchool = loc.schoolExpertHCE;
     } else {
-      studentSchool = "Esperta";
+      studentSchool = loc.schoolExpert;
       masterElo = 3500; // Flag per ShashChess
-      masterSchool = "Super-Umana (NNUE)";
+      masterSchool = loc.schoolSuperhumanNNUE;
     }
   }
 
   void startCrossedEval(String fen, int playerElo, int timeMs) async {
     // <--- Aggiunto int timeMs
-    if (currentState != CrossedState.idle) engineManager.sendCommand('stop');
+    if (currentState != CrossedState.idle) {
+      engineManager.sendCommand('stop');
+    }
 
     currentFen = fen;
     baseTimeMs = timeMs; // <--- Salva il tempo
@@ -4987,20 +4993,18 @@ class CrossedEvalOrchestrator {
     worstPieceBlack = null;
 
     onLog("===========================================");
-    onLog("🌐 [Coach] Interrogazione Oracoli Cloud (Lichess/ChessDB)...");
+    onLog(loc.logQueryingOracles);
 
     try {
       cloudLichess = await LiveBookScanner.scan(fen, [], false);
       cloudChessDb = await LiveBookScanner.scan(fen, [], true);
     } catch (e) {
-      onLog("⚠️ Errore Cloud: $e");
+      onLog("${loc.logCloudError} $e");
     }
 
     // FASE 1: Estrazione parametri semantici (comando eval)
     currentState = CrossedState.staticEval;
-    onLog(
-      "📍 [Coach] Scansione semantica della posizione (Makogonov/Spazio)...",
-    );
+    onLog(loc.logSemanticScan);
     engineManager.sendCommand('position fen $fen');
     engineManager.sendCommand('eval');
   }
@@ -5019,22 +5023,22 @@ class CrossedEvalOrchestrator {
 
         switch (pieceChar) {
           case 'N':
-            worstPieceNnue = 'il Cavallo in $sq';
+            worstPieceNnue = '${loc.pieceKnight} in $sq';
             break;
           case 'B':
-            worstPieceNnue = "l'Alfiere in $sq";
+            worstPieceNnue = "${loc.pieceBishop} in $sq";
             break;
           case 'R':
-            worstPieceNnue = 'la Torre in $sq';
+            worstPieceNnue = '${loc.pieceRook} in $sq';
             break;
           case 'Q':
-            worstPieceNnue = 'la Donna in $sq';
+            worstPieceNnue = '${loc.pieceQueen} in $sq';
             break;
           case 'K':
-            worstPieceNnue = 'il Re in $sq';
+            worstPieceNnue = '${loc.pieceKing} in $sq';
             break;
           default:
-            worstPieceNnue = 'il Pedone in $sq';
+            worstPieceNnue = '${loc.piecePawn} in $sq';
         }
       }
 
@@ -5060,19 +5064,19 @@ class CrossedEvalOrchestrator {
       String translatePiece(String engPiece) {
         switch (engPiece.trim().toLowerCase()) {
           case 'pawn':
-            return 'il Pedone';
+            return loc.piecePawn;
           case 'knight':
-            return 'il Cavallo';
+            return loc.pieceKnight;
           case 'bishop':
-            return "l'Alfiere";
+            return loc.pieceBishop;
           case 'rook':
-            return 'la Torre';
+            return loc.pieceRook;
           case 'queen':
-            return 'la Donna';
+            return loc.pieceQueen;
           case 'king':
-            return 'il Re';
+            return loc.pieceKing;
           default:
-            return 'il pezzo';
+            return loc.pieceGeneric;
         }
       }
 
@@ -5098,7 +5102,7 @@ class CrossedEvalOrchestrator {
           line.contains("Final static evaluation") ||
           line.startsWith("*** Note:")) {
         currentState = CrossedState.baseEval;
-        onLog("📍 [Coach] Calcolo Zona Termodinamica in corso...");
+        onLog(loc.logCalcThermodynamicZone);
 
         // Usa esattamente il tempo scelto dall'utente!
         engineManager.sendCommand('go movetime $baseTimeMs');
@@ -5116,11 +5120,13 @@ class CrossedEvalOrchestrator {
 
       if (currentState == CrossedState.baseEval) {
         baseZone = currentZ;
-      } else if (currentState == CrossedState.studentThinking)
+      } else if (currentState == CrossedState.studentThinking) {
         studentZone = currentZ;
-      else if (currentState == CrossedState.masterThinking)
+      } else if (currentState == CrossedState.masterThinking) {
         masterZone = currentZ;
+      }
     }
+
     if (line.startsWith("bestmove")) {
       final moveMatch = RegExp(r"bestmove (\w+)").firstMatch(line);
       if (moveMatch != null) {
@@ -5129,7 +5135,7 @@ class CrossedEvalOrchestrator {
         if (currentState == CrossedState.baseEval) {
           currentState = CrossedState.studentThinking;
           onLog(
-            "🧑‍🎓 L'Allievo (Scuola $studentSchool - Elo $studentElo) elabora il piano...",
+            "${loc.logStudentThinking1} $studentSchool ${loc.logStudentThinking2} $studentElo ${loc.logStudentThinking3}",
           );
           // --- INIZIO PARTE MANCANTE ---
           engineManager.sendCommand('position fen $currentFen');
@@ -5147,18 +5153,15 @@ class CrossedEvalOrchestrator {
         }
       }
     }
-  } // <-- Queste sono le parentesi graffe che chiudevano _handleEngineOutput
-  // --- FINE PARTE MANCANTE ---
+  }
 
   // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
   Future<void> _startMasterPhase() async {
     currentState = CrossedState.masterThinking;
-    onLog("🧙‍♂️ Preparazione Maestro (Scuola $masterSchool)...");
+    onLog("${loc.logPrepMaster1} $masterSchool ${loc.logPrepMaster2}");
 
     if (masterElo >= 3500) {
-      onLog(
-        "🚀 Cambio motore in corso: Spegnimento Alexander -> Avvio ShashChess...",
-      );
+      onLog(loc.logEngineSwap);
 
       // 1. Uccidiamo il vecchio processo Alexander
       engineManager.dispose();
@@ -5170,19 +5173,18 @@ class CrossedEvalOrchestrator {
       ]);
 
       // 3. CRITICO: Ri-agganciamo l'ascoltatore!
-      // Poiché initEngine ha creato un nuovo stream di comunicazione, dobbiamo rimetterci in ascolto.
       _outputSubscription?.cancel();
       _outputSubscription = engineManager.engineOutput?.listen(
         _handleEngineOutput,
       );
 
-      onLog("✅ ShashChess pronto alla massima forza.");
+      onLog(loc.logShashReady);
 
       // Chiediamo a ShashChess di valutare i suoi pezzi peggiori
       currentState = CrossedState.masterStaticEval;
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('eval');
-      return; // Usciamo, il 'go movetime' verrà lanciato dal listener di sopra!
+      return;
     } else {
       // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
@@ -5194,50 +5196,71 @@ class CrossedEvalOrchestrator {
     }
   }
 
-  // NLP: Genera l'analisi testuale della posizione iniziale (Senza HTML!)
+  // NLP: Genera l'analisi testuale della posizione iniziale
   String _generateStaticAnalysisText() {
     String txt = "";
 
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
       if (diff >= 4) {
-        txt +=
-            "Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n";
-      } else if (diff >= 1 && diff <= 3)
-        txt += "Il Bianco possiede un lieve vantaggio di spazio.\n";
-      else if (diff <= -4)
-        txt +=
-            "Il Nero ha conquistato un forte vantaggio di spazio, asfissiando i pezzi bianchi.\n";
-      else if (diff >= -3 && diff <= -1)
-        txt += "Il Nero detiene un leggero controllo territoriale superiore.\n";
-      else
-        txt +=
-            "La gestione dello spazio sulla scacchiera è in perfetto equilibrio.\n";
+        txt += loc.evalWhiteDominate;
+      } else if (diff >= 1 && diff <= 3) {
+        txt += loc.evalWhiteSlightEdge;
+      } else if (diff <= -4) {
+        txt += loc.evalBlackDominate;
+      } else if (diff >= -3 && diff <= -1) {
+        txt += loc.evalBlackSlightEdge;
+      } else {
+        txt += loc.evalSpaceBalanced;
+      }
     }
 
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
     if (worst != null) {
-      txt +=
-          "Secondo il principio di Makogonov, il pezzo che richiede più urgenza di essere riattivato è $worst.";
+      txt += "${loc.evalMakogonovWorst} $worst.";
     }
 
-    return txt.isNotEmpty ? txt.trim() : "Valutazione posizionale complessa.";
+    return txt.isNotEmpty ? txt.trim() : loc.evalComplex;
   }
 
   // Helper interno per assegnare l'indice di Zona Shashin (0-12)
   int _getZoneIndex(double wp) {
-    if (wp <= 5) return 0;
-    if (wp <= 10) return 1;
-    if (wp <= 15) return 2;
-    if (wp <= 20) return 3;
-    if (wp <= 24) return 4;
-    if (wp <= 49) return 5;
-    if (wp <= 50) return 6;
-    if (wp <= 75) return 7;
-    if (wp <= 79) return 8;
-    if (wp <= 84) return 9;
-    if (wp <= 89) return 10;
-    if (wp <= 94) return 11;
+    if (wp <= 5) {
+      return 0;
+    }
+    if (wp <= 10) {
+      return 1;
+    }
+    if (wp <= 15) {
+      return 2;
+    }
+    if (wp <= 20) {
+      return 3;
+    }
+    if (wp <= 24) {
+      return 4;
+    }
+    if (wp <= 49) {
+      return 5;
+    }
+    if (wp <= 50) {
+      return 6;
+    }
+    if (wp <= 75) {
+      return 7;
+    }
+    if (wp <= 79) {
+      return 8;
+    }
+    if (wp <= 84) {
+      return 9;
+    }
+    if (wp <= 89) {
+      return 10;
+    }
+    if (wp <= 94) {
+      return 11;
+    }
     return 12;
   }
 
@@ -5246,61 +5269,63 @@ class CrossedEvalOrchestrator {
     StringBuffer report = StringBuffer();
 
     // 1. CLOUD
-    report.writeln("🌐 VALUTAZIONI CLOUD:");
+    report.writeln(loc.reportTitleCloud);
     if (cloudLichess != null &&
         cloudLichess!.moves.isNotEmpty &&
         cloudLichess!.moves.first.move != "-") {
       report.writeln(
-        "• Lichess (Umani): ${cloudLichess!.moves.first.move} (${cloudLichess!.moves.first.description})",
+        "• ${loc.reportLichessHumans}: ${cloudLichess!.moves.first.move} (${cloudLichess!.moves.first.description})",
       );
     } else {
-      report.writeln("• Lichess (Umani): Nessuna giocata predominante");
+      report.writeln("• ${loc.reportLichessHumans}: ${loc.reportNoMoves}");
     }
     if (cloudChessDb != null &&
         cloudChessDb!.moves.isNotEmpty &&
         cloudChessDb!.moves.first.move != "-") {
       report.writeln(
-        "• ChessDB (Neurali): ${cloudChessDb!.moves.first.move} (${cloudChessDb!.moves.first.description})",
+        "• ${loc.reportChessDbNeural}: ${cloudChessDb!.moves.first.move} (${cloudChessDb!.moves.first.description})",
       );
     }
     report.writeln("");
 
     // 2. ANALISI PRE-MOSSA
-    report.writeln("📍 SCENOGRAFIA STATICA (Pre-Mossa):");
+    report.writeln(loc.reportTitleStatic);
     report.writeln(
-      "• Zona: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
+      "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
     );
     report.writeln("ℹ️ ${_generateStaticAnalysisText()}");
     report.writeln("");
 
     // 3. ALLIEVO
-    report.writeln("🧑‍🎓 LA TUA IDEA (Scuola $studentSchool):");
-    report.writeln("• Mossa scelta: $studentMove");
     report.writeln(
-      "• Aspettativa: ${studentZone?.name ?? '-'} (${studentZone?.wp.toStringAsFixed(1)}%)",
+      "${loc.reportTitleStudent1} $studentSchool ${loc.reportTitleStudent2}",
+    );
+    report.writeln("• ${loc.reportChosenMove}: $studentMove");
+    report.writeln(
+      "• ${loc.reportExpectation}: ${studentZone?.name ?? '-'} (${studentZone?.wp.toStringAsFixed(1)}%)",
     );
     report.writeln("");
 
     // 4. MAESTRO
-    report.writeln("🧙‍♂️ L'IDEA DEL MAESTRO (Scuola $masterSchool):");
-    report.writeln("• Mossa scelta: $masterMove");
     report.writeln(
-      "• Aspettativa: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
+      "${loc.reportTitleMaster1} $masterSchool ${loc.reportTitleMaster2}",
+    );
+    report.writeln("• ${loc.reportChosenMove}: $masterMove");
+    report.writeln(
+      "• ${loc.reportExpectation}: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
     );
 
     // NUOVO: Integrazione Makogonov ShashChess sempre visibile
     if (worstPieceNnue != null) {
-      report.writeln("🔍 Pezzo peggiore per la Rete Neurale: $worstPieceNnue");
+      report.writeln("🔍 ${loc.reportNnueWorstPiece}: $worstPieceNnue");
     }
     report.writeln("");
 
     // 5. VERDETTO E NAG
-    report.writeln("💡 VERDETTO DEL COACH:");
+    report.writeln(loc.reportTitleVerdict);
     if (studentMove == masterMove) {
-      report.writeln("🌟 ECCELLENTE!");
-      report.writeln(
-        "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell'analisi statica.",
-      );
+      report.writeln(loc.nagExcellentTitle);
+      report.writeln(loc.nagExcellentDesc);
     } else {
       double sWp = studentZone?.wp ?? 50.0;
       double mWp = masterZone?.wp ?? 50.0;
@@ -5309,30 +5334,26 @@ class CrossedEvalOrchestrator {
       int zoneDrop = mIndex - sIndex;
 
       if (zoneDrop >= 3) {
-        report.writeln("❌ NAG: ?? (Grave Errore)");
+        report.writeln(loc.nagBlunderTitle);
         report.writeln(
-          "La tua idea cede un vantaggio letale facendo crollare la posizione di $zoneDrop Zone. Il Maestro suggerisce una via diversa per salvare la posizione.",
+          "${loc.nagBlunderDesc1} $zoneDrop ${loc.nagBlunderDesc2}",
         );
       } else if (zoneDrop == 2) {
-        report.writeln("⚠️ NAG: ? (Errore)");
+        report.writeln(loc.nagMistakeTitle);
         report.writeln(
-          "Una svista posizionale o tattica. La posizione scende di $zoneDrop Zone rispetto al potenziale massimizzato dal Maestro.",
+          "${loc.nagMistakeDesc1} $zoneDrop ${loc.nagMistakeDesc2}",
         );
       } else if (zoneDrop == 1) {
-        report.writeln("🤔 NAG: ?! (Imprecisione)");
-        report.writeln(
-          "La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.",
-        );
+        report.writeln(loc.nagInaccuracyTitle);
+        report.writeln(loc.nagInaccuracyDesc);
       } else {
-        report.writeln("👌 NAG: !? (Interessante)");
+        report.writeln(loc.nagInterestingTitle);
         if (mWp - sWp > 8.0) {
           report.writeln(
-            "La mossa del Maestro ($masterMove) spreme più vantaggio, ma la tua idea mantiene la stessa Zona (${studentZone?.name}). È saggio giocare il piano che comprendi meglio.",
+            "${loc.nagInterestingDescDiff1} ($masterMove) ${loc.nagInterestingDescDiff2} (${studentZone?.name}). ${loc.nagInterestingDescDiff3}",
           );
         } else {
-          report.writeln(
-            "Idea validissima! Sei vicino alla valutazione del Maestro e mantieni intatta la Zona Termodinamica.",
-          );
+          report.writeln(loc.nagInterestingDescClose);
         }
       }
     }
@@ -5346,21 +5367,21 @@ class CrossedEvalOrchestrator {
           : (worstPieceBlack ?? "");
       if (worstBase.isNotEmpty) {
         report.writeln("");
-        report.writeln("👁️ VISIONE AVANZATA DEL MAESTRO:");
+        report.writeln(loc.reportTitleAdvVision);
         if (worstBase != worstPieceNnue) {
           report.writeln(
-            "Il Maestro ha identificato il problema su $worstBase e lo ha risolto. Ora il punto debole è diventato $worstPieceNnue.",
+            "${loc.advVisionFixed1} $worstBase ${loc.advVisionFixed2} $worstPieceNnue.",
           );
         } else {
           report.writeln(
-            "Il Maestro ignora la passività di $worstBase, indicando un attacco tattico o un sacrificio dinamico (la mossa $masterMove garantisce il picco di attività).",
+            "${loc.advVisionIgnored1} $worstBase, ${loc.advVisionIgnored2} $masterMove ${loc.advVisionIgnored3}",
           );
         }
       }
     }
 
     onReportReady(report.toString());
-    onLog("✅ Valutazione incrociata completata.");
+    onLog(loc.logEvalComplete);
     engineManager.sendCommand('setoption name UCI_LimitStrength value false');
   }
 
@@ -5859,8 +5880,10 @@ FILE: lib\core\widgets\about_dialog.dart
 ================================================================================
 
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 
 void showShashGuiAboutDialog(BuildContext context) {
+  final loc = AppLocalizations.of(context)!;
   showDialog(
     context: context,
     builder: (BuildContext context) {
@@ -5886,16 +5909,16 @@ void showShashGuiAboutDialog(BuildContext context) {
             const SizedBox(height: 15),
 
             // --- TITOLO E SOTTOTITOLO ---
-            const Text(
-              "ShashGUI",
+            Text(
+              loc.shashgui,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.orangeAccent,
               ),
             ),
-            const Text(
-              "Beyond the eval",
+            Text(
+              loc.beyondTheEval,
               style: TextStyle(
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
@@ -5905,16 +5928,16 @@ void showShashGuiAboutDialog(BuildContext context) {
             const Divider(color: Colors.white24, height: 30),
 
             // --- INFO TESTUALI ---
-            const Text(
-              "Sviluppatore: Andrea Manzo",
+            Text(
+              loc.sviluppatoreAndreaManzo,
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
+            Text(
+              loc.motoriIntegratiShashchessNnueA,
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
@@ -5929,8 +5952,8 @@ void showShashGuiAboutDialog(BuildContext context) {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              "CHIUDI",
+            child: Text(
+              loc.chiudi1,
               style: TextStyle(
                 color: Colors.orangeAccent,
                 fontWeight: FontWeight.bold,
@@ -5950,6 +5973,7 @@ FILE: lib\core\widgets\setup_position_dialog.dart
 ================================================================================
 
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 
 class SetupPositionDialog extends StatefulWidget {
   final String initialFen;
@@ -6101,6 +6125,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     return Dialog(
       backgroundColor: const Color(0xFF2b2b2b),
       insetPadding: const EdgeInsets.all(10),
@@ -6111,8 +6137,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "🧩 Editor Posizione",
+              Text(
+                loc.editorPosizione,
                 style: TextStyle(
                   color: Colors.orangeAccent,
                   fontSize: 20,
@@ -6167,10 +6193,7 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
               const SizedBox(height: 15),
 
               // LA TAVOLOZZA DEI PEZZI
-              const Text(
-                "Seleziona Pezzo:",
-                style: TextStyle(color: Colors.white70),
-              ),
+              Text(loc.selezionaPezzo, style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 5),
               Wrap(
                 spacing: 5,
@@ -6220,8 +6243,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red[700],
                     ),
-                    child: const Text(
-                      "Svuota",
+                    child: Text(
+                      loc.svuota,
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -6230,8 +6253,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[700],
                     ),
-                    child: const Text(
-                      "Iniziale",
+                    child: Text(
+                      loc.iniziale,
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -6242,7 +6265,7 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  const Text("Turno:", style: TextStyle(color: Colors.white)),
+                  Text(loc.turno, style: TextStyle(color: Colors.white)),
                   Switch(
                     value: _isWhiteTurn,
                     activeThumbColor: Colors.white,
@@ -6288,8 +6311,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      "Annulla",
+                    child: Text(
+                      loc.annulla,
                       style: TextStyle(color: Colors.grey),
                     ),
                   ),
@@ -6299,8 +6322,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.cyan[700],
                     ),
-                    child: const Text(
-                      "APPLICA POSIZIONE",
+                    child: Text(
+                      loc.applicaPosizione,
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -6420,6 +6443,570 @@ abstract class AppLocalizations {
     Locale('it'),
   ];
 
+  /// No description provided for @laboratorio.
+  ///
+  /// In it, this message translates to:
+  /// **'Laboratorio'**
+  String get laboratorio;
+
+  /// No description provided for @premium.
+  ///
+  /// In it, this message translates to:
+  /// **'Premium'**
+  String get premium;
+
+  /// No description provided for @shashguiLaboratorio.
+  ///
+  /// In it, this message translates to:
+  /// **'ShashGui Laboratorio'**
+  String get shashguiLaboratorio;
+
+  /// No description provided for @cambiaLingua.
+  ///
+  /// In it, this message translates to:
+  /// **'Cambia Lingua'**
+  String get cambiaLingua;
+
+  /// No description provided for @italiano.
+  ///
+  /// In it, this message translates to:
+  /// **'🇮🇹 Italiano'**
+  String get italiano;
+
+  /// No description provided for @english.
+  ///
+  /// In it, this message translates to:
+  /// **'🇬🇧 English'**
+  String get english;
+
+  /// No description provided for @funzioneTrattiPosizionaliBlocc.
+  ///
+  /// In it, this message translates to:
+  /// **'Funzione Tratti Posizionali bloccata (Versione Premium)'**
+  String get funzioneTrattiPosizionaliBlocc;
+
+  /// No description provided for @traits.
+  ///
+  /// In it, this message translates to:
+  /// **'TRAITS'**
+  String get traits;
+
+  /// No description provided for @mossa.
+  ///
+  /// In it, this message translates to:
+  /// **'MOSSA'**
+  String get mossa;
+
+  /// No description provided for @valutazione.
+  ///
+  /// In it, this message translates to:
+  /// **'VALUTAZIONE'**
+  String get valutazione;
+
+  /// No description provided for @scanningCloudData.
+  ///
+  /// In it, this message translates to:
+  /// **'Scanning cloud data...'**
+  String get scanningCloudData;
+
+  /// No description provided for @petrosian.
+  ///
+  /// In it, this message translates to:
+  /// **'🛡️ Petrosian'**
+  String get petrosian;
+
+  /// No description provided for @tal.
+  ///
+  /// In it, this message translates to:
+  /// **'Tal 🔥'**
+  String get tal;
+
+  /// No description provided for @shashchess.
+  ///
+  /// In it, this message translates to:
+  /// **'ShashChess'**
+  String get shashchess;
+
+  /// No description provided for @alexander.
+  ///
+  /// In it, this message translates to:
+  /// **'Alexander'**
+  String get alexander;
+
+  /// No description provided for @spegniIlMotorePerModificareIPa.
+  ///
+  /// In it, this message translates to:
+  /// **'Spegni il motore per modificare i parametri!'**
+  String get spegniIlMotorePerModificareIPa;
+
+  /// No description provided for @configuraParametri.
+  ///
+  /// In it, this message translates to:
+  /// **'Configura Parametri'**
+  String get configuraParametri;
+
+  /// No description provided for @giocaControIlMotore.
+  ///
+  /// In it, this message translates to:
+  /// **'Gioca contro il Motore'**
+  String get giocaControIlMotore;
+
+  /// No description provided for @autoplayMotoreVsMotore.
+  ///
+  /// In it, this message translates to:
+  /// **'Autoplay (Motore vs Motore)'**
+  String get autoplayMotoreVsMotore;
+
+  /// No description provided for @rilevaMinacce.
+  ///
+  /// In it, this message translates to:
+  /// **'Rileva Minacce'**
+  String get rilevaMinacce;
+
+  /// No description provided for @valutazioneIncrociata.
+  ///
+  /// In it, this message translates to:
+  /// **'Valutazione Incrociata'**
+  String get valutazioneIncrociata;
+
+  /// No description provided for @accendi.
+  ///
+  /// In it, this message translates to:
+  /// **'Accendi'**
+  String get accendi;
+
+  /// No description provided for @copia.
+  ///
+  /// In it, this message translates to:
+  /// **'COPIA'**
+  String get copia;
+
+  /// No description provided for @importaTestoLichess.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa Testo / Lichess'**
+  String get importaTestoLichess;
+
+  /// No description provided for @incollaUnLinkLichessUnFenOUnPg.
+  ///
+  /// In it, this message translates to:
+  /// **'Incolla un Link Lichess, un FEN o un PGN intero...'**
+  String get incollaUnLinkLichessUnFenOUnPg;
+
+  /// No description provided for @annulla.
+  ///
+  /// In it, this message translates to:
+  /// **'Annulla'**
+  String get annulla;
+
+  /// No description provided for @importa.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa'**
+  String get importa;
+
+  /// No description provided for @partitaCaricataConSuccesso.
+  ///
+  /// In it, this message translates to:
+  /// **'Partita caricata con successo! ✅'**
+  String get partitaCaricataConSuccesso;
+
+  /// No description provided for @iniziaAMuovere.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia a muovere...'**
+  String get iniziaAMuovere;
+
+  /// No description provided for @apriFilePgnfen.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri File (PGN/FEN)'**
+  String get apriFilePgnfen;
+
+  /// No description provided for @importaLinkLichessIncollaPgn.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa Link Lichess / Incolla PGN'**
+  String get importaLinkLichessIncollaPgn;
+
+  /// No description provided for @editorVisivoFen.
+  ///
+  /// In it, this message translates to:
+  /// **'Editor Visivo FEN'**
+  String get editorVisivoFen;
+
+  /// No description provided for @salvaPartitaInLocale.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva Partita in locale'**
+  String get salvaPartitaInLocale;
+
+  /// No description provided for @copiaPgnInMemoria.
+  ///
+  /// In it, this message translates to:
+  /// **'Copia PGN in memoria'**
+  String get copiaPgnInMemoria;
+
+  /// No description provided for @pgnCopiatoNegliAppunti.
+  ///
+  /// In it, this message translates to:
+  /// **'PGN copiato negli appunti! 📋'**
+  String get pgnCopiatoNegliAppunti;
+
+  /// No description provided for @diramazioneRilevata.
+  ///
+  /// In it, this message translates to:
+  /// **'Diramazione rilevata'**
+  String get diramazioneRilevata;
+
+  /// No description provided for @esisteGiUnaContinuazionePerQue.
+  ///
+  /// In it, this message translates to:
+  /// **'Esiste già una continuazione per questa posizione. Cosa vuoi fare?'**
+  String get esisteGiUnaContinuazionePerQue;
+
+  /// No description provided for @nuovaLineaPrincipale.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuova Linea Principale'**
+  String get nuovaLineaPrincipale;
+
+  /// No description provided for @aggiungiComeVariante.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi come Variante'**
+  String get aggiungiComeVariante;
+
+  /// No description provided for @sovrascriviTutto.
+  ///
+  /// In it, this message translates to:
+  /// **'Sovrascrivi tutto'**
+  String get sovrascriviTutto;
+
+  /// No description provided for @annullaMossa.
+  ///
+  /// In it, this message translates to:
+  /// **'Annulla mossa'**
+  String get annullaMossa;
+
+  /// No description provided for @erroreLaScacchieraNonHaPotutoV.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore: La scacchiera non ha potuto validare il FEN!'**
+  String get erroreLaScacchieraNonHaPotutoV;
+
+  /// No description provided for @impostazioniSfida.
+  ///
+  /// In it, this message translates to:
+  /// **'Impostazioni Sfida'**
+  String get impostazioniSfida;
+
+  /// No description provided for @giochiCol.
+  ///
+  /// In it, this message translates to:
+  /// **'Giochi col:'**
+  String get giochiCol;
+
+  /// No description provided for @bianco.
+  ///
+  /// In it, this message translates to:
+  /// **'Bianco'**
+  String get bianco;
+
+  /// No description provided for @nero.
+  ///
+  /// In it, this message translates to:
+  /// **'Nero'**
+  String get nero;
+
+  /// No description provided for @usaLivebookCloud.
+  ///
+  /// In it, this message translates to:
+  /// **'Usa LiveBook Cloud'**
+  String get usaLivebookCloud;
+
+  /// No description provided for @ilMotorePescherLeApertureDalWe.
+  ///
+  /// In it, this message translates to:
+  /// **'Il motore pescherà le aperture dal web.'**
+  String get ilMotorePescherLeApertureDalWe;
+
+  /// No description provided for @filtriTrattiPosizionali.
+  ///
+  /// In it, this message translates to:
+  /// **'Filtri Tratti Posizionali'**
+  String get filtriTrattiPosizionali;
+
+  /// No description provided for @aggiungeBiasStrategicoAlleMoss.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiunge bias strategico alle mosse.'**
+  String get aggiungeBiasStrategicoAlleMoss;
+
+  /// No description provided for @iFiltriSuiTrattiPosizionaliSon.
+  ///
+  /// In it, this message translates to:
+  /// **'I Filtri sui Tratti Posizionali sono un'**
+  String get iFiltriSuiTrattiPosizionaliSon;
+
+  /// No description provided for @limitaForza.
+  ///
+  /// In it, this message translates to:
+  /// **'Limita Forza'**
+  String get limitaForza;
+
+  /// No description provided for @orologioCadenza.
+  ///
+  /// In it, this message translates to:
+  /// **'Orologio (Cadenza)'**
+  String get orologioCadenza;
+
+  /// No description provided for @tempoGlobaleFischer.
+  ///
+  /// In it, this message translates to:
+  /// **'Tempo Globale (Fischer)'**
+  String get tempoGlobaleFischer;
+
+  /// No description provided for @tempoFissoPerMossa.
+  ///
+  /// In it, this message translates to:
+  /// **'Tempo Fisso per Mossa'**
+  String get tempoFissoPerMossa;
+
+  /// No description provided for @incrementoS.
+  ///
+  /// In it, this message translates to:
+  /// **'Incremento (s):'**
+  String get incrementoS;
+
+  /// No description provided for @gioca.
+  ///
+  /// In it, this message translates to:
+  /// **'GIOCA'**
+  String get gioca;
+
+  /// No description provided for @finePartita.
+  ///
+  /// In it, this message translates to:
+  /// **'Fine Partita'**
+  String get finePartita;
+
+  /// No description provided for @tornaAlLaboratorio.
+  ///
+  /// In it, this message translates to:
+  /// **'TORNA AL LABORATORIO'**
+  String get tornaAlLaboratorio;
+
+  /// No description provided for @nessunaOpzioneTrovataOCaricame.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna opzione trovata o caricamento in corso...'**
+  String get nessunaOpzioneTrovataOCaricame;
+
+  /// No description provided for @impossibileAnalizzareLeMinacce.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile analizzare le minacce sotto scacco!'**
+  String get impossibileAnalizzareLeMinacce;
+
+  /// No description provided for @nessunaMinacciaAllaMossaInizia.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna minaccia alla mossa iniziale!'**
+  String get nessunaMinacciaAllaMossaInizia;
+
+  /// No description provided for @impostazioniAnalisi.
+  ///
+  /// In it, this message translates to:
+  /// **'Impostazioni Analisi'**
+  String get impostazioniAnalisi;
+
+  /// No description provided for @tempoInizialeT1PerMossa.
+  ///
+  /// In it, this message translates to:
+  /// **'Tempo iniziale (T1) per mossa:'**
+  String get tempoInizialeT1PerMossa;
+
+  /// No description provided for @ilTempoRaddoppierAutomaticamen.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.'**
+  String get ilTempoRaddoppierAutomaticamen;
+
+  /// No description provided for @avviaAnalisi.
+  ///
+  /// In it, this message translates to:
+  /// **'AVVIA ANALISI'**
+  String get avviaAnalisi;
+
+  /// No description provided for @coachAnalisiIncrociata.
+  ///
+  /// In it, this message translates to:
+  /// **'Coach: Analisi Incrociata'**
+  String get coachAnalisiIncrociata;
+
+  /// No description provided for @da2500EloInPoiIlMaestroSarLaRe.
+  ///
+  /// In it, this message translates to:
+  /// **'(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)'**
+  String get da2500EloInPoiIlMaestroSarLaRe;
+
+  /// No description provided for @avviaCoach.
+  ///
+  /// In it, this message translates to:
+  /// **'AVVIA COACH'**
+  String get avviaCoach;
+
+  /// No description provided for @coachVerdettoIncrociato.
+  ///
+  /// In it, this message translates to:
+  /// **'🔍 Coach: Verdetto Incrociato'**
+  String get coachVerdettoIncrociato;
+
+  /// No description provided for @chiudi.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi'**
+  String get chiudi;
+
+  /// No description provided for @impostazioniAutoplay.
+  ///
+  /// In it, this message translates to:
+  /// **'Impostazioni Autoplay'**
+  String get impostazioniAutoplay;
+
+  /// No description provided for @motoreBianco.
+  ///
+  /// In it, this message translates to:
+  /// **'MOTORE BIANCO'**
+  String get motoreBianco;
+
+  /// No description provided for @livebook.
+  ///
+  /// In it, this message translates to:
+  /// **'LiveBook'**
+  String get livebook;
+
+  /// No description provided for @trattiPosizionali.
+  ///
+  /// In it, this message translates to:
+  /// **'Tratti Posizionali'**
+  String get trattiPosizionali;
+
+  /// No description provided for @esclusivaPremium.
+  ///
+  /// In it, this message translates to:
+  /// **'Esclusiva Premium!'**
+  String get esclusivaPremium;
+
+  /// No description provided for @motoreNero.
+  ///
+  /// In it, this message translates to:
+  /// **'MOTORE NERO'**
+  String get motoreNero;
+
+  /// No description provided for @avviaMatch.
+  ///
+  /// In it, this message translates to:
+  /// **'AVVIA MATCH'**
+  String get avviaMatch;
+
+  /// No description provided for @shashguiPremium.
+  ///
+  /// In it, this message translates to:
+  /// **'ShashGui Premium ✨'**
+  String get shashguiPremium;
+
+  /// No description provided for @ilPotereDeiServerCloud.
+  ///
+  /// In it, this message translates to:
+  /// **'IL POTERE DEI SERVER CLOUD'**
+  String get ilPotereDeiServerCloud;
+
+  /// No description provided for @leSeguentiFunzionalitRichiedon.
+  ///
+  /// In it, this message translates to:
+  /// **'Le seguenti funzionalità richiedono un'**
+  String get leSeguentiFunzionalitRichiedon;
+
+  /// No description provided for @sbloccaIlCloud999mese.
+  ///
+  /// In it, this message translates to:
+  /// **'SBLOCCA IL CLOUD (9.99€/mese)'**
+  String get sbloccaIlCloud999mese;
+
+  /// No description provided for @beyondTheEval.
+  ///
+  /// In it, this message translates to:
+  /// **'Beyond the eval'**
+  String get beyondTheEval;
+
+  /// No description provided for @shashgui.
+  ///
+  /// In it, this message translates to:
+  /// **'ShashGUI'**
+  String get shashgui;
+
+  /// No description provided for @sviluppatoreAndreaManzo.
+  ///
+  /// In it, this message translates to:
+  /// **'Sviluppatore: Andrea Manzo'**
+  String get sviluppatoreAndreaManzo;
+
+  /// No description provided for @motoriIntegratiShashchessNnueA.
+  ///
+  /// In it, this message translates to:
+  /// **'Motori Integrati: ShashChess (NNUE) & Alexander (HCE)'**
+  String get motoriIntegratiShashchessNnueA;
+
+  /// No description provided for @interfacciaGraficaAvanzataPerL.
+  ///
+  /// In it, this message translates to:
+  /// **'Interfaccia grafica avanzata per l'**
+  String get interfacciaGraficaAvanzataPerL;
+
+  /// No description provided for @chiudi1.
+  ///
+  /// In it, this message translates to:
+  /// **'CHIUDI'**
+  String get chiudi1;
+
+  /// No description provided for @editorPosizione.
+  ///
+  /// In it, this message translates to:
+  /// **'🧩 Editor Posizione'**
+  String get editorPosizione;
+
+  /// No description provided for @selezionaPezzo.
+  ///
+  /// In it, this message translates to:
+  /// **'Seleziona Pezzo:'**
+  String get selezionaPezzo;
+
+  /// No description provided for @svuota.
+  ///
+  /// In it, this message translates to:
+  /// **'Svuota'**
+  String get svuota;
+
+  /// No description provided for @iniziale.
+  ///
+  /// In it, this message translates to:
+  /// **'Iniziale'**
+  String get iniziale;
+
+  /// No description provided for @turno.
+  ///
+  /// In it, this message translates to:
+  /// **'Turno:'**
+  String get turno;
+
+  /// No description provided for @applicaPosizione.
+  ///
+  /// In it, this message translates to:
+  /// **'APPLICA POSIZIONE'**
+  String get applicaPosizione;
+
   /// No description provided for @appTitle.
   ///
   /// In it, this message translates to:
@@ -6444,17 +7031,419 @@ abstract class AppLocalizations {
   /// **'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.'**
   String get aboutDesc;
 
+  /// No description provided for @readManualBtn.
+  ///
+  /// In it, this message translates to:
+  /// **'LEGGI IL MANUALE UTENTE'**
+  String get readManualBtn;
+
   /// No description provided for @closeBtn.
   ///
   /// In it, this message translates to:
   /// **'CHIUDI'**
   String get closeBtn;
 
-  /// No description provided for @readManualBtn.
+  /// No description provided for @schoolBeginner.
   ///
   /// In it, this message translates to:
-  /// **'LEGGI IL MANUALE UTENTE'**
-  String get readManualBtn;
+  /// **'Principianti'**
+  String get schoolBeginner;
+
+  /// No description provided for @schoolIntermediate.
+  ///
+  /// In it, this message translates to:
+  /// **'Intermedia'**
+  String get schoolIntermediate;
+
+  /// No description provided for @schoolAdvanced.
+  ///
+  /// In it, this message translates to:
+  /// **'Avanzata'**
+  String get schoolAdvanced;
+
+  /// No description provided for @schoolExpertHCE.
+  ///
+  /// In it, this message translates to:
+  /// **'Esperta (Max HCE)'**
+  String get schoolExpertHCE;
+
+  /// No description provided for @schoolExpert.
+  ///
+  /// In it, this message translates to:
+  /// **'Esperta'**
+  String get schoolExpert;
+
+  /// No description provided for @schoolSuperhumanNNUE.
+  ///
+  /// In it, this message translates to:
+  /// **'Super-Umana (NNUE)'**
+  String get schoolSuperhumanNNUE;
+
+  /// No description provided for @logQueryingOracles.
+  ///
+  /// In it, this message translates to:
+  /// **'🌐 [Coach] Interrogazione Oracoli Cloud (Lichess/ChessDB)...'**
+  String get logQueryingOracles;
+
+  /// No description provided for @logCloudError.
+  ///
+  /// In it, this message translates to:
+  /// **'⚠️ Errore Cloud:'**
+  String get logCloudError;
+
+  /// No description provided for @logSemanticScan.
+  ///
+  /// In it, this message translates to:
+  /// **'📍 [Coach] Scansione semantica della posizione (Makogonov/Spazio)...'**
+  String get logSemanticScan;
+
+  /// No description provided for @pieceKnight.
+  ///
+  /// In it, this message translates to:
+  /// **'il Cavallo'**
+  String get pieceKnight;
+
+  /// No description provided for @pieceBishop.
+  ///
+  /// In it, this message translates to:
+  /// **'l\'Alfiere'**
+  String get pieceBishop;
+
+  /// No description provided for @pieceRook.
+  ///
+  /// In it, this message translates to:
+  /// **'la Torre'**
+  String get pieceRook;
+
+  /// No description provided for @pieceQueen.
+  ///
+  /// In it, this message translates to:
+  /// **'la Donna'**
+  String get pieceQueen;
+
+  /// No description provided for @pieceKing.
+  ///
+  /// In it, this message translates to:
+  /// **'il Re'**
+  String get pieceKing;
+
+  /// No description provided for @piecePawn.
+  ///
+  /// In it, this message translates to:
+  /// **'il Pedone'**
+  String get piecePawn;
+
+  /// No description provided for @pieceGeneric.
+  ///
+  /// In it, this message translates to:
+  /// **'il pezzo'**
+  String get pieceGeneric;
+
+  /// No description provided for @logCalcThermodynamicZone.
+  ///
+  /// In it, this message translates to:
+  /// **'📍 [Coach] Calcolo Zona Termodinamica in corso...'**
+  String get logCalcThermodynamicZone;
+
+  /// No description provided for @logStudentThinking1.
+  ///
+  /// In it, this message translates to:
+  /// **'🧑‍🎓 L\'Allievo (Scuola'**
+  String get logStudentThinking1;
+
+  /// No description provided for @logStudentThinking2.
+  ///
+  /// In it, this message translates to:
+  /// **'- Elo'**
+  String get logStudentThinking2;
+
+  /// No description provided for @logStudentThinking3.
+  ///
+  /// In it, this message translates to:
+  /// **') elabora il piano...'**
+  String get logStudentThinking3;
+
+  /// No description provided for @logPrepMaster1.
+  ///
+  /// In it, this message translates to:
+  /// **'🧙‍♂️ Preparazione Maestro (Scuola'**
+  String get logPrepMaster1;
+
+  /// No description provided for @logPrepMaster2.
+  ///
+  /// In it, this message translates to:
+  /// **')...'**
+  String get logPrepMaster2;
+
+  /// No description provided for @logEngineSwap.
+  ///
+  /// In it, this message translates to:
+  /// **'🚀 Cambio motore in corso: Spegnimento Alexander -> Avvio ShashChess...'**
+  String get logEngineSwap;
+
+  /// No description provided for @logShashReady.
+  ///
+  /// In it, this message translates to:
+  /// **'✅ ShashChess pronto alla massima forza.'**
+  String get logShashReady;
+
+  /// No description provided for @evalWhiteDominate.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n'**
+  String get evalWhiteDominate;
+
+  /// No description provided for @evalWhiteSlightEdge.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Bianco possiede un lieve vantaggio di spazio.\n'**
+  String get evalWhiteSlightEdge;
+
+  /// No description provided for @evalBlackDominate.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Nero ha conquistato un forte vantaggio di spazio, asfissiando i pezzi bianchi.\n'**
+  String get evalBlackDominate;
+
+  /// No description provided for @evalBlackSlightEdge.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Nero detiene un leggero controllo territoriale superiore.\n'**
+  String get evalBlackSlightEdge;
+
+  /// No description provided for @evalSpaceBalanced.
+  ///
+  /// In it, this message translates to:
+  /// **'La gestione dello spazio sulla scacchiera è in perfetto equilibrio.\n'**
+  String get evalSpaceBalanced;
+
+  /// No description provided for @evalMakogonovWorst.
+  ///
+  /// In it, this message translates to:
+  /// **'Secondo il principio di Makogonov, il pezzo che richiede più urgenza di essere riattivato è'**
+  String get evalMakogonovWorst;
+
+  /// No description provided for @evalComplex.
+  ///
+  /// In it, this message translates to:
+  /// **'Valutazione posizionale complessa.'**
+  String get evalComplex;
+
+  /// No description provided for @reportTitleCloud.
+  ///
+  /// In it, this message translates to:
+  /// **'🌐 VALUTAZIONI CLOUD:'**
+  String get reportTitleCloud;
+
+  /// No description provided for @reportLichessHumans.
+  ///
+  /// In it, this message translates to:
+  /// **'Lichess (Umani)'**
+  String get reportLichessHumans;
+
+  /// No description provided for @reportNoMoves.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna giocata predominante'**
+  String get reportNoMoves;
+
+  /// No description provided for @reportChessDbNeural.
+  ///
+  /// In it, this message translates to:
+  /// **'ChessDB (Neurali)'**
+  String get reportChessDbNeural;
+
+  /// No description provided for @reportTitleStatic.
+  ///
+  /// In it, this message translates to:
+  /// **'📍 SCENOGRAFIA STATICA (Pre-Mossa):'**
+  String get reportTitleStatic;
+
+  /// No description provided for @reportZone.
+  ///
+  /// In it, this message translates to:
+  /// **'Zona'**
+  String get reportZone;
+
+  /// No description provided for @reportTitleStudent1.
+  ///
+  /// In it, this message translates to:
+  /// **'🧑‍🎓 LA TUA IDEA (Scuola'**
+  String get reportTitleStudent1;
+
+  /// No description provided for @reportTitleStudent2.
+  ///
+  /// In it, this message translates to:
+  /// **'):'**
+  String get reportTitleStudent2;
+
+  /// No description provided for @reportChosenMove.
+  ///
+  /// In it, this message translates to:
+  /// **'Mossa scelta'**
+  String get reportChosenMove;
+
+  /// No description provided for @reportExpectation.
+  ///
+  /// In it, this message translates to:
+  /// **'Aspettativa'**
+  String get reportExpectation;
+
+  /// No description provided for @reportTitleMaster1.
+  ///
+  /// In it, this message translates to:
+  /// **'🧙‍♂️ L\'IDEA DEL MAESTRO (Scuola'**
+  String get reportTitleMaster1;
+
+  /// No description provided for @reportTitleMaster2.
+  ///
+  /// In it, this message translates to:
+  /// **'):'**
+  String get reportTitleMaster2;
+
+  /// No description provided for @reportNnueWorstPiece.
+  ///
+  /// In it, this message translates to:
+  /// **'Pezzo peggiore per la Rete Neurale'**
+  String get reportNnueWorstPiece;
+
+  /// No description provided for @reportTitleVerdict.
+  ///
+  /// In it, this message translates to:
+  /// **'💡 VERDETTO DEL COACH:'**
+  String get reportTitleVerdict;
+
+  /// No description provided for @nagExcellentTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'🌟 ECCELLENTE!'**
+  String get nagExcellentTitle;
+
+  /// No description provided for @nagExcellentDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell\'analisi statica.'**
+  String get nagExcellentDesc;
+
+  /// No description provided for @nagBlunderTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'❌ NAG: ?? (Grave Errore)'**
+  String get nagBlunderTitle;
+
+  /// No description provided for @nagBlunderDesc1.
+  ///
+  /// In it, this message translates to:
+  /// **'La tua idea cede un vantaggio letale facendo crollare la posizione di'**
+  String get nagBlunderDesc1;
+
+  /// No description provided for @nagBlunderDesc2.
+  ///
+  /// In it, this message translates to:
+  /// **'Zone. Il Maestro suggerisce una via diversa per salvare la posizione.'**
+  String get nagBlunderDesc2;
+
+  /// No description provided for @nagMistakeTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'⚠️ NAG: ? (Errore)'**
+  String get nagMistakeTitle;
+
+  /// No description provided for @nagMistakeDesc1.
+  ///
+  /// In it, this message translates to:
+  /// **'Una svista posizionale o tattica. La posizione scende di'**
+  String get nagMistakeDesc1;
+
+  /// No description provided for @nagMistakeDesc2.
+  ///
+  /// In it, this message translates to:
+  /// **'Zone rispetto al potenziale massimizzato dal Maestro.'**
+  String get nagMistakeDesc2;
+
+  /// No description provided for @nagInaccuracyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'🤔 NAG: ?! (Imprecisione)'**
+  String get nagInaccuracyTitle;
+
+  /// No description provided for @nagInaccuracyDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.'**
+  String get nagInaccuracyDesc;
+
+  /// No description provided for @nagInterestingTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'👌 NAG: !? (Interessante)'**
+  String get nagInterestingTitle;
+
+  /// No description provided for @nagInterestingDescDiff1.
+  ///
+  /// In it, this message translates to:
+  /// **'La mossa del Maestro'**
+  String get nagInterestingDescDiff1;
+
+  /// No description provided for @nagInterestingDescDiff2.
+  ///
+  /// In it, this message translates to:
+  /// **'spreme più vantaggio, ma la tua idea mantiene la stessa Zona'**
+  String get nagInterestingDescDiff2;
+
+  /// No description provided for @nagInterestingDescDiff3.
+  ///
+  /// In it, this message translates to:
+  /// **'È saggio giocare il piano che comprendi meglio.'**
+  String get nagInterestingDescDiff3;
+
+  /// No description provided for @nagInterestingDescClose.
+  ///
+  /// In it, this message translates to:
+  /// **'Idea validissima! Sei vicino alla valutazione del Maestro e mantieni intatta la Zona Termodinamica.'**
+  String get nagInterestingDescClose;
+
+  /// No description provided for @reportTitleAdvVision.
+  ///
+  /// In it, this message translates to:
+  /// **'👁️ VISIONE AVANZATA DEL MAESTRO:'**
+  String get reportTitleAdvVision;
+
+  /// No description provided for @advVisionFixed1.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Maestro ha identificato il problema su'**
+  String get advVisionFixed1;
+
+  /// No description provided for @advVisionFixed2.
+  ///
+  /// In it, this message translates to:
+  /// **'e lo ha risolto. Ora il punto debole è diventato'**
+  String get advVisionFixed2;
+
+  /// No description provided for @advVisionIgnored1.
+  ///
+  /// In it, this message translates to:
+  /// **'Il Maestro ignora la passività di'**
+  String get advVisionIgnored1;
+
+  /// No description provided for @advVisionIgnored2.
+  ///
+  /// In it, this message translates to:
+  /// **'indicando un attacco tattico o un sacrificio dinamico (la mossa'**
+  String get advVisionIgnored2;
+
+  /// No description provided for @advVisionIgnored3.
+  ///
+  /// In it, this message translates to:
+  /// **'garantisce il picco di attività).'**
+  String get advVisionIgnored3;
+
+  /// No description provided for @logEvalComplete.
+  ///
+  /// In it, this message translates to:
+  /// **'✅ Valutazione incrociata completata.'**
+  String get logEvalComplete;
 }
 
 class _AppLocalizationsDelegate
@@ -6508,6 +7497,303 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get laboratorio => 'Laboratory';
+
+  @override
+  String get premium => 'Premium';
+
+  @override
+  String get shashguiLaboratorio => 'ShashGui Laboratory';
+
+  @override
+  String get cambiaLingua => 'Change Language';
+
+  @override
+  String get italiano => '🇮🇹 Italiano';
+
+  @override
+  String get english => '🇬🇧 English';
+
+  @override
+  String get funzioneTrattiPosizionaliBlocc =>
+      'Positional Traits function locked (Premium Version)';
+
+  @override
+  String get traits => 'TRAITS';
+
+  @override
+  String get mossa => 'MOVE';
+
+  @override
+  String get valutazione => 'EVALUATION';
+
+  @override
+  String get scanningCloudData => 'Scanning cloud data...';
+
+  @override
+  String get petrosian => '🛡️ Petrosian';
+
+  @override
+  String get tal => 'Tal 🔥';
+
+  @override
+  String get shashchess => 'ShashChess';
+
+  @override
+  String get alexander => 'Alexander';
+
+  @override
+  String get spegniIlMotorePerModificareIPa =>
+      'Turn off the engine to modify parameters!';
+
+  @override
+  String get configuraParametri => 'Configure Parameters';
+
+  @override
+  String get giocaControIlMotore => 'Play against the Engine';
+
+  @override
+  String get autoplayMotoreVsMotore => 'Autoplay (Engine vs Engine)';
+
+  @override
+  String get rilevaMinacce => 'Detect Threats';
+
+  @override
+  String get valutazioneIncrociata => 'Crossed Evaluation';
+
+  @override
+  String get accendi => 'Power On';
+
+  @override
+  String get copia => 'COPY';
+
+  @override
+  String get importaTestoLichess => 'Import Text / Lichess';
+
+  @override
+  String get incollaUnLinkLichessUnFenOUnPg =>
+      'Paste a Lichess Link, a FEN, or a full PGN...';
+
+  @override
+  String get annulla => 'Cancel';
+
+  @override
+  String get importa => 'Import';
+
+  @override
+  String get partitaCaricataConSuccesso => 'Game loaded successfully! ✅';
+
+  @override
+  String get iniziaAMuovere => 'Start moving...';
+
+  @override
+  String get apriFilePgnfen => 'Open File (PGN/FEN)';
+
+  @override
+  String get importaLinkLichessIncollaPgn => 'Import Lichess Link / Paste PGN';
+
+  @override
+  String get editorVisivoFen => 'Visual FEN Editor';
+
+  @override
+  String get salvaPartitaInLocale => 'Save Game locally';
+
+  @override
+  String get copiaPgnInMemoria => 'Copy PGN to clipboard';
+
+  @override
+  String get pgnCopiatoNegliAppunti => 'PGN copied to clipboard! 📋';
+
+  @override
+  String get diramazioneRilevata => 'Branch detected';
+
+  @override
+  String get esisteGiUnaContinuazionePerQue =>
+      'A continuation for this position already exists. What do you want to do?';
+
+  @override
+  String get nuovaLineaPrincipale => 'New Main Line';
+
+  @override
+  String get aggiungiComeVariante => 'Add as Variant';
+
+  @override
+  String get sovrascriviTutto => 'Overwrite all';
+
+  @override
+  String get annullaMossa => 'Cancel move';
+
+  @override
+  String get erroreLaScacchieraNonHaPotutoV =>
+      'Error: The board could not validate the FEN!';
+
+  @override
+  String get impostazioniSfida => 'Challenge Settings';
+
+  @override
+  String get giochiCol => 'Play as:';
+
+  @override
+  String get bianco => 'White';
+
+  @override
+  String get nero => 'Black';
+
+  @override
+  String get usaLivebookCloud => 'Use Cloud LiveBook';
+
+  @override
+  String get ilMotorePescherLeApertureDalWe =>
+      'The engine will fetch openings from the web.';
+
+  @override
+  String get filtriTrattiPosizionali => 'Positional Traits Filters';
+
+  @override
+  String get aggiungeBiasStrategicoAlleMoss => 'Adds strategic bias to moves.';
+
+  @override
+  String get iFiltriSuiTrattiPosizionaliSon =>
+      'The Positional Traits Filters are a';
+
+  @override
+  String get limitaForza => 'Limit Strength';
+
+  @override
+  String get orologioCadenza => 'Clock (Time Control)';
+
+  @override
+  String get tempoGlobaleFischer => 'Global Time (Fischer)';
+
+  @override
+  String get tempoFissoPerMossa => 'Fixed Time per Move';
+
+  @override
+  String get incrementoS => 'Increment (s):';
+
+  @override
+  String get gioca => 'PLAY';
+
+  @override
+  String get finePartita => 'Game Over';
+
+  @override
+  String get tornaAlLaboratorio => 'BACK TO LABORATORY';
+
+  @override
+  String get nessunaOpzioneTrovataOCaricame =>
+      'No options found or loading in progress...';
+
+  @override
+  String get impossibileAnalizzareLeMinacce =>
+      'Cannot analyze threats while in check!';
+
+  @override
+  String get nessunaMinacciaAllaMossaInizia =>
+      'No threats at the initial move!';
+
+  @override
+  String get impostazioniAnalisi => 'Analysis Settings';
+
+  @override
+  String get tempoInizialeT1PerMossa => 'Initial time (T1) per move:';
+
+  @override
+  String get ilTempoRaddoppierAutomaticamen =>
+      'The time will double automatically at each iteration of Shashin\'s Theory.';
+
+  @override
+  String get avviaAnalisi => 'START ANALYSIS';
+
+  @override
+  String get coachAnalisiIncrociata => 'Coach: Crossed Evaluation';
+
+  @override
+  String get da2500EloInPoiIlMaestroSarLaRe =>
+      '(From 2500 Elo onwards, the Master will be the ShashChess Neural Network)';
+
+  @override
+  String get avviaCoach => 'START COACH';
+
+  @override
+  String get coachVerdettoIncrociato => '🔍 Coach: Crossed Verdict';
+
+  @override
+  String get chiudi => 'Close';
+
+  @override
+  String get impostazioniAutoplay => 'Autoplay Settings';
+
+  @override
+  String get motoreBianco => 'WHITE ENGINE';
+
+  @override
+  String get livebook => 'LiveBook';
+
+  @override
+  String get trattiPosizionali => 'Positional Traits';
+
+  @override
+  String get esclusivaPremium => 'Premium Exclusive!';
+
+  @override
+  String get motoreNero => 'BLACK ENGINE';
+
+  @override
+  String get avviaMatch => 'START MATCH';
+
+  @override
+  String get shashguiPremium => 'ShashGui Premium ✨';
+
+  @override
+  String get ilPotereDeiServerCloud => 'THE POWER OF CLOUD SERVERS';
+
+  @override
+  String get leSeguentiFunzionalitRichiedon =>
+      'The following features require a';
+
+  @override
+  String get sbloccaIlCloud999mese => 'UNLOCK CLOUD (€9.99/month)';
+
+  @override
+  String get beyondTheEval => 'Beyond the eval';
+
+  @override
+  String get shashgui => 'ShashGUI';
+
+  @override
+  String get sviluppatoreAndreaManzo => 'Developer: Andrea Manzo';
+
+  @override
+  String get motoriIntegratiShashchessNnueA =>
+      'Integrated Engines: ShashChess (NNUE) & Alexander (HCE)';
+
+  @override
+  String get interfacciaGraficaAvanzataPerL =>
+      'Advanced graphical interface for';
+
+  @override
+  String get chiudi1 => 'CLOSE';
+
+  @override
+  String get editorPosizione => '🧩 Position Editor';
+
+  @override
+  String get selezionaPezzo => 'Select Piece:';
+
+  @override
+  String get svuota => 'Clear';
+
+  @override
+  String get iniziale => 'Starting';
+
+  @override
+  String get turno => 'Turn:';
+
+  @override
+  String get applicaPosizione => 'APPLY POSITION';
+
+  @override
   String get appTitle => 'ShashGui';
 
   @override
@@ -6522,10 +7808,231 @@ class AppLocalizationsEn extends AppLocalizations {
       'Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic trait extraction.';
 
   @override
+  String get readManualBtn => 'READ USER MANUAL';
+
+  @override
   String get closeBtn => 'CLOSE';
 
   @override
-  String get readManualBtn => 'READ USER MANUAL';
+  String get schoolBeginner => 'Beginners';
+
+  @override
+  String get schoolIntermediate => 'Intermediate';
+
+  @override
+  String get schoolAdvanced => 'Advanced';
+
+  @override
+  String get schoolExpertHCE => 'Expert (Max HCE)';
+
+  @override
+  String get schoolExpert => 'Expert';
+
+  @override
+  String get schoolSuperhumanNNUE => 'Superhuman (NNUE)';
+
+  @override
+  String get logQueryingOracles =>
+      '🌐 [Coach] Querying Cloud Oracles (Lichess/ChessDB)...';
+
+  @override
+  String get logCloudError => '⚠️ Cloud Error:';
+
+  @override
+  String get logSemanticScan =>
+      '📍 [Coach] Semantic scan of the position (Makogonov/Space)...';
+
+  @override
+  String get pieceKnight => 'the Knight';
+
+  @override
+  String get pieceBishop => 'the Bishop';
+
+  @override
+  String get pieceRook => 'the Rook';
+
+  @override
+  String get pieceQueen => 'the Queen';
+
+  @override
+  String get pieceKing => 'the King';
+
+  @override
+  String get piecePawn => 'the Pawn';
+
+  @override
+  String get pieceGeneric => 'the piece';
+
+  @override
+  String get logCalcThermodynamicZone =>
+      '📍 [Coach] Calculating Thermodynamic Zone...';
+
+  @override
+  String get logStudentThinking1 => '🧑‍🎓 The Student (School';
+
+  @override
+  String get logStudentThinking2 => '- Elo';
+
+  @override
+  String get logStudentThinking3 => ') is formulating a plan...';
+
+  @override
+  String get logPrepMaster1 => '🧙‍♂️ Preparing the Master (School';
+
+  @override
+  String get logPrepMaster2 => ')...';
+
+  @override
+  String get logEngineSwap =>
+      '🚀 Engine swap in progress: Shutting down Alexander -> Starting ShashChess...';
+
+  @override
+  String get logShashReady => '✅ ShashChess ready at maximum strength.';
+
+  @override
+  String get evalWhiteDominate =>
+      'White enjoys clear territorial dominance, granting great freedom of maneuver.\n';
+
+  @override
+  String get evalWhiteSlightEdge =>
+      'White possesses a slight space advantage.\n';
+
+  @override
+  String get evalBlackDominate =>
+      'Black has gained a strong space advantage, suffocating White\'s pieces.\n';
+
+  @override
+  String get evalBlackSlightEdge =>
+      'Black holds slightly superior territorial control.\n';
+
+  @override
+  String get evalSpaceBalanced =>
+      'Space management on the board is perfectly balanced.\n';
+
+  @override
+  String get evalMakogonovWorst =>
+      'According to Makogonov\'s principle, the piece in most urgent need of reactivation is';
+
+  @override
+  String get evalComplex => 'Complex positional evaluation.';
+
+  @override
+  String get reportTitleCloud => '🌐 CLOUD EVALUATIONS:';
+
+  @override
+  String get reportLichessHumans => 'Lichess (Humans)';
+
+  @override
+  String get reportNoMoves => 'No predominant move';
+
+  @override
+  String get reportChessDbNeural => 'ChessDB (Neural)';
+
+  @override
+  String get reportTitleStatic => '📍 STATIC SCENARIO (Pre-Move):';
+
+  @override
+  String get reportZone => 'Zone';
+
+  @override
+  String get reportTitleStudent1 => '🧑‍🎓 YOUR IDEA (School';
+
+  @override
+  String get reportTitleStudent2 => '):';
+
+  @override
+  String get reportChosenMove => 'Chosen move';
+
+  @override
+  String get reportExpectation => 'Expectation';
+
+  @override
+  String get reportTitleMaster1 => '🧙‍♂️ THE MASTER\'s IDEA (School';
+
+  @override
+  String get reportTitleMaster2 => '):';
+
+  @override
+  String get reportNnueWorstPiece => 'Worst piece for Neural Network';
+
+  @override
+  String get reportTitleVerdict => '💡 COACH\'s VERDICT:';
+
+  @override
+  String get nagExcellentTitle => '🌟 EXCELLENT!';
+
+  @override
+  String get nagExcellentDesc =>
+      'You found the same move as the Master. You are playing at a level above your category, respecting the positional canons extracted in the static analysis.';
+
+  @override
+  String get nagBlunderTitle => '❌ NAG: ?? (Blunder)';
+
+  @override
+  String get nagBlunderDesc1 =>
+      'Your idea yields a lethal advantage, collapsing the position by';
+
+  @override
+  String get nagBlunderDesc2 =>
+      'Zones. The Master suggests a different path to save the position.';
+
+  @override
+  String get nagMistakeTitle => '⚠️ NAG: ? (Mistake)';
+
+  @override
+  String get nagMistakeDesc1 =>
+      'A positional or tactical oversight. The position drops by';
+
+  @override
+  String get nagMistakeDesc2 =>
+      'Zones compared to the potential maximized by the Master.';
+
+  @override
+  String get nagInaccuracyTitle => '🤔 NAG: ?! (Inaccuracy)';
+
+  @override
+  String get nagInaccuracyDesc =>
+      'Your idea is playable, but you lose a Thermodynamic Zone compared to the Master\'s move.';
+
+  @override
+  String get nagInterestingTitle => '👌 NAG: !? (Interesting)';
+
+  @override
+  String get nagInterestingDescDiff1 => 'The Master\'s move';
+
+  @override
+  String get nagInterestingDescDiff2 =>
+      'squeezes out more advantage, but your idea maintains the same Zone';
+
+  @override
+  String get nagInterestingDescDiff3 =>
+      'It is wise to play the plan you understand best.';
+
+  @override
+  String get nagInterestingDescClose =>
+      'A very valid idea! You are close to the Master\'s evaluation and keep the Thermodynamic Zone intact.';
+
+  @override
+  String get reportTitleAdvVision => '👁️ MASTER\'s ADVANCED VISION:';
+
+  @override
+  String get advVisionFixed1 => 'The Master identified the problem on';
+
+  @override
+  String get advVisionFixed2 => 'and solved it. Now the weak point has become';
+
+  @override
+  String get advVisionIgnored1 => 'The Master ignores the passivity of';
+
+  @override
+  String get advVisionIgnored2 =>
+      'indicating a tactical attack or a dynamic sacrifice (the move';
+
+  @override
+  String get advVisionIgnored3 => 'guarantees peak activity).';
+
+  @override
+  String get logEvalComplete => '✅ Crossed evaluation complete.';
 }
 
 
@@ -6545,6 +8052,305 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String get laboratorio => 'Laboratorio';
+
+  @override
+  String get premium => 'Premium';
+
+  @override
+  String get shashguiLaboratorio => 'ShashGui Laboratorio';
+
+  @override
+  String get cambiaLingua => 'Cambia Lingua';
+
+  @override
+  String get italiano => '🇮🇹 Italiano';
+
+  @override
+  String get english => '🇬🇧 English';
+
+  @override
+  String get funzioneTrattiPosizionaliBlocc =>
+      'Funzione Tratti Posizionali bloccata (Versione Premium)';
+
+  @override
+  String get traits => 'TRAITS';
+
+  @override
+  String get mossa => 'MOSSA';
+
+  @override
+  String get valutazione => 'VALUTAZIONE';
+
+  @override
+  String get scanningCloudData => 'Scanning cloud data...';
+
+  @override
+  String get petrosian => '🛡️ Petrosian';
+
+  @override
+  String get tal => 'Tal 🔥';
+
+  @override
+  String get shashchess => 'ShashChess';
+
+  @override
+  String get alexander => 'Alexander';
+
+  @override
+  String get spegniIlMotorePerModificareIPa =>
+      'Spegni il motore per modificare i parametri!';
+
+  @override
+  String get configuraParametri => 'Configura Parametri';
+
+  @override
+  String get giocaControIlMotore => 'Gioca contro il Motore';
+
+  @override
+  String get autoplayMotoreVsMotore => 'Autoplay (Motore vs Motore)';
+
+  @override
+  String get rilevaMinacce => 'Rileva Minacce';
+
+  @override
+  String get valutazioneIncrociata => 'Valutazione Incrociata';
+
+  @override
+  String get accendi => 'Accendi';
+
+  @override
+  String get copia => 'COPIA';
+
+  @override
+  String get importaTestoLichess => 'Importa Testo / Lichess';
+
+  @override
+  String get incollaUnLinkLichessUnFenOUnPg =>
+      'Incolla un Link Lichess, un FEN o un PGN intero...';
+
+  @override
+  String get annulla => 'Annulla';
+
+  @override
+  String get importa => 'Importa';
+
+  @override
+  String get partitaCaricataConSuccesso => 'Partita caricata con successo! ✅';
+
+  @override
+  String get iniziaAMuovere => 'Inizia a muovere...';
+
+  @override
+  String get apriFilePgnfen => 'Apri File (PGN/FEN)';
+
+  @override
+  String get importaLinkLichessIncollaPgn =>
+      'Importa Link Lichess / Incolla PGN';
+
+  @override
+  String get editorVisivoFen => 'Editor Visivo FEN';
+
+  @override
+  String get salvaPartitaInLocale => 'Salva Partita in locale';
+
+  @override
+  String get copiaPgnInMemoria => 'Copia PGN in memoria';
+
+  @override
+  String get pgnCopiatoNegliAppunti => 'PGN copiato negli appunti! 📋';
+
+  @override
+  String get diramazioneRilevata => 'Diramazione rilevata';
+
+  @override
+  String get esisteGiUnaContinuazionePerQue =>
+      'Esiste già una continuazione per questa posizione. Cosa vuoi fare?';
+
+  @override
+  String get nuovaLineaPrincipale => 'Nuova Linea Principale';
+
+  @override
+  String get aggiungiComeVariante => 'Aggiungi come Variante';
+
+  @override
+  String get sovrascriviTutto => 'Sovrascrivi tutto';
+
+  @override
+  String get annullaMossa => 'Annulla mossa';
+
+  @override
+  String get erroreLaScacchieraNonHaPotutoV =>
+      'Errore: La scacchiera non ha potuto validare il FEN!';
+
+  @override
+  String get impostazioniSfida => 'Impostazioni Sfida';
+
+  @override
+  String get giochiCol => 'Giochi col:';
+
+  @override
+  String get bianco => 'Bianco';
+
+  @override
+  String get nero => 'Nero';
+
+  @override
+  String get usaLivebookCloud => 'Usa LiveBook Cloud';
+
+  @override
+  String get ilMotorePescherLeApertureDalWe =>
+      'Il motore pescherà le aperture dal web.';
+
+  @override
+  String get filtriTrattiPosizionali => 'Filtri Tratti Posizionali';
+
+  @override
+  String get aggiungeBiasStrategicoAlleMoss =>
+      'Aggiunge bias strategico alle mosse.';
+
+  @override
+  String get iFiltriSuiTrattiPosizionaliSon =>
+      'I Filtri sui Tratti Posizionali sono un';
+
+  @override
+  String get limitaForza => 'Limita Forza';
+
+  @override
+  String get orologioCadenza => 'Orologio (Cadenza)';
+
+  @override
+  String get tempoGlobaleFischer => 'Tempo Globale (Fischer)';
+
+  @override
+  String get tempoFissoPerMossa => 'Tempo Fisso per Mossa';
+
+  @override
+  String get incrementoS => 'Incremento (s):';
+
+  @override
+  String get gioca => 'GIOCA';
+
+  @override
+  String get finePartita => 'Fine Partita';
+
+  @override
+  String get tornaAlLaboratorio => 'TORNA AL LABORATORIO';
+
+  @override
+  String get nessunaOpzioneTrovataOCaricame =>
+      'Nessuna opzione trovata o caricamento in corso...';
+
+  @override
+  String get impossibileAnalizzareLeMinacce =>
+      'Impossibile analizzare le minacce sotto scacco!';
+
+  @override
+  String get nessunaMinacciaAllaMossaInizia =>
+      'Nessuna minaccia alla mossa iniziale!';
+
+  @override
+  String get impostazioniAnalisi => 'Impostazioni Analisi';
+
+  @override
+  String get tempoInizialeT1PerMossa => 'Tempo iniziale (T1) per mossa:';
+
+  @override
+  String get ilTempoRaddoppierAutomaticamen =>
+      'Il tempo raddoppierà automaticamente ad ogni iterazione della Teoria di Shashin.';
+
+  @override
+  String get avviaAnalisi => 'AVVIA ANALISI';
+
+  @override
+  String get coachAnalisiIncrociata => 'Coach: Analisi Incrociata';
+
+  @override
+  String get da2500EloInPoiIlMaestroSarLaRe =>
+      '(Da 2500 Elo in poi, il Maestro sarà la Rete Neurale ShashChess)';
+
+  @override
+  String get avviaCoach => 'AVVIA COACH';
+
+  @override
+  String get coachVerdettoIncrociato => '🔍 Coach: Verdetto Incrociato';
+
+  @override
+  String get chiudi => 'Chiudi';
+
+  @override
+  String get impostazioniAutoplay => 'Impostazioni Autoplay';
+
+  @override
+  String get motoreBianco => 'MOTORE BIANCO';
+
+  @override
+  String get livebook => 'LiveBook';
+
+  @override
+  String get trattiPosizionali => 'Tratti Posizionali';
+
+  @override
+  String get esclusivaPremium => 'Esclusiva Premium!';
+
+  @override
+  String get motoreNero => 'MOTORE NERO';
+
+  @override
+  String get avviaMatch => 'AVVIA MATCH';
+
+  @override
+  String get shashguiPremium => 'ShashGui Premium ✨';
+
+  @override
+  String get ilPotereDeiServerCloud => 'IL POTERE DEI SERVER CLOUD';
+
+  @override
+  String get leSeguentiFunzionalitRichiedon =>
+      'Le seguenti funzionalità richiedono un';
+
+  @override
+  String get sbloccaIlCloud999mese => 'SBLOCCA IL CLOUD (9.99€/mese)';
+
+  @override
+  String get beyondTheEval => 'Beyond the eval';
+
+  @override
+  String get shashgui => 'ShashGUI';
+
+  @override
+  String get sviluppatoreAndreaManzo => 'Sviluppatore: Andrea Manzo';
+
+  @override
+  String get motoriIntegratiShashchessNnueA =>
+      'Motori Integrati: ShashChess (NNUE) & Alexander (HCE)';
+
+  @override
+  String get interfacciaGraficaAvanzataPerL =>
+      'Interfaccia grafica avanzata per l';
+
+  @override
+  String get chiudi1 => 'CHIUDI';
+
+  @override
+  String get editorPosizione => '🧩 Editor Posizione';
+
+  @override
+  String get selezionaPezzo => 'Seleziona Pezzo:';
+
+  @override
+  String get svuota => 'Svuota';
+
+  @override
+  String get iniziale => 'Iniziale';
+
+  @override
+  String get turno => 'Turno:';
+
+  @override
+  String get applicaPosizione => 'APPLICA POSIZIONE';
+
+  @override
   String get appTitle => 'ShashGui';
 
   @override
@@ -6559,10 +8365,232 @@ class AppLocalizationsIt extends AppLocalizations {
       'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.';
 
   @override
+  String get readManualBtn => 'LEGGI IL MANUALE UTENTE';
+
+  @override
   String get closeBtn => 'CHIUDI';
 
   @override
-  String get readManualBtn => 'LEGGI IL MANUALE UTENTE';
+  String get schoolBeginner => 'Principianti';
+
+  @override
+  String get schoolIntermediate => 'Intermedia';
+
+  @override
+  String get schoolAdvanced => 'Avanzata';
+
+  @override
+  String get schoolExpertHCE => 'Esperta (Max HCE)';
+
+  @override
+  String get schoolExpert => 'Esperta';
+
+  @override
+  String get schoolSuperhumanNNUE => 'Super-Umana (NNUE)';
+
+  @override
+  String get logQueryingOracles =>
+      '🌐 [Coach] Interrogazione Oracoli Cloud (Lichess/ChessDB)...';
+
+  @override
+  String get logCloudError => '⚠️ Errore Cloud:';
+
+  @override
+  String get logSemanticScan =>
+      '📍 [Coach] Scansione semantica della posizione (Makogonov/Spazio)...';
+
+  @override
+  String get pieceKnight => 'il Cavallo';
+
+  @override
+  String get pieceBishop => 'l\'Alfiere';
+
+  @override
+  String get pieceRook => 'la Torre';
+
+  @override
+  String get pieceQueen => 'la Donna';
+
+  @override
+  String get pieceKing => 'il Re';
+
+  @override
+  String get piecePawn => 'il Pedone';
+
+  @override
+  String get pieceGeneric => 'il pezzo';
+
+  @override
+  String get logCalcThermodynamicZone =>
+      '📍 [Coach] Calcolo Zona Termodinamica in corso...';
+
+  @override
+  String get logStudentThinking1 => '🧑‍🎓 L\'Allievo (Scuola';
+
+  @override
+  String get logStudentThinking2 => '- Elo';
+
+  @override
+  String get logStudentThinking3 => ') elabora il piano...';
+
+  @override
+  String get logPrepMaster1 => '🧙‍♂️ Preparazione Maestro (Scuola';
+
+  @override
+  String get logPrepMaster2 => ')...';
+
+  @override
+  String get logEngineSwap =>
+      '🚀 Cambio motore in corso: Spegnimento Alexander -> Avvio ShashChess...';
+
+  @override
+  String get logShashReady => '✅ ShashChess pronto alla massima forza.';
+
+  @override
+  String get evalWhiteDominate =>
+      'Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n';
+
+  @override
+  String get evalWhiteSlightEdge =>
+      'Il Bianco possiede un lieve vantaggio di spazio.\n';
+
+  @override
+  String get evalBlackDominate =>
+      'Il Nero ha conquistato un forte vantaggio di spazio, asfissiando i pezzi bianchi.\n';
+
+  @override
+  String get evalBlackSlightEdge =>
+      'Il Nero detiene un leggero controllo territoriale superiore.\n';
+
+  @override
+  String get evalSpaceBalanced =>
+      'La gestione dello spazio sulla scacchiera è in perfetto equilibrio.\n';
+
+  @override
+  String get evalMakogonovWorst =>
+      'Secondo il principio di Makogonov, il pezzo che richiede più urgenza di essere riattivato è';
+
+  @override
+  String get evalComplex => 'Valutazione posizionale complessa.';
+
+  @override
+  String get reportTitleCloud => '🌐 VALUTAZIONI CLOUD:';
+
+  @override
+  String get reportLichessHumans => 'Lichess (Umani)';
+
+  @override
+  String get reportNoMoves => 'Nessuna giocata predominante';
+
+  @override
+  String get reportChessDbNeural => 'ChessDB (Neurali)';
+
+  @override
+  String get reportTitleStatic => '📍 SCENOGRAFIA STATICA (Pre-Mossa):';
+
+  @override
+  String get reportZone => 'Zona';
+
+  @override
+  String get reportTitleStudent1 => '🧑‍🎓 LA TUA IDEA (Scuola';
+
+  @override
+  String get reportTitleStudent2 => '):';
+
+  @override
+  String get reportChosenMove => 'Mossa scelta';
+
+  @override
+  String get reportExpectation => 'Aspettativa';
+
+  @override
+  String get reportTitleMaster1 => '🧙‍♂️ L\'IDEA DEL MAESTRO (Scuola';
+
+  @override
+  String get reportTitleMaster2 => '):';
+
+  @override
+  String get reportNnueWorstPiece => 'Pezzo peggiore per la Rete Neurale';
+
+  @override
+  String get reportTitleVerdict => '💡 VERDETTO DEL COACH:';
+
+  @override
+  String get nagExcellentTitle => '🌟 ECCELLENTE!';
+
+  @override
+  String get nagExcellentDesc =>
+      'Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell\'analisi statica.';
+
+  @override
+  String get nagBlunderTitle => '❌ NAG: ?? (Grave Errore)';
+
+  @override
+  String get nagBlunderDesc1 =>
+      'La tua idea cede un vantaggio letale facendo crollare la posizione di';
+
+  @override
+  String get nagBlunderDesc2 =>
+      'Zone. Il Maestro suggerisce una via diversa per salvare la posizione.';
+
+  @override
+  String get nagMistakeTitle => '⚠️ NAG: ? (Errore)';
+
+  @override
+  String get nagMistakeDesc1 =>
+      'Una svista posizionale o tattica. La posizione scende di';
+
+  @override
+  String get nagMistakeDesc2 =>
+      'Zone rispetto al potenziale massimizzato dal Maestro.';
+
+  @override
+  String get nagInaccuracyTitle => '🤔 NAG: ?! (Imprecisione)';
+
+  @override
+  String get nagInaccuracyDesc =>
+      'La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.';
+
+  @override
+  String get nagInterestingTitle => '👌 NAG: !? (Interessante)';
+
+  @override
+  String get nagInterestingDescDiff1 => 'La mossa del Maestro';
+
+  @override
+  String get nagInterestingDescDiff2 =>
+      'spreme più vantaggio, ma la tua idea mantiene la stessa Zona';
+
+  @override
+  String get nagInterestingDescDiff3 =>
+      'È saggio giocare il piano che comprendi meglio.';
+
+  @override
+  String get nagInterestingDescClose =>
+      'Idea validissima! Sei vicino alla valutazione del Maestro e mantieni intatta la Zona Termodinamica.';
+
+  @override
+  String get reportTitleAdvVision => '👁️ VISIONE AVANZATA DEL MAESTRO:';
+
+  @override
+  String get advVisionFixed1 => 'Il Maestro ha identificato il problema su';
+
+  @override
+  String get advVisionFixed2 =>
+      'e lo ha risolto. Ora il punto debole è diventato';
+
+  @override
+  String get advVisionIgnored1 => 'Il Maestro ignora la passività di';
+
+  @override
+  String get advVisionIgnored2 =>
+      'indicando un attacco tattico o un sacrificio dinamico (la mossa';
+
+  @override
+  String get advVisionIgnored3 => 'garantisce il picco di attività).';
+
+  @override
+  String get logEvalComplete => '✅ Valutazione incrociata completata.';
 }
 
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../l10n/app_localizations.dart';
 
 class SetupPositionDialog extends StatefulWidget {
   final String initialFen;
@@ -151,8 +150,6 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-
     return Dialog(
       backgroundColor: const Color(0xFF2b2b2b),
       insetPadding: const EdgeInsets.all(10),
@@ -163,8 +160,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                loc.editorPosizione,
+              const Text(
+                "🧩 Editor Posizione",
                 style: TextStyle(
                   color: Colors.orangeAccent,
                   fontSize: 20,
@@ -219,7 +216,10 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
               const SizedBox(height: 15),
 
               // LA TAVOLOZZA DEI PEZZI
-              Text(loc.selezionaPezzo, style: TextStyle(color: Colors.white70)),
+              const Text(
+                "Seleziona Pezzo:",
+                style: TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 5),
               Wrap(
                 spacing: 5,
@@ -269,8 +269,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red[700],
                     ),
-                    child: Text(
-                      loc.svuota,
+                    child: const Text(
+                      "Svuota",
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -279,8 +279,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[700],
                     ),
-                    child: Text(
-                      loc.iniziale,
+                    child: const Text(
+                      "Iniziale",
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -291,7 +291,7 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text(loc.turno, style: TextStyle(color: Colors.white)),
+                  const Text("Turno:", style: TextStyle(color: Colors.white)),
                   Switch(
                     value: _isWhiteTurn,
                     activeThumbColor: Colors.white,
@@ -337,8 +337,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      loc.annulla,
+                    child: const Text(
+                      "Annulla",
                       style: TextStyle(color: Colors.grey),
                     ),
                   ),
@@ -348,8 +348,8 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.cyan[700],
                     ),
-                    child: Text(
-                      loc.applicaPosizione,
+                    child: const Text(
+                      "APPLICA POSIZIONE",
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
