@@ -223,9 +223,9 @@ class CrossedEvalOrchestrator {
       int l = int.parse(wdlMatch.group(3)!);
       ShashinZone currentZ = analyzeShashinZone(w, d, l);
 
-      if (currentState == CrossedState.baseEval)
+      if (currentState == CrossedState.baseEval) {
         baseZone = currentZ;
-      else if (currentState == CrossedState.studentThinking)
+      } else if (currentState == CrossedState.studentThinking)
         studentZone = currentZ;
       else if (currentState == CrossedState.masterThinking)
         masterZone = currentZ;
@@ -309,10 +309,10 @@ class CrossedEvalOrchestrator {
 
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
-      if (diff >= 4)
+      if (diff >= 4) {
         txt +=
             "Il Bianco gode di un netto dominio territoriale, che gli garantisce grande libertà di manovra.\n";
-      else if (diff >= 1 && diff <= 3)
+      } else if (diff >= 1 && diff <= 3)
         txt += "Il Bianco possiede un lieve vantaggio di spazio.\n";
       else if (diff <= -4)
         txt +=

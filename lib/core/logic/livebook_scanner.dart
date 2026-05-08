@@ -127,9 +127,9 @@ class LiveBookScanner {
         String oppSide = isWhiteTurn ? "Black" : "White";
 
         aiComment = "From $side view the position is ";
-        if (bestWp >= 60.0)
+        if (bestWp >= 60.0) {
           aiComment += "clearly dominant, offering excellent winning chances. ";
-        else if (bestWp >= 53.0)
+        } else if (bestWp >= 53.0)
           aiComment +=
               "slightly better, with a solid edge and a promising initiative. ";
         else if (bestWp <= 40.0)
@@ -144,10 +144,11 @@ class LiveBookScanner {
             "The strongest continuation is $bestSan (${bestWp.toStringAsFixed(1)}%).";
       }
 
-      if (results.isEmpty)
+      if (results.isEmpty) {
         results.add(
           LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),
         );
+      }
 
       return LiveBookResult(
         moves: results,
@@ -185,18 +186,21 @@ class LiveBookScanner {
           .get(Uri.parse(url), headers: requestHeaders)
           .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 401)
+      if (response.statusCode == 401) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Token Scaduto")],
         );
-      if (response.statusCode == 429)
+      }
+      if (response.statusCode == 429) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Lichess Busy")],
         );
-      if (response.statusCode == 404)
+      }
+      if (response.statusCode == 404) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
         );
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -304,10 +308,11 @@ class LiveBookScanner {
             );
           }
 
-          if (results.isEmpty)
+          if (results.isEmpty) {
             results.add(
               LiveBookMove(move: "-", description: "Nessuna Teoria Lichess"),
             );
+          }
           return LiveBookResult(
             moves: results,
             openingName: openingTitle,

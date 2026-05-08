@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'dart:io'; // <-- AGGIUNTO PER GESTIRE I FILE
 import 'package:path_provider/path_provider.dart'; // <-- AGGIUNTO PER TROVARE LA CARTELLA DELLO SMARTPHONE
 
@@ -120,16 +122,17 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
 
   // --- VARIABILI LIVEBOOK ---
   LiveBookResult? _liveBookResult;
-  bool _showLiveBook = true;
+  final bool _showLiveBook = true;
 
   // Memoria del tempo iniziale T1 per il loop infinito
   double _baseTimeSec = 2.0; // Cambiato in double per lo slider
 
   // Variabili per l'handicap (Modalità Gioco)
-  double _playTimeSec = 2.0; // <-- 1. NUOVA VARIABILE PER IL TEMPO DI GIOCO
+  final double _playTimeSec =
+      2.0; // <-- 1. NUOVA VARIABILE PER IL TEMPO DI GIOCO
   bool _limitStrength = false;
   double _eloValue = 1500;
-  bool _simulateBlunders = false;
+  final bool _simulateBlunders = false;
 
   // --- VARIABILI REINSERITE ---
   SharedPreferences? _prefs;
@@ -1100,8 +1103,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
   // Questa funzione gestisce la creazione di varianti e la cattura della notazione
   Future<void> _onMovePerformed() async {
     String newFen = _boardController.getFen();
-    if (_currentNode.fen == newFen)
+    if (_currentNode.fen == newFen) {
       return; // FIX: Previene il doppio innesco che corrompe la storia del LiveBook!
+    }
 
     _isDragging = false;
     _arrowsNotifier.value = [];
@@ -1235,10 +1239,11 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
     String result = "*";
     if (game.game_over) {
       // <-- CORRETTO: rimosse le parentesi, è una proprietà!
-      if (game.in_draw)
+      if (game.in_draw) {
         result = "1/2-1/2";
-      else
+      } else {
         result = (game.turn.toString() == 'w') ? "0-1" : "1-0";
+      }
     }
 
     String date =
@@ -1289,6 +1294,198 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
       }
     } catch (e) {
       debugPrint("Errore salvataggio: $e");
+    }
+  }
+
+  // --- LOGICA SMART IMPORT (File, Lichess, PGN, FEN) ---
+
+  void _showError(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // 1. Lettura File dal Dispositivo
+  Future<void> _pickAndLoadFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        // <--- CORRETTO! Rimosso .platform
+        type: FileType.custom,
+        allowedExtensions: ['pgn', 'epd', 'fen', 'txt'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        File file = File(result.files.single.path!);
+        String content = await file.readAsString();
+        _processImportString(content);
+      }
+    } catch (e) {
+      _showError("Errore nell'apertura del file: $e");
+    }
+  }
+
+  // 2. Finestra di dialogo per Testo o Link Lichess
+  void _showSmartImportDialog() {
+    TextEditingController textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        title: const Text(
+          "Importa Testo / Lichess",
+          style: TextStyle(color: Colors.cyanAccent),
+        ),
+        content: TextField(
+          controller: textController,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: "Incolla un Link Lichess, un FEN o un PGN intero...",
+            hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Annulla", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (textController.text.isNotEmpty) {
+                _processImportString(textController.text);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan[700]),
+            child: const Text("Importa", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. Il Cervello che smista FEN, PGN o Link Lichess
+  Future<void> _processImportString(String input) async {
+    String data = input.trim();
+
+    // A) È un link di Lichess?
+    if (data.startsWith("http") && data.contains("lichess.org")) {
+      try {
+        String id = data.split('/').last;
+        if (id.contains('#')) {
+          id = id.split('#').first; // Pulisce ancore come #34
+        }
+
+        // Chiamata all'API di export di Lichess
+        final response = await http.get(
+          Uri.parse(
+            "https://lichess.org/game/export/$id?clocks=false&evals=false&tags=true",
+          ),
+        );
+        if (response.statusCode == 200) {
+          data =
+              response.body; // Sostituiamo il link con il PGN appena scaricato!
+        } else {
+          _showError(
+            "Errore nel download da Lichess (Status: ${response.statusCode})",
+          );
+          return;
+        }
+      } catch (e) {
+        _showError("Impossibile connettersi a Lichess");
+        return;
+      }
+    }
+
+    // B) È un PGN? (Contiene i tag o le mosse numerate)
+    if (data.contains("[Event") || data.contains("1. ")) {
+      _loadPgnGame(data);
+    }
+    // C) Altrimenti lo trattiamo come FEN o EPD
+    else {
+      try {
+        _boardController.loadFen(data);
+        setState(() {
+          _rootNode = MoveNode(fen: data, san: 'Setup FEN');
+          _currentNode = _rootNode;
+          _arrowsNotifier.value = [];
+        });
+        if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+      } catch (e) {
+        _showError("Formato FEN non valido");
+      }
+    }
+  }
+
+  // 4. Costruttore dell'Albero delle mosse da un PGN
+  void _loadPgnGame(String pgn) {
+    try {
+      // Usiamo una scacchiera temporanea invisibile per parsare il file
+      final tempBoard = ChessBoardController();
+      tempBoard.game.load_pgn(pgn);
+
+      // Estraiamo il PGN testuale ripulito per ottenere solo la lista delle mosse SAN
+      String cleanPgn = tempBoard.game.pgn();
+
+      // Rimuoviamo gli Header [Event "..."]
+      cleanPgn = cleanPgn.replaceAll(RegExp(r'\[.*?\]'), '');
+      // Rimuoviamo i commenti { ... }
+      cleanPgn = cleanPgn.replaceAll(RegExp(r'\{.*?\}'), '');
+      // Rimuoviamo i NAG tattici come $1, $2
+      cleanPgn = cleanPgn.replaceAll(RegExp(r'\$\d+'), '');
+      // Rimuoviamo le numerazioni delle mosse (es. 1. o 15...)
+      cleanPgn = cleanPgn.replaceAll(RegExp(r'\d+\.+'), '');
+      // Rimuoviamo i risultati finali (es. 1-0, 0-1, 1/2-1/2, *)
+      cleanPgn = cleanPgn.replaceAll(RegExp(r'(1-0|0-1|1/2-1/2|\*)'), '');
+
+      // Ora splittiamo per spazi e otteniamo la lista pulita delle mosse ["e4", "e5", "Nf3"...]
+      List<String> sanMoves = cleanPgn
+          .split(RegExp(r'\s+'))
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+
+      // Ricerchiamo se la partita partiva da un FEN specifico o dalla posizione iniziale
+      String startFen =
+          'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      final fenMatch = RegExp(r'\[FEN "([^"]+)"\]').firstMatch(pgn);
+      if (fenMatch != null) startFen = fenMatch.group(1)!;
+
+      _boardController.loadFen(startFen);
+
+      setState(() {
+        _rootNode = MoveNode(fen: startFen, san: 'Inizio PGN');
+        _currentNode = _rootNode;
+        _arrowsNotifier.value = [];
+
+        // Ricostruiamo il nostro albero di navigazione applicando una mossa alla volta
+        for (String san in sanMoves) {
+          _boardController.game.move(
+            san,
+          ); // Usiamo l'engine interno di chess_board
+          MoveNode newNode = MoveNode(
+            fen: _boardController.getFen(),
+            san: san,
+            parent: _currentNode,
+          );
+          _currentNode.children.add(newNode);
+          _currentNode = newNode; // Andiamo in fondo all'albero
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Partita caricata con successo! ✅"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      if (_isEngineRunning && !_isPlayingMode) _startNormalAnalysis();
+    } catch (e) {
+      _showError("Errore nel parsing del file PGN!");
     }
   }
 
@@ -1377,7 +1574,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             ),
           ),
         ),
-        // --- IL TASTO COPIA PGN ---
+        // --- LA BARRA DEGLI STRUMENTI DEL DATABASE ---
         Positioned(
           top: 0,
           right: 0,
@@ -1385,22 +1582,39 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.paste,
+                  Icons.folder_open,
                   size: 20,
-                  color: Colors.greenAccent,
+                  color: Colors.amberAccent,
                 ),
-                tooltip: "Importa FEN",
-                onPressed:
-                    _showImportDialog, // <-- CHIAMA IL NOSTRO NUOVO POPUP
+                tooltip: "Apri File (PGN/FEN)",
+                onPressed: _pickAndLoadFile, // <-- APRE IL FILE SYSTEM
               ),
               IconButton(
                 icon: const Icon(
-                  Icons.save, // Icona del floppy per il salvataggio
+                  Icons.link,
+                  size: 20,
+                  color: Colors.cyanAccent,
+                ),
+                tooltip: "Importa Link Lichess / Incolla PGN",
+                onPressed: _showSmartImportDialog, // <-- APRE LO SMART IMPORT
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.grid_view,
+                  size: 20,
+                  color: Colors.greenAccent,
+                ),
+                tooltip: "Editor Visivo FEN",
+                onPressed: _showImportDialog, // <-- IL TUO EDITOR FEN VISIVO
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.save,
                   size: 20,
                   color: Colors.blueAccent,
                 ),
-                tooltip: "Salva Partita (.pgn)",
-                onPressed: _savePgnToFile, // Chiamata al nuovo metodo
+                tooltip: "Salva Partita in locale",
+                onPressed: _savePgnToFile,
               ),
               IconButton(
                 icon: const Icon(
@@ -1408,7 +1622,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                   size: 20,
                   color: Colors.orangeAccent,
                 ),
-                tooltip: "Copia PGN negli appunti",
+                tooltip: "Copia PGN in memoria",
                 onPressed: () {
                   String pgn = _boardController.game.pgn();
                   Clipboard.setData(ClipboardData(text: pgn));
@@ -1715,7 +1929,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       value: tempLivebook,
-                      activeColor: Colors.greenAccent,
+                      activeThumbColor: Colors.greenAccent,
                       onChanged: (v) => setPopupState(() => tempLivebook = v),
                     ),
                     ListTile(
@@ -1751,7 +1965,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           style: TextStyle(fontSize: 14, color: Colors.white),
                         ),
                         value: _limitStrength,
-                        activeColor: Colors.blueAccent,
+                        activeThumbColor: Colors.blueAccent,
                         onChanged: (v) =>
                             setPopupState(() => _limitStrength = v),
                       ),
@@ -2056,8 +2270,9 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                           final name = opt['name']!;
 
                           // Ignoriamo i bottoni (es. "Clear Hash") per semplificare la UI
-                          if (opt['type'] == 'button')
+                          if (opt['type'] == 'button') {
                             return const SizedBox.shrink();
+                          }
 
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -2474,7 +2689,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               ),
                             ),
                             value: tempWhiteLivebook,
-                            activeColor: Colors.greenAccent,
+                            activeThumbColor: Colors.greenAccent,
                             onChanged: (v) =>
                                 setPopupState(() => tempWhiteLivebook = v),
                           ),
@@ -2542,7 +2757,7 @@ class _EngineTestScreenState extends State<EngineTestScreen> {
                               ),
                             ),
                             value: tempBlackLivebook,
-                            activeColor: Colors.greenAccent,
+                            activeThumbColor: Colors.greenAccent,
                             onChanged: (v) =>
                                 setPopupState(() => tempBlackLivebook = v),
                           ),

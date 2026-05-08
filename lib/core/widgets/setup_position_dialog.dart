@@ -294,7 +294,7 @@ class _SetupPositionDialogState extends State<SetupPositionDialog> {
                   const Text("Turno:", style: TextStyle(color: Colors.white)),
                   Switch(
                     value: _isWhiteTurn,
-                    activeColor: Colors.white,
+                    activeThumbColor: Colors.white,
                     inactiveThumbColor: Colors.black,
                     inactiveTrackColor: Colors.grey,
                     onChanged: (val) {

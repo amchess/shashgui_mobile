@@ -94,16 +94,18 @@ class AutoplayOrchestrator {
           return;
         } else {
           onLog("📉 Livebook esaurito per il $colorName.");
-          if (isWhiteTurn)
+          if (isWhiteTurn) {
             _whiteOutOfBook = true;
-          else
+          } else {
             _blackOutOfBook = true;
+          }
         }
       } catch (e) {
-        if (isWhiteTurn)
+        if (isWhiteTurn) {
           _whiteOutOfBook = true;
-        else
+        } else {
           _blackOutOfBook = true;
+        }
       }
     }
 
@@ -127,8 +129,9 @@ class AutoplayOrchestrator {
     PlayerColor currentTurn = boardController.getFen().split(' ')[1] == 'w'
         ? PlayerColor.white
         : PlayerColor.black;
-    if (currentTurn != engineColor)
+    if (currentTurn != engineColor) {
       return; // Ignora se parla il motore sbagliato
+    }
 
     if (line.startsWith('bestmove')) {
       final parts = line.split(' ');
@@ -174,8 +177,9 @@ class AutoplayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
       double wp = double.tryParse(m.description.replaceAll('%', '')) ?? 0.0;

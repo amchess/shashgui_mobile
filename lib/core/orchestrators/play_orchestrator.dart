@@ -103,8 +103,9 @@ class PlayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
