@@ -333,5 +333,17 @@
   "advVisionIgnored3": "garantisce il picco di attività).",
   "@advVisionIgnored3": {},
   "logEvalComplete": "✅ Valutazione incrociata completata.",
-  "@logEvalComplete": {}
+  "@logEvalComplete": {},
+  "impostazioni": "Impostazioni",
+  "@impostazioni": {},
+  "informazioniSuShashGui": "Informazioni su ShashGui",
+  "@informazioniSuShashGui": {},
+  "modalitaGiocoInArrivo": "Modalità Gioco (In Arrivo)",
+  "@modalitaGiocoInArrivo": {},
+  "impostaEGioca": "Imposta la partita e premi Gioca",
+  "@impostaEGioca": {},
+  "minuti": "Minuti:",
+  "@minuti": {},
+  "secondi": "Secondi:",
+  "@secondi": {}
 }

@@ -1099,6 +1099,42 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'✅ Valutazione incrociata completata.'**
   String get logEvalComplete;
+
+  /// No description provided for @impostazioni.
+  ///
+  /// In it, this message translates to:
+  /// **'Impostazioni'**
+  String get impostazioni;
+
+  /// No description provided for @informazioniSuShashGui.
+  ///
+  /// In it, this message translates to:
+  /// **'Informazioni su ShashGui'**
+  String get informazioniSuShashGui;
+
+  /// No description provided for @modalitaGiocoInArrivo.
+  ///
+  /// In it, this message translates to:
+  /// **'Modalità Gioco (In Arrivo)'**
+  String get modalitaGiocoInArrivo;
+
+  /// No description provided for @impostaEGioca.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta la partita e premi Gioca'**
+  String get impostaEGioca;
+
+  /// No description provided for @minuti.
+  ///
+  /// In it, this message translates to:
+  /// **'Minuti:'**
+  String get minuti;
+
+  /// No description provided for @secondi.
+  ///
+  /// In it, this message translates to:
+  /// **'Secondi:'**
+  String get secondi;
 }
 
 class _AppLocalizationsDelegate

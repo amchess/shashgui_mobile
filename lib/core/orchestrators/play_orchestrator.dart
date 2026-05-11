@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
-import '../logic/livebook_scanner.dart'; // Messo per usare l'Oracolo
+import '../logic/livebook_scanner.dart';
 
 class PlayOrchestrator {
   final EngineManager engineManager;
@@ -11,19 +11,18 @@ class PlayOrchestrator {
   final Function(String?) onGameOver;
   final bool useLivebook;
 
-  // --- NUOVE VARIABILI OROLOGIO ---
-  final int tcType; // 0 = Fischer, 1 = Fisso
+  final int tcType;
   final int baseTimeMs;
   final int incMs;
 
   int _wtime = 0;
   int _btime = 0;
   DateTime? _lastEngineStart;
-  // --------------------------------
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
   bool _outOfBook = false;
+  final Map<String, int> _positionCount = {};
 
   PlayOrchestrator({
     required this.engineManager,
@@ -41,26 +40,29 @@ class PlayOrchestrator {
     }
   }
 
+  String _getPosKey(String fen) => fen.split(' ').take(4).join(' ');
+
   void startGame() {
     onLog("🎮 Partita iniziata! Buona fortuna.");
     _outOfBook = !useLivebook;
+    _positionCount.clear();
+    _positionCount[_getPosKey(boardController.getFen())] = 1;
     _listenToEngine();
   }
 
   void playCycle() async {
     if (_isEngineThinking) return;
-    if (_checkStatus()) return;
+    if (_checkStatus()) {
+      stop();
+      return;
+    }
 
     _isEngineThinking = true;
     onLog("🤖 Il computer sta pensando...");
 
-    // --- LOGICA ORACOLO LIVEBOOK (Roulette Stocastica) ---
     if (!_outOfBook) {
-      // Mock logica per capire che motore stiamo usando (da affinare se serve)
       bool isShash = engineManager.engineOutput == null;
-
       try {
-        // Chiamiamo il Cloud! Passiamo [] come history perché qui ci servono solo i WinRate
         var result = await LiveBookScanner.scan(
           boardController.getFen(),
           [],
@@ -70,12 +72,10 @@ class PlayOrchestrator {
 
         if (chosenUci != null) {
           onLog("📖 Mossa pescata dal LiveBook Cloud!");
-          _executeMoveOnBoard(chosenUci);
+          _executeMoveOnBoard(chosenUci, fromBook: true);
           return;
         } else {
-          onLog(
-            "📉 Livebook esaurito o mosse deboli. Il motore pensa da solo.",
-          );
+          onLog("📉 Livebook esaurito. Il motore pensa da solo.");
           _outOfBook = true;
         }
       } catch (e) {
@@ -84,14 +84,10 @@ class PlayOrchestrator {
       }
     }
 
-    // --- ANALISI MOTORE NORMALE ---
     engineManager.sendCommand('position fen ${boardController.getFen()}');
-
     if (tcType == 1) {
-      // Tempo fisso per mossa
       engineManager.sendCommand('go movetime $baseTimeMs');
     } else {
-      // Orologio Fischer (invia il tempo residuo)
       _lastEngineStart = DateTime.now();
       engineManager.sendCommand(
         'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
@@ -99,57 +95,46 @@ class PlayOrchestrator {
     }
   }
 
-  // --- TRADUZIONE ESATTA DALLA TUA VERSIONE PYTHON ---
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains(".")) {
+        moves.first.move.contains("."))
       return null;
-    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
-      double wp = double.tryParse(m.description.replaceAll('%', '')) ?? 0.0;
-      parsedMoves.add({'uci': m.move, 'wp': wp});
+      parsedMoves.add({
+        'uci': m.move,
+        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
+      });
     }
 
-    // Ordinamento
-    parsedMoves.sort(
-      (a, b) => (b['wp'] as double).compareTo(a['wp'] as double),
-    );
+    if (parsedMoves.isEmpty) return null;
+
     double topScore = parsedMoves.first['wp'];
+    if (topScore < 40.0) return parsedMoves.first['uci'];
 
-    // Se la mossa migliore fa schifo, usciamo dal libro (Bailout)
-    if (topScore < 40.0) return null;
-
-    // Selezioniamo l'Élite (almeno 48% di vittoria e a non più di 2 punti dalla migliore)
-    List<Map<String, dynamic>> eliteMoves = parsedMoves.where((m) {
-      double wp = m['wp'];
-      return wp >= 48.0 && (topScore - wp) <= 2.0;
-    }).toList();
-
+    List<Map<String, dynamic>> eliteMoves = parsedMoves
+        .take(3)
+        .where((m) => m['wp'] >= 45.0)
+        .toList();
     if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
 
-    // Assegnazione Biglietti Lotteria (Esponenziale)
     List<double> weights = [];
     double totalWeight = 0.0;
-    for (var m in eliteMoves) {
-      double weight = pow(2.5, m['wp'] - 48.0).toDouble();
+    for (int i = 0; i < eliteMoves.length; i++) {
+      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
       weights.add(weight);
       totalWeight += weight;
     }
 
     double randomVal = Random().nextDouble() * totalWeight;
     double current = 0.0;
-
     for (int i = 0; i < eliteMoves.length; i++) {
       current += weights[i];
-      if (randomVal <= current) {
-        return eliteMoves[i]['uci'];
-      }
+      if (randomVal <= current) return eliteMoves[i]['uci'];
     }
-
-    return eliteMoves.last['uci'];
+    return eliteMoves.first['uci'];
   }
 
   void _listenToEngine() {
@@ -158,56 +143,112 @@ class PlayOrchestrator {
 
       if (line.startsWith('bestmove')) {
         final parts = line.split(' ');
-        if (parts.length > 1 && parts[1] != '(none)') {
-          _executeMoveOnBoard(parts[1]);
+        if (parts.length > 1) {
+          String best = parts[1].toLowerCase();
+
+          if (best == '(none)' || best == '0000' || best == 'resign') {
+            bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
+            String winner = isWhiteTurn
+                ? "0-1 (Vince il Nero)"
+                : "1-0 (Vince il Bianco)";
+            String reason = (best == 'resign')
+                ? "per Abbandono"
+                : "per Fine Partita";
+
+            if (!_checkStatus()) {
+              onGameOver("$winner $reason");
+            }
+            stop();
+          } else {
+            _executeMoveOnBoard(best, fromBook: false);
+          }
         }
       }
     });
   }
 
-  void _executeMoveOnBoard(String uciMove) {
-    String fromSq = uciMove.substring(0, 2);
-    String toSq = uciMove.substring(2, 4);
-    if (uciMove.length == 5) {
-      boardController.makeMoveWithPromotion(
-        from: fromSq,
-        to: toSq,
-        pieceToPromoteTo: uciMove[4],
-      );
-    } else {
-      boardController.makeMove(from: fromSq, to: toSq);
-    }
+  void _executeMoveOnBoard(String uciMove, {bool fromBook = false}) {
+    try {
+      if (uciMove.length >= 4) {
+        String fromSq = uciMove.substring(0, 2);
+        String toSq = uciMove.substring(2, 4);
+        if (uciMove.length == 5)
+          boardController.makeMoveWithPromotion(
+            from: fromSq,
+            to: toSq,
+            pieceToPromoteTo: uciMove[4],
+          );
+        else
+          boardController.makeMove(from: fromSq, to: toSq);
+      }
+    } catch (_) {}
 
-    onLog("🤖 Computer gioca: $uciMove");
+    String newKey = _getPosKey(boardController.getFen());
+    _positionCount[newKey] = (_positionCount[newKey] ?? 0) + 1;
+
     _isEngineThinking = false;
 
-    // --- AGGIORNAMENTO OROLOGIO INTERNO ---
     if (tcType == 0 && _lastEngineStart != null) {
       int elapsed = DateTime.now().difference(_lastEngineStart!).inMilliseconds;
-      // Diamo al motore un limite minimo di 1 secondo per evitare crash da timeout
       if (boardController.getFen().contains(" b ")) {
-        // È il turno del nero, quindi ha appena mosso il bianco (motore)
-        _wtime = (_wtime - elapsed + incMs).clamp(1000, 9999999);
+        _wtime -= elapsed;
+        if (_wtime <= 0) {
+          onGameOver("0-1 (Vince il Nero per il Tempo)");
+          stop();
+          return;
+        }
+        _wtime += incMs;
       } else {
-        _btime = (_btime - elapsed + incMs).clamp(1000, 9999999);
+        _btime -= elapsed;
+        if (_btime <= 0) {
+          onGameOver("1-0 (Vince il Bianco per il Tempo)");
+          stop();
+          return;
+        }
+        _btime += incMs;
       }
     }
-    // --------------------------------------
 
-    _checkStatus();
+    if (_checkStatus()) {
+      stop();
+    }
   }
 
   bool _checkStatus() {
-    if (boardController.game.in_checkmate) {
-      onGameOver("SCACCOMATTO! La partita è finita.");
-      return true;
-    } else if (boardController.game.in_draw) {
-      onGameOver("PATTA! La partita è finita in pareggio.");
-      return true;
-    } else if (boardController.game.in_stalemate) {
-      onGameOver("STALLO! Pareggio.");
+    var legalMoves = boardController.game.generate_moves();
+
+    if (boardController.game.in_checkmate || legalMoves.isEmpty) {
+      if (boardController.game.in_check) {
+        bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
+        onGameOver(
+          isWhiteTurn ? "0-1 (Vince il Nero)" : "1-0 (Vince il Bianco)",
+        );
+      } else {
+        onGameOver("1/2-1/2 (Stallo)");
+      }
       return true;
     }
+
+    String currentKey = _getPosKey(boardController.getFen());
+    if ((_positionCount[currentKey] ?? 0) >= 3) {
+      onGameOver("1/2-1/2 (Patta per Ripetizione)");
+      return true;
+    }
+
+    List<String> fenParts = boardController.getFen().split(' ');
+    int halfMoves = fenParts.length > 4 ? (int.tryParse(fenParts[4]) ?? 0) : 0;
+    if (halfMoves >= 100) {
+      onGameOver("1/2-1/2 (Regola delle 50 Mosse)");
+      return true;
+    }
+
+    if (boardController.game.in_draw ||
+        boardController.game.in_stalemate ||
+        boardController.game.insufficient_material) {
+      onGameOver("1/2-1/2 (Patta)");
+      return true;
+    }
+
     return false;
   }
 

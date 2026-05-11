@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
-// Funzione top-level per isolare la scrittura NNUE in background
 Future<void> _writeNnueFile(Map<String, dynamic> args) async {
   await File(
     args['path'] as String,
@@ -16,8 +15,8 @@ Future<void> _writeNnueFile(Map<String, dynamic> args) async {
 class EngineManager {
   static const platform = MethodChannel('com.shashgui.engine/native');
   Process? _process;
+  bool _isDead = true;
 
-  // Usiamo un Controller per mantenere viva la connessione!
   StreamController<String>? _outputController;
   Stream<String>? get engineOutput => _outputController?.stream;
 
@@ -31,26 +30,19 @@ class EngineManager {
     final String enginePath = p.join(libDir, 'lib$engineName.so');
 
     final docDir = await getApplicationDocumentsDirectory();
-
     for (String nnue in nnueFiles) {
       final file = File(p.join(docDir.path, nnue));
       final byteData = await rootBundle.load('assets/engine/$nnue');
 
-      // FIX ANTI-CORRUZIONE: Estrae la rete se non esiste o se il peso in byte è sbagliato!
       bool needsExtraction = !await file.exists();
       if (!needsExtraction) {
         final size = await file.length();
         if (size != byteData.lengthInBytes) {
-          debugPrint(
-            "Rete $nnue corrotta ($size bytes). Re-estrazione forzata...",
-          );
           needsExtraction = true;
         }
       }
 
       if (needsExtraction) {
-        debugPrint("Estrazione rete neurale: $nnue...");
-        // compute() esegue la scrittura in un isolate separato, sbloccando la UI
         await compute(_writeNnueFile, {
           'path': file.path,
           'bytes': byteData.buffer.asUint8List(
@@ -62,11 +54,20 @@ class EngineManager {
     }
 
     _process = await Process.start(enginePath, []);
+    _isDead = false;
 
-    // Creiamo la stazione radio che non si spegne MAI (nemmeno a 0 ascoltatori)
+    _process!.exitCode.then((code) {
+      debugPrint(
+        "💀 Motore $engineName terminato autonomamente (codice $code)",
+      );
+      _isDead = true;
+    });
+
+    // ⚠️ LA MAGIA ANTI-FREEZE: Consumiamo il canale degli errori per evitare blocchi del buffer OS
+    _process!.stderr.listen((_) {});
+
     _outputController = StreamController<String>.broadcast();
 
-    // Attacchiamo il motore alla stazione radio in modo permanente
     _process!.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
@@ -97,7 +98,6 @@ class EngineManager {
 
     sendCommand('isready');
 
-    // Aspettiamo che il motore sia davvero pronto (timeout sicurezza 60s )
     await readyCompleter.future.timeout(
       const Duration(seconds: 60),
       onTimeout: () => debugPrint('⚠️ Timeout readyok'),
@@ -105,16 +105,34 @@ class EngineManager {
   }
 
   void sendCommand(String command) {
-    if (_process != null) {
-      debugPrint("-> INVIATO: $command");
-      _process!.stdin.writeln(command);
+    if (_process != null && !_isDead) {
+      try {
+        _process!.stdin.writeln(command);
+      } catch (_) {}
     }
   }
 
   void dispose() {
-    sendCommand('quit');
-    _process?.kill();
-    _outputController?.close(); // Chiudiamo il controller correttamente
+    final processToKill = _process;
+    _process = null;
+    _isDead = true;
+
+    if (processToKill != null) {
+      // ⚠️ LA SOLUZIONE DEFINITIVA AL FREEZE ⚠️
+      // 1. Nessun invio della parola 'quit'.
+      // 2. Isoliamo l'uccisione del processo in un task asincrono invisibile al Main Thread.
+      Future.microtask(() {
+        try {
+          processToKill.kill();
+        } catch (e) {
+          debugPrint("Errore durante kill OS: $e");
+        }
+      });
+    }
+
+    try {
+      _outputController?.close();
+    } catch (_) {}
     _outputController = null;
   }
 }

@@ -545,4 +545,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logEvalComplete => '✅ Crossed evaluation complete.';
+
+  @override
+  String get impostazioni => 'Settings';
+
+  @override
+  String get informazioniSuShashGui => 'About ShashGui';
+
+  @override
+  String get modalitaGiocoInArrivo => 'Game Mode (Coming Soon)';
+
+  @override
+  String get impostaEGioca => 'Set up the game and press Play';
+
+  @override
+  String get minuti => 'Minutes:';
+
+  @override
+  String get secondi => 'Seconds:';
 }

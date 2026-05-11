@@ -333,5 +333,16 @@
   "advVisionIgnored3": "guarantees peak activity).",
   "@advVisionIgnored3": {},
   "logEvalComplete": "✅ Crossed evaluation complete.",
-  "@logEvalComplete": {}
+  "@logEvalComplete": {},
+  "impostazioni": "Settings",
+  "@impostazioni": {},
+  "informazioniSuShashGui": "About ShashGui",
+  "@informazioniSuShashGui": {},
+  "modalitaGiocoInArrivo": "Game Mode (Coming Soon)",
+  "@modalitaGiocoInArrivo": {},
+  "impostaEGioca": "Set up the game and press Play",
+  "minuti": "Minutes:",
+  "@minuti": {},
+  "secondi": "Seconds:",
+  "@secondi": {}
 }

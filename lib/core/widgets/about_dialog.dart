@@ -61,10 +61,15 @@ void showShashGuiAboutDialog(BuildContext context) {
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 15),
-            const Text(
-              "Interfaccia grafica avanzata per l'analisi posizionale a due fasi, l'elaborazione di dati scacchistici e l'estrazione di tratti dinamici.",
+            Text(
+              // <-- Niente "const" qui!
+              loc.aboutDesc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                height: 1.4,
+              ),
             ),
           ],
         ),

@@ -548,4 +548,22 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get logEvalComplete => '✅ Valutazione incrociata completata.';
+
+  @override
+  String get impostazioni => 'Impostazioni';
+
+  @override
+  String get informazioniSuShashGui => 'Informazioni su ShashGui';
+
+  @override
+  String get modalitaGiocoInArrivo => 'Modalità Gioco (In Arrivo)';
+
+  @override
+  String get impostaEGioca => 'Imposta la partita e premi Gioca';
+
+  @override
+  String get minuti => 'Minuti:';
+
+  @override
+  String get secondi => 'Secondi:';
 }
