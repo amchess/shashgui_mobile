@@ -1,7 +1,7 @@
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'
-    hide Color; // Fix per conflitto classi Color
+import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import '../../../../l10n/app_localizations.dart';
 import '../domain/play_controller.dart';
 
@@ -28,7 +28,6 @@ class PlayScreen extends ConsumerWidget {
             width: double.infinity,
             color: Colors.black26,
             child: Text(
-              // Traduzione dinamica della frase di benvenuto
               state.logMessage == "Imposta la partita e premi Gioca"
                   ? loc.impostaEGioca
                   : state.logMessage,
@@ -214,7 +213,7 @@ class PlayScreen extends ConsumerWidget {
                     const Divider(color: Colors.white24, height: 24),
                   ],
 
-                  // --- CONTROLLO TEMPO (FISCHER VS FISSO) ---
+                  // --- CONTROLLO TEMPO ---
                   Row(
                     children: [
                       Expanded(
@@ -259,6 +258,7 @@ class PlayScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [

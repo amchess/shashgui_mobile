@@ -24,7 +24,8 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        // ⚠️ FIX: Sostituito withOpacity(0.3) con withValues(alpha: 0.3)
+        color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -75,7 +76,6 @@ class AnalysisPanel extends ConsumerWidget {
             ),
             const Divider(color: Colors.white12, height: 20),
           ] else if (engineState.isRunning) ...[
-            // ⚠️ FIX: Logo visibile nell'Analisi Normale!
             Center(
               child: _buildPlayerBadge(
                 engineState.selectedEngine,
@@ -83,8 +83,7 @@ class AnalysisPanel extends ConsumerWidget {
                 true,
                 1,
                 0,
-                hideTime:
-                    true, // Nascondiamo l'orologio perché in analisi libera non serve
+                hideTime: true,
               ),
             ),
             const Divider(color: Colors.white12, height: 20),
@@ -113,7 +112,8 @@ class AnalysisPanel extends ConsumerWidget {
               ),
               CircleAvatar(
                 radius: 20,
-                backgroundColor: zone.color.withOpacity(0.2),
+                // ⚠️ FIX: Sostituito withOpacity(0.2) con withValues(alpha: 0.2)
+                backgroundColor: zone.color.withValues(alpha: 0.2),
                 backgroundImage: AssetImage(zone.avatars.first),
               ),
             ],
@@ -161,7 +161,6 @@ class AnalysisPanel extends ConsumerWidget {
     );
   }
 
-  // Modificato per accettare "hideTime"
   Widget _buildPlayerBadge(
     String name,
     int timeMs,
@@ -184,9 +183,10 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
+        // ⚠️ FIX: Sostituiti i withOpacity con withValues(alpha: ...)
         color: isWhite
-            ? Colors.white.withOpacity(0.9)
-            : Colors.black.withOpacity(0.6),
+            ? Colors.white.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: isWhite ? Colors.white : Colors.grey[700]!),
       ),

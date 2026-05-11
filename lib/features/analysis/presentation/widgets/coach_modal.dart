@@ -192,7 +192,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.orangeAccent.withOpacity(0.5),
+                    // ⚠️ FIX: Sostituito withOpacity(0.5) con withValues(alpha: 0.5)
+                    color: Colors.orangeAccent.withValues(alpha: 0.5),
                   ),
                 ),
                 child: SingleChildScrollView(

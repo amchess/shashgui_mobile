@@ -104,10 +104,13 @@ class AnalysisScreen extends ConsumerWidget {
                       final file = File(path);
 
                       if (await file.exists()) {
-                        await Share.shareXFiles(
-                          [XFile(path)],
-                          text:
-                              'Ecco i risultati del torneo Gauntlet su ShashGui Mobile!',
+                        // ⚠️ FIX DEPRECATION: Usiamo la nuova sintassi della libreria share_plus!
+                        await SharePlus.instance.share(
+                          ShareParams(
+                            files: [XFile(path)],
+                            text:
+                                'Ecco i risultati del torneo Gauntlet su ShashGui Mobile!',
+                          ),
                         );
                       } else {
                         if (ctx.mounted) {
@@ -171,7 +174,7 @@ class AnalysisScreen extends ConsumerWidget {
         children: [
           Expanded(flex: 6, child: Center(child: BoardSection())),
 
-          // ⚠️ ECCO LA FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI!
+          // FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: NotationPanel(),

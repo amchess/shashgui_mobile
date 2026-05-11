@@ -58,7 +58,8 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
           BoardArrow(
             from: bestMove.substring(0, 2),
             to: bestMove.substring(2, 4),
-            color: Colors.redAccent.withOpacity(0.7),
+            // ⚠️ FIX: Sostituito withOpacity(0.7) con withValues(alpha: 0.7)
+            color: Colors.redAccent.withValues(alpha: 0.7),
           ),
         );
       }

@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -217,7 +218,7 @@ class AutoplayModal extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            // CADENZA E OROLOGI
+            // CADENZA E OROLOGI CON RADIO GROUP
             Row(
               children: [
                 Expanded(
@@ -252,6 +253,7 @@ class AutoplayModal extends ConsumerWidget {
                 ),
               ],
             ),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -320,7 +322,7 @@ class AutoplayModal extends ConsumerWidget {
               ],
             ),
 
-            // ⚠️ NUOVA SEZIONE: POSIZIONE E COLORI
+            // POSIZIONE E COLORI
             const Divider(color: Colors.white24, height: 32),
             Text(
               "POSIZIONE INIZIALE E COLORI",

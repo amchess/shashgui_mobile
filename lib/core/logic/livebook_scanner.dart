@@ -25,10 +25,11 @@ class LiveBookScanner {
     List<String> moveHistory,
     bool isShashChess,
   ) async {
-    if (isShashChess)
+    if (isShashChess) {
       return await _scanChessDb(fen);
-    else
+    } else {
       return await _scanLichess(fen, moveHistory);
+    }
   }
 
   static String _stripHtml(String htmlString) {
@@ -66,7 +67,6 @@ class LiveBookScanner {
             return 0.0;
           }
 
-          // ⚠️ FIX: NESSUN ORDINAMENTO MANUALE. Ci fidiamo di ChessDB!
           for (int i = 0; i < moves.length; i++) {
             String uci = moves[i]['uci'];
             double winrate = parseSafeDouble(moves[i]['winrate']);
@@ -84,7 +84,6 @@ class LiveBookScanner {
         }
       }
 
-      // Scraping Commento
       try {
         final webUrl =
             "https://www.chessdb.cn/queryc_en/?${fen.replaceAll(' ', '_')}";
@@ -116,26 +115,29 @@ class LiveBookScanner {
         String side = isWhiteTurn ? "White's" : "Black's";
         String oppSide = isWhiteTurn ? "Black" : "White";
         aiComment = "From $side view the position is ";
-        if (bestWp >= 60.0)
+        if (bestWp >= 60.0) {
           aiComment +=
               "clearly dominant, offering excellent winning chances.\n";
-        else if (bestWp >= 53.0)
+        } else if (bestWp >= 53.0) {
           aiComment +=
               "slightly better, with a solid edge and a promising initiative.\n";
-        else if (bestWp <= 40.0)
+        } else if (bestWp <= 40.0) {
           aiComment += "critical: $oppSide has seized control of the game.\n";
-        else if (bestWp <= 47.0)
+        } else if (bestWp <= 47.0) {
           aiComment += "under uncomfortable pressure from $oppSide.\n";
-        else
+        } else {
           aiComment +=
               "perfectly balanced, with no clear advantage either side;\nany of the usual opening moves maintain equality and simply set the stage for the ensuing struggle.\n";
+        }
         aiComment +=
             "The strongest continuation is $bestSan (${bestWp.toStringAsFixed(1)}%).";
       }
-      if (results.isEmpty)
+
+      if (results.isEmpty) {
         results.add(
           LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),
         );
+      }
 
       return LiveBookResult(
         moves: results,
@@ -162,7 +164,6 @@ class LiveBookScanner {
         'User-Agent': 'ShashGuiMobileApp/1.0',
       };
 
-      // TRUCCO NINJA ORIGINALE RIPRISTINATO
       final String p1 = 'lip_a8aj0hJH';
       final String p2 = 'FE43DEwGnFKc';
       requestHeaders['Authorization'] = 'Bearer $p1$p2';
@@ -171,18 +172,21 @@ class LiveBookScanner {
           .get(Uri.parse(url), headers: requestHeaders)
           .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 401)
+      if (response.statusCode == 401) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Token Scaduto")],
         );
-      if (response.statusCode == 429)
+      }
+      if (response.statusCode == 429) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Lichess Busy")],
         );
-      if (response.statusCode == 404)
+      }
+      if (response.statusCode == 404) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
         );
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -202,10 +206,11 @@ class LiveBookScanner {
           for (int i = 0; i < moveHistory.length; i++) {
             int turn = (i ~/ 2) + 1;
             String cleanMove = moveHistory[i].replaceAll(RegExp(r'[+#?!]'), '');
-            if (i % 2 == 0)
+            if (i % 2 == 0) {
               currentPath += "/$turn._$cleanMove";
-            else
+            } else {
               currentPath += "/$turn...$cleanMove";
+            }
             pathsToTry.add(currentPath);
           }
           for (String path in pathsToTry.reversed) {
@@ -278,10 +283,12 @@ class LiveBookScanner {
               ),
             );
           }
-          if (results.isEmpty)
+
+          if (results.isEmpty) {
             results.add(
               LiveBookMove(move: "-", description: "Nessuna Teoria Lichess"),
             );
+          }
 
           return LiveBookResult(
             moves: results,

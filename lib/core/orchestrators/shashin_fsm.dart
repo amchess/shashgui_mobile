@@ -80,8 +80,9 @@ class ShashinFsm {
       // ⚠️ FIX ANTI 0/0
       if (!line.contains("depth") &&
           !line.contains("nodes") &&
-          !line.contains("pv"))
+          !line.contains("pv")) {
         return;
+      }
 
       int depth =
           int.tryParse(

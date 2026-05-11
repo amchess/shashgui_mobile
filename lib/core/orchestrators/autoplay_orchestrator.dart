@@ -1,7 +1,7 @@
 // lib/core/orchestrators/autoplay_orchestrator.dart
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/material.dart'; // ⚠️ FIX 1: Risolve l'errore "Colors"
+import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
@@ -77,7 +77,9 @@ class AutoplayOrchestrator {
   String _getPosKey(String fen) => fen.split(' ').take(4).join(' ');
 
   void startMatch() {
-    if (_isRunning) return;
+    if (_isRunning) {
+      return;
+    }
     _isRunning = true;
     _isGameOver = false;
     _whiteOutOfBook = !whiteUseLivebook;
@@ -100,8 +102,12 @@ class AutoplayOrchestrator {
   }
 
   void playNextTurn() async {
-    if (!_isRunning || _isGameOver) return;
-    if (_isEngineThinking) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
+    if (_isEngineThinking) {
+      return;
+    }
 
     if (_checkStatus()) {
       _forceGameOver(null);
@@ -131,16 +137,18 @@ class AutoplayOrchestrator {
           return;
         } else {
           onLog("📉 Livebook esaurito per il $colorName.");
-          if (isWhiteTurn)
+          if (isWhiteTurn) {
             _whiteOutOfBook = true;
-          else
+          } else {
             _blackOutOfBook = true;
+          }
         }
       } catch (e) {
-        if (isWhiteTurn)
+        if (isWhiteTurn) {
           _whiteOutOfBook = true;
-        else
+        } else {
           _blackOutOfBook = true;
+        }
       }
     }
 
@@ -180,12 +188,16 @@ class AutoplayOrchestrator {
   }
 
   void _handleEngineOutput(String line, PlayerColor engineColor) {
-    if (!_isRunning || _isGameOver) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
 
     PlayerColor currentTurn = boardController.getFen().split(' ')[1] == 'w'
         ? PlayerColor.white
         : PlayerColor.black;
-    if (currentTurn != engineColor) return;
+    if (currentTurn != engineColor) {
+      return;
+    }
 
     final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
     if (wdlMatch != null) {
@@ -204,7 +216,9 @@ class AutoplayOrchestrator {
       _watchdogTimer?.cancel();
       _watchdogTimer = null;
 
-      if (!_isEngineThinking) return;
+      if (!_isEngineThinking) {
+        return;
+      }
 
       final parts = line.split(' ');
       if (parts.length > 1) {
@@ -228,8 +242,10 @@ class AutoplayOrchestrator {
   void _parseInfoLine(String line) {
     if (!line.contains("depth") &&
         !line.contains("nodes") &&
-        !line.contains("pv"))
+        !line.contains("pv")) {
       return;
+    }
+
     int depth =
         int.tryParse(
           RegExp(r"depth (\d+)").firstMatch(line)?.group(1) ?? "0",
@@ -249,7 +265,11 @@ class AutoplayOrchestrator {
         int.tryParse(RegExp(r"nps (\d+)").firstMatch(line)?.group(1) ?? "0") ??
         0;
     String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
-    if (depth == 0 && nodes == 0) return;
+
+    if (depth == 0 && nodes == 0) {
+      return;
+    }
+
     final now = DateTime.now();
     if (now.difference(_lastStatsTime).inMilliseconds > 200) {
       _lastStatsTime = now;
@@ -266,7 +286,9 @@ class AutoplayOrchestrator {
   }
 
   void _executeMoveOnBoard(String uciMove, {bool fromBook = false}) {
-    if (!_isRunning || _isGameOver) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
 
     try {
       if (uciMove.length >= 4) {
@@ -318,14 +340,16 @@ class AutoplayOrchestrator {
   }
 
   bool _checkStatus() {
-    if (_isGameOver) return true;
+    if (_isGameOver) {
+      return true;
+    }
 
     bool isCheckmate = boardController.game.in_checkmate;
     bool isStalemate = boardController.game.in_stalemate;
     bool insufficient = boardController.game.insufficient_material;
     bool noMoves = boardController.game.generate_moves().isEmpty;
 
-    // 2. Controllo manuale sicuro leggendo la FEN (⚠️ FIX 2: Previene crash sui pezzi C++)
+    // 2. Controllo manuale sicuro leggendo la FEN
     if (!insufficient) {
       insufficient = _isInsufficientMaterial();
     }
@@ -363,7 +387,6 @@ class AutoplayOrchestrator {
     return false;
   }
 
-  // ⚠️ FIX: Il metodo a prova di bomba per contare i pezzi leggendo la FEN
   bool _isInsufficientMaterial() {
     String piecesOnly = boardController.getFen().split(' ')[0];
 
@@ -373,36 +396,48 @@ class AutoplayOrchestrator {
 
     for (int i = 0; i < piecesOnly.length; i++) {
       String p = piecesOnly[i];
-      if (p == '/' || int.tryParse(p) != null) continue;
+      if (p == '/' || int.tryParse(p) != null) {
+        continue;
+      }
 
-      if (p == 'K')
+      if (p == 'K') {
         whitePieces++;
-      else if (p == 'k')
+      } else if (p == 'k') {
         blackPieces++;
-      else if (p == 'N' || p == 'B') {
+      } else if (p == 'N' || p == 'B') {
         whitePieces++;
         whiteHasMinor = true;
       } else if (p == 'n' || p == 'b') {
         blackPieces++;
         blackHasMinor = true;
       } else {
-        hasMajorOrPawn = true; // Se ci sono Donne, Torri o Pedoni, si continua!
+        hasMajorOrPawn = true;
       }
     }
 
-    if (hasMajorOrPawn) return false;
+    if (hasMajorOrPawn) {
+      return false;
+    }
 
     // Solo Re (1 vs 1)
-    if (whitePieces == 1 && blackPieces == 1) return true;
+    if (whitePieces == 1 && blackPieces == 1) {
+      return true;
+    }
     // Re + Alfiere/Cavallo vs Re
-    if (whitePieces == 2 && whiteHasMinor && blackPieces == 1) return true;
-    if (blackPieces == 2 && blackHasMinor && whitePieces == 1) return true;
+    if (whitePieces == 2 && whiteHasMinor && blackPieces == 1) {
+      return true;
+    }
+    if (blackPieces == 2 && blackHasMinor && whitePieces == 1) {
+      return true;
+    }
 
     return false;
   }
 
   void _forceGameOver(String? customMessage) {
-    if (_isGameOver) return;
+    if (_isGameOver) {
+      return;
+    }
     _isGameOver = true;
     _isRunning = false;
     _isEngineThinking = false;
@@ -432,8 +467,9 @@ class AutoplayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
@@ -443,16 +479,23 @@ class AutoplayOrchestrator {
       });
     }
 
-    if (parsedMoves.isEmpty) return null;
+    if (parsedMoves.isEmpty) {
+      return null;
+    }
 
     double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) return parsedMoves.first['uci'];
+    if (topScore < 40.0) {
+      return parsedMoves.first['uci'];
+    }
 
     List<Map<String, dynamic>> eliteMoves = parsedMoves
         .take(3)
         .where((m) => m['wp'] >= 45.0)
         .toList();
-    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    if (eliteMoves.isEmpty) {
+      return parsedMoves.first['uci'];
+    }
 
     List<double> weights = [];
     double totalWeight = 0.0;
@@ -466,7 +509,9 @@ class AutoplayOrchestrator {
     double current = 0.0;
     for (int i = 0; i < eliteMoves.length; i++) {
       current += weights[i];
-      if (randomVal <= current) return eliteMoves[i]['uci'];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
     }
     return eliteMoves.first['uci'];
   }

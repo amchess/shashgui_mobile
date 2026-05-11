@@ -51,7 +51,9 @@ class PlayOrchestrator {
   }
 
   void playCycle() async {
-    if (_isEngineThinking) return;
+    if (_isEngineThinking) {
+      return;
+    }
     if (_checkStatus()) {
       stop();
       return;
@@ -98,8 +100,9 @@ class PlayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
@@ -109,16 +112,23 @@ class PlayOrchestrator {
       });
     }
 
-    if (parsedMoves.isEmpty) return null;
+    if (parsedMoves.isEmpty) {
+      return null;
+    }
 
     double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) return parsedMoves.first['uci'];
+    if (topScore < 40.0) {
+      return parsedMoves.first['uci'];
+    }
 
     List<Map<String, dynamic>> eliteMoves = parsedMoves
         .take(3)
         .where((m) => m['wp'] >= 45.0)
         .toList();
-    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    if (eliteMoves.isEmpty) {
+      return parsedMoves.first['uci'];
+    }
 
     List<double> weights = [];
     double totalWeight = 0.0;
@@ -132,14 +142,18 @@ class PlayOrchestrator {
     double current = 0.0;
     for (int i = 0; i < eliteMoves.length; i++) {
       current += weights[i];
-      if (randomVal <= current) return eliteMoves[i]['uci'];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
     }
     return eliteMoves.first['uci'];
   }
 
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
-      if (!_isEngineThinking) return;
+      if (!_isEngineThinking) {
+        return;
+      }
 
       if (line.startsWith('bestmove')) {
         final parts = line.split(' ');
@@ -172,14 +186,15 @@ class PlayOrchestrator {
       if (uciMove.length >= 4) {
         String fromSq = uciMove.substring(0, 2);
         String toSq = uciMove.substring(2, 4);
-        if (uciMove.length == 5)
+        if (uciMove.length == 5) {
           boardController.makeMoveWithPromotion(
             from: fromSq,
             to: toSq,
             pieceToPromoteTo: uciMove[4],
           );
-        else
+        } else {
           boardController.makeMove(from: fromSq, to: toSq);
+        }
       }
     } catch (_) {}
 

@@ -25,7 +25,6 @@ class AutoplayState {
   final double scoreBlack;
   final int draws;
 
-  // ⚠️ NUOVO: Variabili per Posizione di Partenza e Colori
   final bool useCurrentPosition;
   final bool reverseColors;
   final String savedStartingFen;
@@ -137,7 +136,6 @@ class AutoplayController extends StateNotifier<AutoplayState> {
   void setBaseTime(int t) => state = state.copyWith(baseTime: t);
   void setIncrement(int i) => state = state.copyWith(increment: i);
 
-  // ⚠️ NUOVI METODI
   void setUseCurrentPosition(bool v) =>
       state = state.copyWith(useCurrentPosition: v);
   void setReverseColors(bool v) => state = state.copyWith(reverseColors: v);
@@ -149,10 +147,11 @@ class AutoplayController extends StateNotifier<AutoplayState> {
     final boardCtrl = ref.read(boardControllerProvider);
 
     if (!isRestart) {
-      if (ref.read(engineControllerProvider).isRunning)
+      // ⚠️ FIX: Aggiunte le graffe
+      if (ref.read(engineControllerProvider).isRunning) {
         ref.read(engineControllerProvider.notifier).stopEngine();
+      }
 
-      // ⚠️ SALVATAGGIO FEN INIZIALE AL PRIMO ROUND
       String fenToUse = state.useCurrentPosition
           ? boardCtrl.getFen()
           : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -178,7 +177,6 @@ class AutoplayController extends StateNotifier<AutoplayState> {
           : state.baseTime * 1000,
     );
 
-    // ⚠️ CARICHIAMO LA POSIZIONE CORRETTA AD OGNI ROUND
     boardCtrl.loadFen(state.savedStartingFen);
 
     _whiteManager?.dispose();
@@ -221,21 +219,29 @@ class AutoplayController extends StateNotifier<AutoplayState> {
   }
 
   void _handleEndOfGame(BuildContext context, String? result) async {
+    // Salvataggio Database (operazione asincrona che richiede tempo)
     await _saveMatchToDatabase(result);
 
-    if (result!.contains("1-0"))
+    // ⚠️ FIX: Controllo di sicurezza "mounted" dopo l'await!
+    // Assicura che la schermata non sia stata chiusa mentre salvavamo il file.
+    if (!context.mounted) {
+      return;
+    }
+
+    // ⚠️ FIX: Aggiunte le graffe a tutta la catena if/else if/else
+    if (result!.contains("1-0")) {
       state = state.copyWith(scoreWhite: state.scoreWhite + 1);
-    else if (result.contains("0-1"))
+    } else if (result.contains("0-1")) {
       state = state.copyWith(scoreBlack: state.scoreBlack + 1);
-    else
+    } else {
       state = state.copyWith(
         draws: state.draws + 1,
         scoreWhite: state.scoreWhite + 0.5,
         scoreBlack: state.scoreBlack + 0.5,
       );
+    }
 
     if (state.currentGame < state.totalGames) {
-      // ⚠️ GESTIONE INVERSIONE COLORI
       if (state.reverseColors) {
         state = state.copyWith(
           currentGame: state.currentGame + 1,
@@ -249,10 +255,13 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       }
 
       onLog("🔄 Preparazione Round ${state.currentGame}...");
-      Future.delayed(
-        const Duration(seconds: 3),
-        () => startMatch(context, isRestart: true),
-      );
+
+      // ⚠️ FIX: Aggiunto un ulteriore controllo context.mounted prima di riavviare
+      Future.delayed(const Duration(seconds: 3), () {
+        if (context.mounted) {
+          startMatch(context, isRestart: true);
+        }
+      });
     } else {
       state = state.copyWith(
         isPlaying: false,
@@ -272,7 +281,7 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       String header = '[Event "Gauntlet Mobile Round ${state.currentGame}"]\n';
       header +=
           '[White "${state.whiteEngine}"]\n[Black "${state.blackEngine}"]\n';
-      // ⚠️ Aggiungiamo il FEN iniziale al PGN salvato se non è quello standard!
+
       if (state.savedStartingFen !=
           "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
         header += '[FEN "${state.savedStartingFen}"]\n[SetUp "1"]\n';
