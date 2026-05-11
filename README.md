@@ -23,3 +23,19 @@ ShashGui Mobile funge da ponte verso la nostra infrastruttura Cloud ad alte pres
 
 ## 📝 Licenza
 Questo progetto include e si interfaccia con i motori scacchistici ShashChess e Alexander, derivati dal progetto open-source Stockfish. Pertanto, l'applicazione mobile è rilasciata sotto licenza **GNU GPLv3**. Vedi il file `LICENSE` per i dettagli completi.
+
+## 🏗️ Architettura del Codice (`lib/`)
+
+L'applicazione è stata reingegnerizzata seguendo i principi della **Clean Architecture** e dello **Slicing per Feature**.
+
+### 🔄 Flusso di Dipendenza
+Il comando scorre verso l'interno, la conoscenza non torna mai indietro:
+`UI (Widget) -> Controller (Riverpod) -> Orchestratore (Core/Native)`
+
+1. **Presentation & Domain (`features/`):** Ogni funzionalità ha il suo stato gestito da un Controller. Il Controller *comanda* l'operazione.
+2. **Infrastructure (`core/orchestrators/`):** Gli orchestratori gestiscono i processi nativi C++ e le macchine a stati (FSM). L'orchestratore *esegue* l'operazione e restituisce i dati tramite callback.
+
+### 🧩 Policy dei Widget
+Per mantenere le cartelle pulite:
+- **Widget di Feature:** Se usato da una sola feature, vive nella cartella `presentation/widgets` della feature stessa[cite: 1788, 1789].
+- **Widget Condivisi:** Se usato da 2+ feature (es. `SetupPositionDialog`), vive in `lib/core/widgets/`[cite: 1787, 1821].
