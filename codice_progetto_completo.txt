@@ -845,10 +845,11 @@ class LiveBookScanner {
     List<String> moveHistory,
     bool isShashChess,
   ) async {
-    if (isShashChess)
+    if (isShashChess) {
       return await _scanChessDb(fen);
-    else
+    } else {
       return await _scanLichess(fen, moveHistory);
+    }
   }
 
   static String _stripHtml(String htmlString) {
@@ -886,7 +887,6 @@ class LiveBookScanner {
             return 0.0;
           }
 
-          // ⚠️ FIX: NESSUN ORDINAMENTO MANUALE. Ci fidiamo di ChessDB!
           for (int i = 0; i < moves.length; i++) {
             String uci = moves[i]['uci'];
             double winrate = parseSafeDouble(moves[i]['winrate']);
@@ -904,7 +904,6 @@ class LiveBookScanner {
         }
       }
 
-      // Scraping Commento
       try {
         final webUrl =
             "https://www.chessdb.cn/queryc_en/?${fen.replaceAll(' ', '_')}";
@@ -936,26 +935,29 @@ class LiveBookScanner {
         String side = isWhiteTurn ? "White's" : "Black's";
         String oppSide = isWhiteTurn ? "Black" : "White";
         aiComment = "From $side view the position is ";
-        if (bestWp >= 60.0)
+        if (bestWp >= 60.0) {
           aiComment +=
               "clearly dominant, offering excellent winning chances.\n";
-        else if (bestWp >= 53.0)
+        } else if (bestWp >= 53.0) {
           aiComment +=
               "slightly better, with a solid edge and a promising initiative.\n";
-        else if (bestWp <= 40.0)
+        } else if (bestWp <= 40.0) {
           aiComment += "critical: $oppSide has seized control of the game.\n";
-        else if (bestWp <= 47.0)
+        } else if (bestWp <= 47.0) {
           aiComment += "under uncomfortable pressure from $oppSide.\n";
-        else
+        } else {
           aiComment +=
               "perfectly balanced, with no clear advantage either side;\nany of the usual opening moves maintain equality and simply set the stage for the ensuing struggle.\n";
+        }
         aiComment +=
             "The strongest continuation is $bestSan (${bestWp.toStringAsFixed(1)}%).";
       }
-      if (results.isEmpty)
+
+      if (results.isEmpty) {
         results.add(
           LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),
         );
+      }
 
       return LiveBookResult(
         moves: results,
@@ -982,7 +984,6 @@ class LiveBookScanner {
         'User-Agent': 'ShashGuiMobileApp/1.0',
       };
 
-      // TRUCCO NINJA ORIGINALE RIPRISTINATO
       final String p1 = 'lip_a8aj0hJH';
       final String p2 = 'FE43DEwGnFKc';
       requestHeaders['Authorization'] = 'Bearer $p1$p2';
@@ -991,18 +992,21 @@ class LiveBookScanner {
           .get(Uri.parse(url), headers: requestHeaders)
           .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 401)
+      if (response.statusCode == 401) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Token Scaduto")],
         );
-      if (response.statusCode == 429)
+      }
+      if (response.statusCode == 429) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "...", description: "Lichess Busy")],
         );
-      if (response.statusCode == 404)
+      }
+      if (response.statusCode == 404) {
         return LiveBookResult(
           moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
         );
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -1022,10 +1026,11 @@ class LiveBookScanner {
           for (int i = 0; i < moveHistory.length; i++) {
             int turn = (i ~/ 2) + 1;
             String cleanMove = moveHistory[i].replaceAll(RegExp(r'[+#?!]'), '');
-            if (i % 2 == 0)
+            if (i % 2 == 0) {
               currentPath += "/$turn._$cleanMove";
-            else
+            } else {
               currentPath += "/$turn...$cleanMove";
+            }
             pathsToTry.add(currentPath);
           }
           for (String path in pathsToTry.reversed) {
@@ -1098,10 +1103,12 @@ class LiveBookScanner {
               ),
             );
           }
-          if (results.isEmpty)
+
+          if (results.isEmpty) {
             results.add(
               LiveBookMove(move: "-", description: "Nessuna Teoria Lichess"),
             );
+          }
 
           return LiveBookResult(
             moves: results,
@@ -1323,7 +1330,7 @@ FILE: lib\core\orchestrators\autoplay_orchestrator.dart
 // lib/core/orchestrators/autoplay_orchestrator.dart
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/material.dart'; // ⚠️ FIX 1: Risolve l'errore "Colors"
+import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
@@ -1399,7 +1406,9 @@ class AutoplayOrchestrator {
   String _getPosKey(String fen) => fen.split(' ').take(4).join(' ');
 
   void startMatch() {
-    if (_isRunning) return;
+    if (_isRunning) {
+      return;
+    }
     _isRunning = true;
     _isGameOver = false;
     _whiteOutOfBook = !whiteUseLivebook;
@@ -1422,8 +1431,12 @@ class AutoplayOrchestrator {
   }
 
   void playNextTurn() async {
-    if (!_isRunning || _isGameOver) return;
-    if (_isEngineThinking) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
+    if (_isEngineThinking) {
+      return;
+    }
 
     if (_checkStatus()) {
       _forceGameOver(null);
@@ -1453,16 +1466,18 @@ class AutoplayOrchestrator {
           return;
         } else {
           onLog("📉 Livebook esaurito per il $colorName.");
-          if (isWhiteTurn)
+          if (isWhiteTurn) {
             _whiteOutOfBook = true;
-          else
+          } else {
             _blackOutOfBook = true;
+          }
         }
       } catch (e) {
-        if (isWhiteTurn)
+        if (isWhiteTurn) {
           _whiteOutOfBook = true;
-        else
+        } else {
           _blackOutOfBook = true;
+        }
       }
     }
 
@@ -1502,12 +1517,16 @@ class AutoplayOrchestrator {
   }
 
   void _handleEngineOutput(String line, PlayerColor engineColor) {
-    if (!_isRunning || _isGameOver) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
 
     PlayerColor currentTurn = boardController.getFen().split(' ')[1] == 'w'
         ? PlayerColor.white
         : PlayerColor.black;
-    if (currentTurn != engineColor) return;
+    if (currentTurn != engineColor) {
+      return;
+    }
 
     final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
     if (wdlMatch != null) {
@@ -1526,7 +1545,9 @@ class AutoplayOrchestrator {
       _watchdogTimer?.cancel();
       _watchdogTimer = null;
 
-      if (!_isEngineThinking) return;
+      if (!_isEngineThinking) {
+        return;
+      }
 
       final parts = line.split(' ');
       if (parts.length > 1) {
@@ -1550,8 +1571,10 @@ class AutoplayOrchestrator {
   void _parseInfoLine(String line) {
     if (!line.contains("depth") &&
         !line.contains("nodes") &&
-        !line.contains("pv"))
+        !line.contains("pv")) {
       return;
+    }
+
     int depth =
         int.tryParse(
           RegExp(r"depth (\d+)").firstMatch(line)?.group(1) ?? "0",
@@ -1571,7 +1594,11 @@ class AutoplayOrchestrator {
         int.tryParse(RegExp(r"nps (\d+)").firstMatch(line)?.group(1) ?? "0") ??
         0;
     String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
-    if (depth == 0 && nodes == 0) return;
+
+    if (depth == 0 && nodes == 0) {
+      return;
+    }
+
     final now = DateTime.now();
     if (now.difference(_lastStatsTime).inMilliseconds > 200) {
       _lastStatsTime = now;
@@ -1588,7 +1615,9 @@ class AutoplayOrchestrator {
   }
 
   void _executeMoveOnBoard(String uciMove, {bool fromBook = false}) {
-    if (!_isRunning || _isGameOver) return;
+    if (!_isRunning || _isGameOver) {
+      return;
+    }
 
     try {
       if (uciMove.length >= 4) {
@@ -1640,14 +1669,16 @@ class AutoplayOrchestrator {
   }
 
   bool _checkStatus() {
-    if (_isGameOver) return true;
+    if (_isGameOver) {
+      return true;
+    }
 
     bool isCheckmate = boardController.game.in_checkmate;
     bool isStalemate = boardController.game.in_stalemate;
     bool insufficient = boardController.game.insufficient_material;
     bool noMoves = boardController.game.generate_moves().isEmpty;
 
-    // 2. Controllo manuale sicuro leggendo la FEN (⚠️ FIX 2: Previene crash sui pezzi C++)
+    // 2. Controllo manuale sicuro leggendo la FEN
     if (!insufficient) {
       insufficient = _isInsufficientMaterial();
     }
@@ -1685,7 +1716,6 @@ class AutoplayOrchestrator {
     return false;
   }
 
-  // ⚠️ FIX: Il metodo a prova di bomba per contare i pezzi leggendo la FEN
   bool _isInsufficientMaterial() {
     String piecesOnly = boardController.getFen().split(' ')[0];
 
@@ -1695,36 +1725,48 @@ class AutoplayOrchestrator {
 
     for (int i = 0; i < piecesOnly.length; i++) {
       String p = piecesOnly[i];
-      if (p == '/' || int.tryParse(p) != null) continue;
+      if (p == '/' || int.tryParse(p) != null) {
+        continue;
+      }
 
-      if (p == 'K')
+      if (p == 'K') {
         whitePieces++;
-      else if (p == 'k')
+      } else if (p == 'k') {
         blackPieces++;
-      else if (p == 'N' || p == 'B') {
+      } else if (p == 'N' || p == 'B') {
         whitePieces++;
         whiteHasMinor = true;
       } else if (p == 'n' || p == 'b') {
         blackPieces++;
         blackHasMinor = true;
       } else {
-        hasMajorOrPawn = true; // Se ci sono Donne, Torri o Pedoni, si continua!
+        hasMajorOrPawn = true;
       }
     }
 
-    if (hasMajorOrPawn) return false;
+    if (hasMajorOrPawn) {
+      return false;
+    }
 
     // Solo Re (1 vs 1)
-    if (whitePieces == 1 && blackPieces == 1) return true;
+    if (whitePieces == 1 && blackPieces == 1) {
+      return true;
+    }
     // Re + Alfiere/Cavallo vs Re
-    if (whitePieces == 2 && whiteHasMinor && blackPieces == 1) return true;
-    if (blackPieces == 2 && blackHasMinor && whitePieces == 1) return true;
+    if (whitePieces == 2 && whiteHasMinor && blackPieces == 1) {
+      return true;
+    }
+    if (blackPieces == 2 && blackHasMinor && whitePieces == 1) {
+      return true;
+    }
 
     return false;
   }
 
   void _forceGameOver(String? customMessage) {
-    if (_isGameOver) return;
+    if (_isGameOver) {
+      return;
+    }
     _isGameOver = true;
     _isRunning = false;
     _isEngineThinking = false;
@@ -1754,8 +1796,9 @@ class AutoplayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
@@ -1765,16 +1808,23 @@ class AutoplayOrchestrator {
       });
     }
 
-    if (parsedMoves.isEmpty) return null;
+    if (parsedMoves.isEmpty) {
+      return null;
+    }
 
     double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) return parsedMoves.first['uci'];
+    if (topScore < 40.0) {
+      return parsedMoves.first['uci'];
+    }
 
     List<Map<String, dynamic>> eliteMoves = parsedMoves
         .take(3)
         .where((m) => m['wp'] >= 45.0)
         .toList();
-    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    if (eliteMoves.isEmpty) {
+      return parsedMoves.first['uci'];
+    }
 
     List<double> weights = [];
     double totalWeight = 0.0;
@@ -1788,7 +1838,9 @@ class AutoplayOrchestrator {
     double current = 0.0;
     for (int i = 0; i < eliteMoves.length; i++) {
       current += weights[i];
-      if (randomVal <= current) return eliteMoves[i]['uci'];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
     }
     return eliteMoves.first['uci'];
   }
@@ -2365,7 +2417,9 @@ class PlayOrchestrator {
   }
 
   void playCycle() async {
-    if (_isEngineThinking) return;
+    if (_isEngineThinking) {
+      return;
+    }
     if (_checkStatus()) {
       stop();
       return;
@@ -2412,8 +2466,9 @@ class PlayOrchestrator {
   String? _applyOracleRoulette(List<LiveBookMove> moves) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
-        moves.first.move.contains("."))
+        moves.first.move.contains(".")) {
       return null;
+    }
 
     List<Map<String, dynamic>> parsedMoves = [];
     for (var m in moves) {
@@ -2423,16 +2478,23 @@ class PlayOrchestrator {
       });
     }
 
-    if (parsedMoves.isEmpty) return null;
+    if (parsedMoves.isEmpty) {
+      return null;
+    }
 
     double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) return parsedMoves.first['uci'];
+    if (topScore < 40.0) {
+      return parsedMoves.first['uci'];
+    }
 
     List<Map<String, dynamic>> eliteMoves = parsedMoves
         .take(3)
         .where((m) => m['wp'] >= 45.0)
         .toList();
-    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    if (eliteMoves.isEmpty) {
+      return parsedMoves.first['uci'];
+    }
 
     List<double> weights = [];
     double totalWeight = 0.0;
@@ -2446,14 +2508,18 @@ class PlayOrchestrator {
     double current = 0.0;
     for (int i = 0; i < eliteMoves.length; i++) {
       current += weights[i];
-      if (randomVal <= current) return eliteMoves[i]['uci'];
+      if (randomVal <= current) {
+        return eliteMoves[i]['uci'];
+      }
     }
     return eliteMoves.first['uci'];
   }
 
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
-      if (!_isEngineThinking) return;
+      if (!_isEngineThinking) {
+        return;
+      }
 
       if (line.startsWith('bestmove')) {
         final parts = line.split(' ');
@@ -2486,14 +2552,15 @@ class PlayOrchestrator {
       if (uciMove.length >= 4) {
         String fromSq = uciMove.substring(0, 2);
         String toSq = uciMove.substring(2, 4);
-        if (uciMove.length == 5)
+        if (uciMove.length == 5) {
           boardController.makeMoveWithPromotion(
             from: fromSq,
             to: toSq,
             pieceToPromoteTo: uciMove[4],
           );
-        else
+        } else {
           boardController.makeMove(from: fromSq, to: toSq);
+        }
       }
     } catch (_) {}
 
@@ -2663,8 +2730,9 @@ class ShashinFsm {
       // ⚠️ FIX ANTI 0/0
       if (!line.contains("depth") &&
           !line.contains("nodes") &&
-          !line.contains("pv"))
+          !line.contains("pv")) {
         return;
+      }
 
       int depth =
           int.tryParse(
@@ -3346,7 +3414,6 @@ class AutoplayState {
   final double scoreBlack;
   final int draws;
 
-  // ⚠️ NUOVO: Variabili per Posizione di Partenza e Colori
   final bool useCurrentPosition;
   final bool reverseColors;
   final String savedStartingFen;
@@ -3458,7 +3525,6 @@ class AutoplayController extends StateNotifier<AutoplayState> {
   void setBaseTime(int t) => state = state.copyWith(baseTime: t);
   void setIncrement(int i) => state = state.copyWith(increment: i);
 
-  // ⚠️ NUOVI METODI
   void setUseCurrentPosition(bool v) =>
       state = state.copyWith(useCurrentPosition: v);
   void setReverseColors(bool v) => state = state.copyWith(reverseColors: v);
@@ -3470,10 +3536,11 @@ class AutoplayController extends StateNotifier<AutoplayState> {
     final boardCtrl = ref.read(boardControllerProvider);
 
     if (!isRestart) {
-      if (ref.read(engineControllerProvider).isRunning)
+      // ⚠️ FIX: Aggiunte le graffe
+      if (ref.read(engineControllerProvider).isRunning) {
         ref.read(engineControllerProvider.notifier).stopEngine();
+      }
 
-      // ⚠️ SALVATAGGIO FEN INIZIALE AL PRIMO ROUND
       String fenToUse = state.useCurrentPosition
           ? boardCtrl.getFen()
           : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -3499,7 +3566,6 @@ class AutoplayController extends StateNotifier<AutoplayState> {
           : state.baseTime * 1000,
     );
 
-    // ⚠️ CARICHIAMO LA POSIZIONE CORRETTA AD OGNI ROUND
     boardCtrl.loadFen(state.savedStartingFen);
 
     _whiteManager?.dispose();
@@ -3542,21 +3608,29 @@ class AutoplayController extends StateNotifier<AutoplayState> {
   }
 
   void _handleEndOfGame(BuildContext context, String? result) async {
+    // Salvataggio Database (operazione asincrona che richiede tempo)
     await _saveMatchToDatabase(result);
 
-    if (result!.contains("1-0"))
+    // ⚠️ FIX: Controllo di sicurezza "mounted" dopo l'await!
+    // Assicura che la schermata non sia stata chiusa mentre salvavamo il file.
+    if (!context.mounted) {
+      return;
+    }
+
+    // ⚠️ FIX: Aggiunte le graffe a tutta la catena if/else if/else
+    if (result!.contains("1-0")) {
       state = state.copyWith(scoreWhite: state.scoreWhite + 1);
-    else if (result.contains("0-1"))
+    } else if (result.contains("0-1")) {
       state = state.copyWith(scoreBlack: state.scoreBlack + 1);
-    else
+    } else {
       state = state.copyWith(
         draws: state.draws + 1,
         scoreWhite: state.scoreWhite + 0.5,
         scoreBlack: state.scoreBlack + 0.5,
       );
+    }
 
     if (state.currentGame < state.totalGames) {
-      // ⚠️ GESTIONE INVERSIONE COLORI
       if (state.reverseColors) {
         state = state.copyWith(
           currentGame: state.currentGame + 1,
@@ -3570,10 +3644,13 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       }
 
       onLog("🔄 Preparazione Round ${state.currentGame}...");
-      Future.delayed(
-        const Duration(seconds: 3),
-        () => startMatch(context, isRestart: true),
-      );
+
+      // ⚠️ FIX: Aggiunto un ulteriore controllo context.mounted prima di riavviare
+      Future.delayed(const Duration(seconds: 3), () {
+        if (context.mounted) {
+          startMatch(context, isRestart: true);
+        }
+      });
     } else {
       state = state.copyWith(
         isPlaying: false,
@@ -3593,7 +3670,7 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       String header = '[Event "Gauntlet Mobile Round ${state.currentGame}"]\n';
       header +=
           '[White "${state.whiteEngine}"]\n[Black "${state.blackEngine}"]\n';
-      // ⚠️ Aggiungiamo il FEN iniziale al PGN salvato se non è quello standard!
+
       if (state.savedStartingFen !=
           "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
         header += '[FEN "${state.savedStartingFen}"]\n[SetUp "1"]\n';
@@ -4001,10 +4078,13 @@ class AnalysisScreen extends ConsumerWidget {
                       final file = File(path);
 
                       if (await file.exists()) {
-                        await Share.shareXFiles(
-                          [XFile(path)],
-                          text:
-                              'Ecco i risultati del torneo Gauntlet su ShashGui Mobile!',
+                        // ⚠️ FIX DEPRECATION: Usiamo la nuova sintassi della libreria share_plus!
+                        await SharePlus.instance.share(
+                          ShareParams(
+                            files: [XFile(path)],
+                            text:
+                                'Ecco i risultati del torneo Gauntlet su ShashGui Mobile!',
+                          ),
                         );
                       } else {
                         if (ctx.mounted) {
@@ -4068,7 +4148,7 @@ class AnalysisScreen extends ConsumerWidget {
         children: [
           Expanded(flex: 6, child: Center(child: BoardSection())),
 
-          // ⚠️ ECCO LA FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI!
+          // FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: NotationPanel(),
@@ -4118,7 +4198,8 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        // ⚠️ FIX: Sostituito withOpacity(0.3) con withValues(alpha: 0.3)
+        color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -4169,7 +4250,6 @@ class AnalysisPanel extends ConsumerWidget {
             ),
             const Divider(color: Colors.white12, height: 20),
           ] else if (engineState.isRunning) ...[
-            // ⚠️ FIX: Logo visibile nell'Analisi Normale!
             Center(
               child: _buildPlayerBadge(
                 engineState.selectedEngine,
@@ -4177,8 +4257,7 @@ class AnalysisPanel extends ConsumerWidget {
                 true,
                 1,
                 0,
-                hideTime:
-                    true, // Nascondiamo l'orologio perché in analisi libera non serve
+                hideTime: true,
               ),
             ),
             const Divider(color: Colors.white12, height: 20),
@@ -4207,7 +4286,8 @@ class AnalysisPanel extends ConsumerWidget {
               ),
               CircleAvatar(
                 radius: 20,
-                backgroundColor: zone.color.withOpacity(0.2),
+                // ⚠️ FIX: Sostituito withOpacity(0.2) con withValues(alpha: 0.2)
+                backgroundColor: zone.color.withValues(alpha: 0.2),
                 backgroundImage: AssetImage(zone.avatars.first),
               ),
             ],
@@ -4255,7 +4335,6 @@ class AnalysisPanel extends ConsumerWidget {
     );
   }
 
-  // Modificato per accettare "hideTime"
   Widget _buildPlayerBadge(
     String name,
     int timeMs,
@@ -4278,9 +4357,10 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
+        // ⚠️ FIX: Sostituiti i withOpacity con withValues(alpha: ...)
         color: isWhite
-            ? Colors.white.withOpacity(0.9)
-            : Colors.black.withOpacity(0.6),
+            ? Colors.white.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: isWhite ? Colors.white : Colors.grey[700]!),
       ),
@@ -4491,6 +4571,7 @@ class _AnalysisSetupModalState extends ConsumerState<AnalysisSetupModal> {
 FILE: lib\features\analysis\presentation\widgets\autoplay_modal.dart
 ================================================================================
 
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -4710,7 +4791,7 @@ class AutoplayModal extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            // CADENZA E OROLOGI
+            // CADENZA E OROLOGI CON RADIO GROUP
             Row(
               children: [
                 Expanded(
@@ -4745,6 +4826,7 @@ class AutoplayModal extends ConsumerWidget {
                 ),
               ],
             ),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -4813,7 +4895,7 @@ class AutoplayModal extends ConsumerWidget {
               ],
             ),
 
-            // ⚠️ NUOVA SEZIONE: POSIZIONE E COLORI
+            // POSIZIONE E COLORI
             const Divider(color: Colors.white24, height: 32),
             Text(
               "POSIZIONE INIZIALE E COLORI",
@@ -4972,7 +5054,8 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
           BoardArrow(
             from: bestMove.substring(0, 2),
             to: bestMove.substring(2, 4),
-            color: Colors.redAccent.withOpacity(0.7),
+            // ⚠️ FIX: Sostituito withOpacity(0.7) con withValues(alpha: 0.7)
+            color: Colors.redAccent.withValues(alpha: 0.7),
           ),
         );
       }
@@ -5271,7 +5354,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.orangeAccent.withOpacity(0.5),
+                    // ⚠️ FIX: Sostituito withOpacity(0.5) con withValues(alpha: 0.5)
+                    color: Colors.orangeAccent.withValues(alpha: 0.5),
                   ),
                 ),
                 child: SingleChildScrollView(
@@ -6147,10 +6231,10 @@ class PlayController extends StateNotifier<PlayState> {
 FILE: lib\features\play\presentation\play_screen.dart
 ================================================================================
 
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'
-    hide Color; // Fix per conflitto classi Color
+import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import '../../../../l10n/app_localizations.dart';
 import '../domain/play_controller.dart';
 
@@ -6177,7 +6261,6 @@ class PlayScreen extends ConsumerWidget {
             width: double.infinity,
             color: Colors.black26,
             child: Text(
-              // Traduzione dinamica della frase di benvenuto
               state.logMessage == "Imposta la partita e premi Gioca"
                   ? loc.impostaEGioca
                   : state.logMessage,
@@ -6363,7 +6446,7 @@ class PlayScreen extends ConsumerWidget {
                     const Divider(color: Colors.white24, height: 24),
                   ],
 
-                  // --- CONTROLLO TEMPO (FISCHER VS FISSO) ---
+                  // --- CONTROLLO TEMPO ---
                   Row(
                     children: [
                       Expanded(
@@ -6408,6 +6491,7 @@ class PlayScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
