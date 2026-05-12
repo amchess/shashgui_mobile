@@ -344,5 +344,109 @@
   "minuti": "Minutes:",
   "@minuti": {},
   "secondi": "Seconds:",
-  "@secondi": {}
+  "@secondi": {},
+  "scopriFunzioniDesktop": "DISCOVER DESKTOP FEATURES",
+  "@scopriFunzioniDesktop": {
+    "description": "Button text in settings to open the premium showcase"
+  },
+  "premiumIntroDesc": "Upgrading to the Premium version unlocks access to high-performance Cloud clusters. Deep analysis, massive PGN database processing, and heuristic data mining will no longer drain your smartphone battery, offering you the same professional tools as the legendary Desktop version.",
+  "@premiumIntroDesc": {
+    "description": "Detailed introduction to cloud premium features"
+  },
+  "featureBeautyTitle": "ChessBeauty Analyzer™",
+  "@featureBeautyTitle": {
+    "description": "ChessBeauty feature title"
+  },
+  "featureBeautySub": "Aesthetic and Qualimetric Evaluation",
+  "@featureBeautySub": {
+    "description": "ChessBeauty feature subtitle"
+  },
+  "featureBeautyDesc": "Calculates the mathematical 'Beauty Score' of an entire game. The algorithm detects spectacular sacrifices, announced mates, and chess paradoxes, based on the famous Le Lionnais Canons.",
+  "@featureBeautyDesc": {
+    "description": "ChessBeauty feature description"
+  },
+  "featureNuggetsTitle": "Nuggets Explorer",
+  "@featureNuggetsTitle": {
+    "description": "Nuggets feature title"
+  },
+  "featureNuggetsSub": "Thermodynamic Data-mining",
+  "@featureNuggetsSub": {
+    "description": "Nuggets feature subtitle"
+  },
+  "featureNuggetsDesc": "Scans immense databases to automatically extract 'Nuggets': critical positions where human Win Probability diverges asymmetrically from that of the Neural Network.",
+  "@featureNuggetsDesc": {
+    "description": "Nuggets feature description"
+  },
+  "featureXaiTitle": "XAI Divergence Dossier",
+  "@featureXaiTitle": {
+    "description": "XAI feature title"
+  },
+  "featureXaiSub": "Explainable AI & Reporting",
+  "@featureXaiSub": {
+    "description": "XAI feature subtitle"
+  },
+  "featureXaiDesc": "Generates visual reports in PDF/HTML format. The system maps your accuracy by comparing it with World Champions, identifying your calculation flaws in different zones.",
+  "@featureXaiDesc": {
+    "description": "XAI feature description"
+  },
+  "featureAvatarTitle": "Avatar & Player Card",
+  "@featureAvatarTitle": {
+    "description": "Avatar feature title"
+  },
+  "featureAvatarSub": "Algorithmic Profiling",
+  "@featureAvatarSub": {
+    "description": "Avatar feature subtitle"
+  },
+  "featureAvatarDesc": "Analyze your next opponent's playing style. ShashGUI will profile their weaknesses, assigning a psychological Avatar and showing charts of their vulnerabilities.",
+  "@featureAvatarDesc": {
+    "description": "Avatar feature description"
+  },
+  "featureIdeaTitle": "ShashIDEA Lab",
+  "@featureIdeaTitle": {
+    "description": "ShashIDEA feature title"
+  },
+  "featureIdeaSub": "Polyglot Repertoire Building",
+  "@featureIdeaSub": {
+    "description": "ShashIDEA feature subtitle"
+  },
+  "featureIdeaDesc": "A true drag&drop opening laboratory. Build your interactive tree and automatically compile it into binary format (.bin) to train your personal engines.",
+  "@featureIdeaDesc": {
+    "description": "ShashIDEA feature description"
+  },
+  "featureLearningTitle": "Traits & R-Learning",
+  "@featureLearningTitle": {
+    "description": "Learning feature title"
+  },
+  "featureLearningSub": "Machine Learning and .ptr Files",
+  "@featureLearningSub": {
+    "description": "Learning feature subtitle"
+  },
+  "featureLearningDesc": "Extract dominant traits (space, bishop pair, outposts) and force the engine to play by exactly simulating your playing style via .exp and .ptr files.",
+  "@featureLearningDesc": {
+    "description": "Learning feature description"
+  },
+  "featureBatchTitle": "Automated Batch Analysis",
+  "@featureBatchTitle": {
+    "description": "Batch feature title"
+  },
+  "featureBatchSub": "Massive Overnight Processing",
+  "@featureBatchSub": {
+    "description": "Batch feature subtitle"
+  },
+  "featureBatchDesc": "Process thousands of games automatically: you will find them all annotated with PV variations, tactical NAGs, and natural language (NLG) comments.",
+  "@featureBatchDesc": {
+    "description": "Batch feature description"
+  },
+  "featureSqlTitle": "ShashQL & DB Manager",
+  "@featureSqlTitle": {
+    "description": "SQL feature title"
+  },
+  "featureSqlSub": "Chess Query Language",
+  "@featureSqlSub": {
+    "description": "SQL feature subtitle"
+  },
+  "featureSqlDesc": "Revolutionary database search engine. Use complex SQL queries to filter games by pattern: 'Show me all games in Tal Zone with density K > 0.5'.",
+  "@featureSqlDesc": {
+    "description": "SQL feature description"
+  }
 }

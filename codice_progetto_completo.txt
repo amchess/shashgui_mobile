@@ -7755,6 +7755,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../main.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'widgets/about_dialog.dart';
+import 'widgets/premium_showcase_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -7793,9 +7794,7 @@ class SettingsScreen extends ConsumerWidget {
               ],
               onChanged: (String? newLang) async {
                 if (newLang != null) {
-                  // Cambia lingua istantaneamente
                   appLocale.value = Locale(newLang);
-                  // Salva la scelta in memoria
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setString('language', newLang);
                 }
@@ -7816,7 +7815,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(color: Colors.white24),
 
-          // 3. VETRINA PREMIUM (Estetica)
+          // 3. VETRINA PREMIUM (Estetica e Navigazione)
           Container(
             margin: const EdgeInsets.only(top: 24),
             padding: const EdgeInsets.all(20),
@@ -7827,11 +7826,11 @@ class SettingsScreen extends ConsumerWidget {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black45,
+                  color: Colors.black.withValues(alpha: 0.45),
                   blurRadius: 10,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -7857,8 +7856,16 @@ class SettingsScreen extends ConsumerWidget {
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 20),
+
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PremiumShowcaseScreen(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.deepOrange,
@@ -7868,7 +7875,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   child: Text(
-                    loc.sbloccaIlCloud999mese,
+                    loc.scopriFunzioniDesktop, // ⚠️ ORA LOCALIZZATO!
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -7977,6 +7984,261 @@ void showShashGuiAboutDialog(BuildContext context) {
       );
     },
   );
+}
+
+
+
+================================================================================
+FILE: lib\features\settings\presentation\widgets\premium_showcase_screen.dart
+================================================================================
+
+import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
+
+class PremiumShowcaseScreen extends StatelessWidget {
+  const PremiumShowcaseScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF151515),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 220.0,
+            floating: false,
+            pinned: true,
+            backgroundColor: const Color(0xFF1e1e1e),
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(
+                loc.shashguiPremium,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+                ),
+              ),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.orange[900]!, Colors.deepPurple[900]!],
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.workspace_premium,
+                    size: 80,
+                    color: Colors.white30,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    loc.ilPotereDeiServerCloud,
+                    style: const TextStyle(
+                      color: Colors.orangeAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    loc.premiumIntroDesc,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.justify,
+                  ),
+                  const SizedBox(height: 24),
+
+                  _buildDetailedFeatureCard(
+                    title: loc.featureBeautyTitle,
+                    subtitle: loc.featureBeautySub,
+                    desc: loc.featureBeautyDesc,
+                    icon: Icons.auto_awesome,
+                    color: Colors.pinkAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureNuggetsTitle,
+                    subtitle: loc.featureNuggetsSub,
+                    desc: loc.featureNuggetsDesc,
+                    icon: Icons.savings,
+                    color: Colors.amber,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureXaiTitle,
+                    subtitle: loc.featureXaiSub,
+                    desc: loc.featureXaiDesc,
+                    icon: Icons.psychology,
+                    color: Colors.cyanAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureAvatarTitle,
+                    subtitle: loc.featureAvatarSub,
+                    desc: loc.featureAvatarDesc,
+                    icon: Icons.portrait,
+                    color: Colors.deepPurpleAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureIdeaTitle,
+                    subtitle: loc.featureIdeaSub,
+                    desc: loc.featureIdeaDesc,
+                    icon: Icons.account_tree,
+                    color: Colors.greenAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureLearningTitle,
+                    subtitle: loc.featureLearningSub,
+                    desc: loc.featureLearningDesc,
+                    icon: Icons.memory,
+                    color: Colors.tealAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureBatchTitle,
+                    subtitle: loc.featureBatchSub,
+                    desc: loc.featureBatchDesc,
+                    icon: Icons.batch_prediction,
+                    color: Colors.blueAccent,
+                  ),
+                  _buildDetailedFeatureCard(
+                    title: loc.featureSqlTitle,
+                    subtitle: loc.featureSqlSub,
+                    desc: loc.featureSqlDesc,
+                    icon: Icons.storage,
+                    color: Colors.orange,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Integration in progress..."),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.cloud_sync, size: 28),
+                    label: Text(
+                      loc.sbloccaIlCloud999mese,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailedFeatureCard({
+    required String title,
+    required String subtitle,
+    required String desc,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF222222),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 26),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              desc,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 
@@ -9122,6 +9384,162 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Secondi:'**
   String get secondi;
+
+  /// Testo del pulsante nella sezione impostazioni per aprire la vetrina premium
+  ///
+  /// In it, this message translates to:
+  /// **'SCOPRI LE FUNZIONI DESKTOP'**
+  String get scopriFunzioniDesktop;
+
+  /// Introduzione dettagliata alle funzionalità premium cloud
+  ///
+  /// In it, this message translates to:
+  /// **'Il passaggio alla versione Premium sblocca l\'accesso ai cluster Cloud ad alte prestazioni. Le analisi profonde, l\'elaborazione di massivi database PGN e il data-mining euristico non peseranno più sulla batteria del tuo smartphone, offrendoti gli stessi strumenti professionali della leggendaria versione Desktop.'**
+  String get premiumIntroDesc;
+
+  /// Titolo della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'ChessBeauty Analyzer™'**
+  String get featureBeautyTitle;
+
+  /// Sottotitolo della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'Valutazione estetica e qualimetrica'**
+  String get featureBeautySub;
+
+  /// Descrizione della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'Calcola il \'Tasso di Bellezza\' matematico di un\'intera partita. L\'algoritmo rileva sacrifici spettacolari, matti annunciati e paradossi scacchistici, basandosi sui celebri Canoni estetici di François Le Lionnais.'**
+  String get featureBeautyDesc;
+
+  /// Titolo della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Nuggets Explorer'**
+  String get featureNuggetsTitle;
+
+  /// Sottotitolo della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Data-mining termodinamico'**
+  String get featureNuggetsSub;
+
+  /// Descrizione della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Scansiona immensi database per estrarre in automatico le \'Pepite\': posizioni critiche in cui la Win Probability umana diverge in modo asimmetrico da quella della Rete Neurale.'**
+  String get featureNuggetsDesc;
+
+  /// Titolo della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Dossier Divergenze XAI'**
+  String get featureXaiTitle;
+
+  /// Sottotitolo della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Explainable AI & Reportistica'**
+  String get featureXaiSub;
+
+  /// Descrizione della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Genera report visivi in formato PDF/HTML. Il sistema mappa la tua accuratezza confrontandola con i Campioni del Mondo, individuando le tue falle di calcolo nelle diverse zone.'**
+  String get featureXaiDesc;
+
+  /// Titolo della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Avatar & Player Card'**
+  String get featureAvatarTitle;
+
+  /// Sottotitolo della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Profilazione algoritmica'**
+  String get featureAvatarSub;
+
+  /// Descrizione della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Analizza lo stile di gioco del tuo prossimo sfidante. ShashGUI ne profilerà le debolezze, assegnandogli un Avatar psicologico e mostrando grafici sulle sue vulnerabilità.'**
+  String get featureAvatarDesc;
+
+  /// Titolo della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'ShashIDEA Lab'**
+  String get featureIdeaTitle;
+
+  /// Sottotitolo della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'Costruzione repertorio Polyglot'**
+  String get featureIdeaSub;
+
+  /// Descrizione della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'Un laboratorio d\'aperture drag&drop. Costruisci il tuo albero interattivo e compilalo automaticamente in formato binario (.bin) per addestrare i tuoi motori personali.'**
+  String get featureIdeaDesc;
+
+  /// Titolo della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Tratti & R-Learning'**
+  String get featureLearningTitle;
+
+  /// Sottotitolo della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Machine Learning e File .ptr'**
+  String get featureLearningSub;
+
+  /// Descrizione della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Estrai i tratti dominanti (spazio, coppia alfieri, avamposti) e forza il motore a giocare simulando esattamente il tuo stile di gioco tramite file .exp e .ptr.'**
+  String get featureLearningDesc;
+
+  /// Titolo della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Analisi Batch Automatizzata'**
+  String get featureBatchTitle;
+
+  /// Sottotitolo della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Elaborazione massiva notturna'**
+  String get featureBatchSub;
+
+  /// Descrizione della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Analizza migliaia di partite automaticamente: le ritroverai annotate con varianti PV, NAG tattici e commenti in linguaggio naturale (NLG).'**
+  String get featureBatchDesc;
+
+  /// Titolo della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'ShashQL & DB Manager'**
+  String get featureSqlTitle;
+
+  /// Sottotitolo della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'Query Language Scacchistico'**
+  String get featureSqlSub;
+
+  /// Descrizione della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.'**
+  String get featureSqlDesc;
 }
 
 class _AppLocalizationsDelegate
@@ -9729,6 +10147,93 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get secondi => 'Seconds:';
+
+  @override
+  String get scopriFunzioniDesktop => 'DISCOVER DESKTOP FEATURES';
+
+  @override
+  String get premiumIntroDesc =>
+      'Upgrading to the Premium version unlocks access to high-performance Cloud clusters. Deep analysis, massive PGN database processing, and heuristic data mining will no longer drain your smartphone battery, offering you the same professional tools as the legendary Desktop version.';
+
+  @override
+  String get featureBeautyTitle => 'ChessBeauty Analyzer™';
+
+  @override
+  String get featureBeautySub => 'Aesthetic and Qualimetric Evaluation';
+
+  @override
+  String get featureBeautyDesc =>
+      'Calculates the mathematical \'Beauty Score\' of an entire game. The algorithm detects spectacular sacrifices, announced mates, and chess paradoxes, based on the famous Le Lionnais Canons.';
+
+  @override
+  String get featureNuggetsTitle => 'Nuggets Explorer';
+
+  @override
+  String get featureNuggetsSub => 'Thermodynamic Data-mining';
+
+  @override
+  String get featureNuggetsDesc =>
+      'Scans immense databases to automatically extract \'Nuggets\': critical positions where human Win Probability diverges asymmetrically from that of the Neural Network.';
+
+  @override
+  String get featureXaiTitle => 'XAI Divergence Dossier';
+
+  @override
+  String get featureXaiSub => 'Explainable AI & Reporting';
+
+  @override
+  String get featureXaiDesc =>
+      'Generates visual reports in PDF/HTML format. The system maps your accuracy by comparing it with World Champions, identifying your calculation flaws in different zones.';
+
+  @override
+  String get featureAvatarTitle => 'Avatar & Player Card';
+
+  @override
+  String get featureAvatarSub => 'Algorithmic Profiling';
+
+  @override
+  String get featureAvatarDesc =>
+      'Analyze your next opponent\'s playing style. ShashGUI will profile their weaknesses, assigning a psychological Avatar and showing charts of their vulnerabilities.';
+
+  @override
+  String get featureIdeaTitle => 'ShashIDEA Lab';
+
+  @override
+  String get featureIdeaSub => 'Polyglot Repertoire Building';
+
+  @override
+  String get featureIdeaDesc =>
+      'A true drag&drop opening laboratory. Build your interactive tree and automatically compile it into binary format (.bin) to train your personal engines.';
+
+  @override
+  String get featureLearningTitle => 'Traits & R-Learning';
+
+  @override
+  String get featureLearningSub => 'Machine Learning and .ptr Files';
+
+  @override
+  String get featureLearningDesc =>
+      'Extract dominant traits (space, bishop pair, outposts) and force the engine to play by exactly simulating your playing style via .exp and .ptr files.';
+
+  @override
+  String get featureBatchTitle => 'Automated Batch Analysis';
+
+  @override
+  String get featureBatchSub => 'Massive Overnight Processing';
+
+  @override
+  String get featureBatchDesc =>
+      'Process thousands of games automatically: you will find them all annotated with PV variations, tactical NAGs, and natural language (NLG) comments.';
+
+  @override
+  String get featureSqlTitle => 'ShashQL & DB Manager';
+
+  @override
+  String get featureSqlSub => 'Chess Query Language';
+
+  @override
+  String get featureSqlDesc =>
+      'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
 }
 
 
@@ -10305,6 +10810,93 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get secondi => 'Secondi:';
+
+  @override
+  String get scopriFunzioniDesktop => 'SCOPRI LE FUNZIONI DESKTOP';
+
+  @override
+  String get premiumIntroDesc =>
+      'Il passaggio alla versione Premium sblocca l\'accesso ai cluster Cloud ad alte prestazioni. Le analisi profonde, l\'elaborazione di massivi database PGN e il data-mining euristico non peseranno più sulla batteria del tuo smartphone, offrendoti gli stessi strumenti professionali della leggendaria versione Desktop.';
+
+  @override
+  String get featureBeautyTitle => 'ChessBeauty Analyzer™';
+
+  @override
+  String get featureBeautySub => 'Valutazione estetica e qualimetrica';
+
+  @override
+  String get featureBeautyDesc =>
+      'Calcola il \'Tasso di Bellezza\' matematico di un\'intera partita. L\'algoritmo rileva sacrifici spettacolari, matti annunciati e paradossi scacchistici, basandosi sui celebri Canoni estetici di François Le Lionnais.';
+
+  @override
+  String get featureNuggetsTitle => 'Nuggets Explorer';
+
+  @override
+  String get featureNuggetsSub => 'Data-mining termodinamico';
+
+  @override
+  String get featureNuggetsDesc =>
+      'Scansiona immensi database per estrarre in automatico le \'Pepite\': posizioni critiche in cui la Win Probability umana diverge in modo asimmetrico da quella della Rete Neurale.';
+
+  @override
+  String get featureXaiTitle => 'Dossier Divergenze XAI';
+
+  @override
+  String get featureXaiSub => 'Explainable AI & Reportistica';
+
+  @override
+  String get featureXaiDesc =>
+      'Genera report visivi in formato PDF/HTML. Il sistema mappa la tua accuratezza confrontandola con i Campioni del Mondo, individuando le tue falle di calcolo nelle diverse zone.';
+
+  @override
+  String get featureAvatarTitle => 'Avatar & Player Card';
+
+  @override
+  String get featureAvatarSub => 'Profilazione algoritmica';
+
+  @override
+  String get featureAvatarDesc =>
+      'Analizza lo stile di gioco del tuo prossimo sfidante. ShashGUI ne profilerà le debolezze, assegnandogli un Avatar psicologico e mostrando grafici sulle sue vulnerabilità.';
+
+  @override
+  String get featureIdeaTitle => 'ShashIDEA Lab';
+
+  @override
+  String get featureIdeaSub => 'Costruzione repertorio Polyglot';
+
+  @override
+  String get featureIdeaDesc =>
+      'Un laboratorio d\'aperture drag&drop. Costruisci il tuo albero interattivo e compilalo automaticamente in formato binario (.bin) per addestrare i tuoi motori personali.';
+
+  @override
+  String get featureLearningTitle => 'Tratti & R-Learning';
+
+  @override
+  String get featureLearningSub => 'Machine Learning e File .ptr';
+
+  @override
+  String get featureLearningDesc =>
+      'Estrai i tratti dominanti (spazio, coppia alfieri, avamposti) e forza il motore a giocare simulando esattamente il tuo stile di gioco tramite file .exp e .ptr.';
+
+  @override
+  String get featureBatchTitle => 'Analisi Batch Automatizzata';
+
+  @override
+  String get featureBatchSub => 'Elaborazione massiva notturna';
+
+  @override
+  String get featureBatchDesc =>
+      'Analizza migliaia di partite automaticamente: le ritroverai annotate con varianti PV, NAG tattici e commenti in linguaggio naturale (NLG).';
+
+  @override
+  String get featureSqlTitle => 'ShashQL & DB Manager';
+
+  @override
+  String get featureSqlSub => 'Query Language Scacchistico';
+
+  @override
+  String get featureSqlDesc =>
+      'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.';
 }
 
 

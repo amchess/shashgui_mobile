@@ -563,4 +563,91 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get secondi => 'Seconds:';
+
+  @override
+  String get scopriFunzioniDesktop => 'DISCOVER DESKTOP FEATURES';
+
+  @override
+  String get premiumIntroDesc =>
+      'Upgrading to the Premium version unlocks access to high-performance Cloud clusters. Deep analysis, massive PGN database processing, and heuristic data mining will no longer drain your smartphone battery, offering you the same professional tools as the legendary Desktop version.';
+
+  @override
+  String get featureBeautyTitle => 'ChessBeauty Analyzer™';
+
+  @override
+  String get featureBeautySub => 'Aesthetic and Qualimetric Evaluation';
+
+  @override
+  String get featureBeautyDesc =>
+      'Calculates the mathematical \'Beauty Score\' of an entire game. The algorithm detects spectacular sacrifices, announced mates, and chess paradoxes, based on the famous Le Lionnais Canons.';
+
+  @override
+  String get featureNuggetsTitle => 'Nuggets Explorer';
+
+  @override
+  String get featureNuggetsSub => 'Thermodynamic Data-mining';
+
+  @override
+  String get featureNuggetsDesc =>
+      'Scans immense databases to automatically extract \'Nuggets\': critical positions where human Win Probability diverges asymmetrically from that of the Neural Network.';
+
+  @override
+  String get featureXaiTitle => 'XAI Divergence Dossier';
+
+  @override
+  String get featureXaiSub => 'Explainable AI & Reporting';
+
+  @override
+  String get featureXaiDesc =>
+      'Generates visual reports in PDF/HTML format. The system maps your accuracy by comparing it with World Champions, identifying your calculation flaws in different zones.';
+
+  @override
+  String get featureAvatarTitle => 'Avatar & Player Card';
+
+  @override
+  String get featureAvatarSub => 'Algorithmic Profiling';
+
+  @override
+  String get featureAvatarDesc =>
+      'Analyze your next opponent\'s playing style. ShashGUI will profile their weaknesses, assigning a psychological Avatar and showing charts of their vulnerabilities.';
+
+  @override
+  String get featureIdeaTitle => 'ShashIDEA Lab';
+
+  @override
+  String get featureIdeaSub => 'Polyglot Repertoire Building';
+
+  @override
+  String get featureIdeaDesc =>
+      'A true drag&drop opening laboratory. Build your interactive tree and automatically compile it into binary format (.bin) to train your personal engines.';
+
+  @override
+  String get featureLearningTitle => 'Traits & R-Learning';
+
+  @override
+  String get featureLearningSub => 'Machine Learning and .ptr Files';
+
+  @override
+  String get featureLearningDesc =>
+      'Extract dominant traits (space, bishop pair, outposts) and force the engine to play by exactly simulating your playing style via .exp and .ptr files.';
+
+  @override
+  String get featureBatchTitle => 'Automated Batch Analysis';
+
+  @override
+  String get featureBatchSub => 'Massive Overnight Processing';
+
+  @override
+  String get featureBatchDesc =>
+      'Process thousands of games automatically: you will find them all annotated with PV variations, tactical NAGs, and natural language (NLG) comments.';
+
+  @override
+  String get featureSqlTitle => 'ShashQL & DB Manager';
+
+  @override
+  String get featureSqlSub => 'Chess Query Language';
+
+  @override
+  String get featureSqlDesc =>
+      'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
 }

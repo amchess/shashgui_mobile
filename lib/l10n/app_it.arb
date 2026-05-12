@@ -345,5 +345,109 @@
   "minuti": "Minuti:",
   "@minuti": {},
   "secondi": "Secondi:",
-  "@secondi": {}
+  "@secondi": {},
+  "scopriFunzioniDesktop": "SCOPRI LE FUNZIONI DESKTOP",
+  "@scopriFunzioniDesktop": {
+    "description": "Testo del pulsante nella sezione impostazioni per aprire la vetrina premium"
+  },
+  "premiumIntroDesc": "Il passaggio alla versione Premium sblocca l'accesso ai cluster Cloud ad alte prestazioni. Le analisi profonde, l'elaborazione di massivi database PGN e il data-mining euristico non peseranno più sulla batteria del tuo smartphone, offrendoti gli stessi strumenti professionali della leggendaria versione Desktop.",
+  "@premiumIntroDesc": {
+    "description": "Introduzione dettagliata alle funzionalità premium cloud"
+  },
+  "featureBeautyTitle": "ChessBeauty Analyzer™",
+  "@featureBeautyTitle": {
+    "description": "Titolo della feature ChessBeauty"
+  },
+  "featureBeautySub": "Valutazione estetica e qualimetrica",
+  "@featureBeautySub": {
+    "description": "Sottotitolo della feature ChessBeauty"
+  },
+  "featureBeautyDesc": "Calcola il 'Tasso di Bellezza' matematico di un'intera partita. L'algoritmo rileva sacrifici spettacolari, matti annunciati e paradossi scacchistici, basandosi sui celebri Canoni estetici di François Le Lionnais.",
+  "@featureBeautyDesc": {
+    "description": "Descrizione della feature ChessBeauty"
+  },
+  "featureNuggetsTitle": "Nuggets Explorer",
+  "@featureNuggetsTitle": {
+    "description": "Titolo della feature Nuggets"
+  },
+  "featureNuggetsSub": "Data-mining termodinamico",
+  "@featureNuggetsSub": {
+    "description": "Sottotitolo della feature Nuggets"
+  },
+  "featureNuggetsDesc": "Scansiona immensi database per estrarre in automatico le 'Pepite': posizioni critiche in cui la Win Probability umana diverge in modo asimmetrico da quella della Rete Neurale.",
+  "@featureNuggetsDesc": {
+    "description": "Descrizione della feature Nuggets"
+  },
+  "featureXaiTitle": "Dossier Divergenze XAI",
+  "@featureXaiTitle": {
+    "description": "Titolo della feature XAI"
+  },
+  "featureXaiSub": "Explainable AI & Reportistica",
+  "@featureXaiSub": {
+    "description": "Sottotitolo della feature XAI"
+  },
+  "featureXaiDesc": "Genera report visivi in formato PDF/HTML. Il sistema mappa la tua accuratezza confrontandola con i Campioni del Mondo, individuando le tue falle di calcolo nelle diverse zone.",
+  "@featureXaiDesc": {
+    "description": "Descrizione della feature XAI"
+  },
+  "featureAvatarTitle": "Avatar & Player Card",
+  "@featureAvatarTitle": {
+    "description": "Titolo della feature Avatar"
+  },
+  "featureAvatarSub": "Profilazione algoritmica",
+  "@featureAvatarSub": {
+    "description": "Sottotitolo della feature Avatar"
+  },
+  "featureAvatarDesc": "Analizza lo stile di gioco del tuo prossimo sfidante. ShashGUI ne profilerà le debolezze, assegnandogli un Avatar psicologico e mostrando grafici sulle sue vulnerabilità.",
+  "@featureAvatarDesc": {
+    "description": "Descrizione della feature Avatar"
+  },
+  "featureIdeaTitle": "ShashIDEA Lab",
+  "@featureIdeaTitle": {
+    "description": "Titolo della feature ShashIDEA"
+  },
+  "featureIdeaSub": "Costruzione repertorio Polyglot",
+  "@featureIdeaSub": {
+    "description": "Sottotitolo della feature ShashIDEA"
+  },
+  "featureIdeaDesc": "Un laboratorio d'aperture drag&drop. Costruisci il tuo albero interattivo e compilalo automaticamente in formato binario (.bin) per addestrare i tuoi motori personali.",
+  "@featureIdeaDesc": {
+    "description": "Descrizione della feature ShashIDEA"
+  },
+  "featureLearningTitle": "Tratti & R-Learning",
+  "@featureLearningTitle": {
+    "description": "Titolo della feature Learning"
+  },
+  "featureLearningSub": "Machine Learning e File .ptr",
+  "@featureLearningSub": {
+    "description": "Sottotitolo della feature Learning"
+  },
+  "featureLearningDesc": "Estrai i tratti dominanti (spazio, coppia alfieri, avamposti) e forza il motore a giocare simulando esattamente il tuo stile di gioco tramite file .exp e .ptr.",
+  "@featureLearningDesc": {
+    "description": "Descrizione della feature Learning"
+  },
+  "featureBatchTitle": "Analisi Batch Automatizzata",
+  "@featureBatchTitle": {
+    "description": "Titolo della feature Batch"
+  },
+  "featureBatchSub": "Elaborazione massiva notturna",
+  "@featureBatchSub": {
+    "description": "Sottotitolo della feature Batch"
+  },
+  "featureBatchDesc": "Analizza migliaia di partite automaticamente: le ritroverai annotate con varianti PV, NAG tattici e commenti in linguaggio naturale (NLG).",
+  "@featureBatchDesc": {
+    "description": "Descrizione della feature Batch"
+  },
+  "featureSqlTitle": "ShashQL & DB Manager",
+  "@featureSqlTitle": {
+    "description": "Titolo della feature SQL"
+  },
+  "featureSqlSub": "Query Language Scacchistico",
+  "@featureSqlSub": {
+    "description": "Sottotitolo della feature SQL"
+  },
+  "featureSqlDesc": "Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: 'Mostrami tutte le partite in Zona Tal con densità K > 0.5'.",
+  "@featureSqlDesc": {
+    "description": "Descrizione della feature SQL"
+  }
 }

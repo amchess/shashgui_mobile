@@ -1135,6 +1135,162 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Secondi:'**
   String get secondi;
+
+  /// Testo del pulsante nella sezione impostazioni per aprire la vetrina premium
+  ///
+  /// In it, this message translates to:
+  /// **'SCOPRI LE FUNZIONI DESKTOP'**
+  String get scopriFunzioniDesktop;
+
+  /// Introduzione dettagliata alle funzionalità premium cloud
+  ///
+  /// In it, this message translates to:
+  /// **'Il passaggio alla versione Premium sblocca l\'accesso ai cluster Cloud ad alte prestazioni. Le analisi profonde, l\'elaborazione di massivi database PGN e il data-mining euristico non peseranno più sulla batteria del tuo smartphone, offrendoti gli stessi strumenti professionali della leggendaria versione Desktop.'**
+  String get premiumIntroDesc;
+
+  /// Titolo della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'ChessBeauty Analyzer™'**
+  String get featureBeautyTitle;
+
+  /// Sottotitolo della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'Valutazione estetica e qualimetrica'**
+  String get featureBeautySub;
+
+  /// Descrizione della feature ChessBeauty
+  ///
+  /// In it, this message translates to:
+  /// **'Calcola il \'Tasso di Bellezza\' matematico di un\'intera partita. L\'algoritmo rileva sacrifici spettacolari, matti annunciati e paradossi scacchistici, basandosi sui celebri Canoni estetici di François Le Lionnais.'**
+  String get featureBeautyDesc;
+
+  /// Titolo della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Nuggets Explorer'**
+  String get featureNuggetsTitle;
+
+  /// Sottotitolo della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Data-mining termodinamico'**
+  String get featureNuggetsSub;
+
+  /// Descrizione della feature Nuggets
+  ///
+  /// In it, this message translates to:
+  /// **'Scansiona immensi database per estrarre in automatico le \'Pepite\': posizioni critiche in cui la Win Probability umana diverge in modo asimmetrico da quella della Rete Neurale.'**
+  String get featureNuggetsDesc;
+
+  /// Titolo della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Dossier Divergenze XAI'**
+  String get featureXaiTitle;
+
+  /// Sottotitolo della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Explainable AI & Reportistica'**
+  String get featureXaiSub;
+
+  /// Descrizione della feature XAI
+  ///
+  /// In it, this message translates to:
+  /// **'Genera report visivi in formato PDF/HTML. Il sistema mappa la tua accuratezza confrontandola con i Campioni del Mondo, individuando le tue falle di calcolo nelle diverse zone.'**
+  String get featureXaiDesc;
+
+  /// Titolo della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Avatar & Player Card'**
+  String get featureAvatarTitle;
+
+  /// Sottotitolo della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Profilazione algoritmica'**
+  String get featureAvatarSub;
+
+  /// Descrizione della feature Avatar
+  ///
+  /// In it, this message translates to:
+  /// **'Analizza lo stile di gioco del tuo prossimo sfidante. ShashGUI ne profilerà le debolezze, assegnandogli un Avatar psicologico e mostrando grafici sulle sue vulnerabilità.'**
+  String get featureAvatarDesc;
+
+  /// Titolo della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'ShashIDEA Lab'**
+  String get featureIdeaTitle;
+
+  /// Sottotitolo della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'Costruzione repertorio Polyglot'**
+  String get featureIdeaSub;
+
+  /// Descrizione della feature ShashIDEA
+  ///
+  /// In it, this message translates to:
+  /// **'Un laboratorio d\'aperture drag&drop. Costruisci il tuo albero interattivo e compilalo automaticamente in formato binario (.bin) per addestrare i tuoi motori personali.'**
+  String get featureIdeaDesc;
+
+  /// Titolo della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Tratti & R-Learning'**
+  String get featureLearningTitle;
+
+  /// Sottotitolo della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Machine Learning e File .ptr'**
+  String get featureLearningSub;
+
+  /// Descrizione della feature Learning
+  ///
+  /// In it, this message translates to:
+  /// **'Estrai i tratti dominanti (spazio, coppia alfieri, avamposti) e forza il motore a giocare simulando esattamente il tuo stile di gioco tramite file .exp e .ptr.'**
+  String get featureLearningDesc;
+
+  /// Titolo della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Analisi Batch Automatizzata'**
+  String get featureBatchTitle;
+
+  /// Sottotitolo della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Elaborazione massiva notturna'**
+  String get featureBatchSub;
+
+  /// Descrizione della feature Batch
+  ///
+  /// In it, this message translates to:
+  /// **'Analizza migliaia di partite automaticamente: le ritroverai annotate con varianti PV, NAG tattici e commenti in linguaggio naturale (NLG).'**
+  String get featureBatchDesc;
+
+  /// Titolo della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'ShashQL & DB Manager'**
+  String get featureSqlTitle;
+
+  /// Sottotitolo della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'Query Language Scacchistico'**
+  String get featureSqlSub;
+
+  /// Descrizione della feature SQL
+  ///
+  /// In it, this message translates to:
+  /// **'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.'**
+  String get featureSqlDesc;
 }
 
 class _AppLocalizationsDelegate

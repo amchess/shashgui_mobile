@@ -566,4 +566,91 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get secondi => 'Secondi:';
+
+  @override
+  String get scopriFunzioniDesktop => 'SCOPRI LE FUNZIONI DESKTOP';
+
+  @override
+  String get premiumIntroDesc =>
+      'Il passaggio alla versione Premium sblocca l\'accesso ai cluster Cloud ad alte prestazioni. Le analisi profonde, l\'elaborazione di massivi database PGN e il data-mining euristico non peseranno più sulla batteria del tuo smartphone, offrendoti gli stessi strumenti professionali della leggendaria versione Desktop.';
+
+  @override
+  String get featureBeautyTitle => 'ChessBeauty Analyzer™';
+
+  @override
+  String get featureBeautySub => 'Valutazione estetica e qualimetrica';
+
+  @override
+  String get featureBeautyDesc =>
+      'Calcola il \'Tasso di Bellezza\' matematico di un\'intera partita. L\'algoritmo rileva sacrifici spettacolari, matti annunciati e paradossi scacchistici, basandosi sui celebri Canoni estetici di François Le Lionnais.';
+
+  @override
+  String get featureNuggetsTitle => 'Nuggets Explorer';
+
+  @override
+  String get featureNuggetsSub => 'Data-mining termodinamico';
+
+  @override
+  String get featureNuggetsDesc =>
+      'Scansiona immensi database per estrarre in automatico le \'Pepite\': posizioni critiche in cui la Win Probability umana diverge in modo asimmetrico da quella della Rete Neurale.';
+
+  @override
+  String get featureXaiTitle => 'Dossier Divergenze XAI';
+
+  @override
+  String get featureXaiSub => 'Explainable AI & Reportistica';
+
+  @override
+  String get featureXaiDesc =>
+      'Genera report visivi in formato PDF/HTML. Il sistema mappa la tua accuratezza confrontandola con i Campioni del Mondo, individuando le tue falle di calcolo nelle diverse zone.';
+
+  @override
+  String get featureAvatarTitle => 'Avatar & Player Card';
+
+  @override
+  String get featureAvatarSub => 'Profilazione algoritmica';
+
+  @override
+  String get featureAvatarDesc =>
+      'Analizza lo stile di gioco del tuo prossimo sfidante. ShashGUI ne profilerà le debolezze, assegnandogli un Avatar psicologico e mostrando grafici sulle sue vulnerabilità.';
+
+  @override
+  String get featureIdeaTitle => 'ShashIDEA Lab';
+
+  @override
+  String get featureIdeaSub => 'Costruzione repertorio Polyglot';
+
+  @override
+  String get featureIdeaDesc =>
+      'Un laboratorio d\'aperture drag&drop. Costruisci il tuo albero interattivo e compilalo automaticamente in formato binario (.bin) per addestrare i tuoi motori personali.';
+
+  @override
+  String get featureLearningTitle => 'Tratti & R-Learning';
+
+  @override
+  String get featureLearningSub => 'Machine Learning e File .ptr';
+
+  @override
+  String get featureLearningDesc =>
+      'Estrai i tratti dominanti (spazio, coppia alfieri, avamposti) e forza il motore a giocare simulando esattamente il tuo stile di gioco tramite file .exp e .ptr.';
+
+  @override
+  String get featureBatchTitle => 'Analisi Batch Automatizzata';
+
+  @override
+  String get featureBatchSub => 'Elaborazione massiva notturna';
+
+  @override
+  String get featureBatchDesc =>
+      'Analizza migliaia di partite automaticamente: le ritroverai annotate con varianti PV, NAG tattici e commenti in linguaggio naturale (NLG).';
+
+  @override
+  String get featureSqlTitle => 'ShashQL & DB Manager';
+
+  @override
+  String get featureSqlSub => 'Query Language Scacchistico';
+
+  @override
+  String get featureSqlDesc =>
+      'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.';
 }

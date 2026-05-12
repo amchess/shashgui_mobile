@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../main.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'widgets/about_dialog.dart';
+import 'widgets/premium_showcase_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -42,9 +43,7 @@ class SettingsScreen extends ConsumerWidget {
               ],
               onChanged: (String? newLang) async {
                 if (newLang != null) {
-                  // Cambia lingua istantaneamente
                   appLocale.value = Locale(newLang);
-                  // Salva la scelta in memoria
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setString('language', newLang);
                 }
@@ -65,7 +64,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(color: Colors.white24),
 
-          // 3. VETRINA PREMIUM (Estetica)
+          // 3. VETRINA PREMIUM (Estetica e Navigazione)
           Container(
             margin: const EdgeInsets.only(top: 24),
             padding: const EdgeInsets.all(20),
@@ -76,11 +75,11 @@ class SettingsScreen extends ConsumerWidget {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black45,
+                  color: Colors.black.withValues(alpha: 0.45),
                   blurRadius: 10,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -106,8 +105,16 @@ class SettingsScreen extends ConsumerWidget {
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 20),
+
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PremiumShowcaseScreen(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.deepOrange,
@@ -117,7 +124,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   child: Text(
-                    loc.sbloccaIlCloud999mese,
+                    loc.scopriFunzioniDesktop, // ⚠️ ORA LOCALIZZATO!
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
