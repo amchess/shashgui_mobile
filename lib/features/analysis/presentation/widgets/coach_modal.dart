@@ -14,7 +14,7 @@ class CoachModal extends ConsumerStatefulWidget {
 
 class _CoachModalState extends ConsumerState<CoachModal> {
   double _elo = 1500;
-  double _timeMs = 2000;
+  double _timeSec = 2; // ⚠️ Modificato in secondi!
 
   bool _isRunning = false;
   bool _isFinished = false;
@@ -24,12 +24,15 @@ class _CoachModalState extends ConsumerState<CoachModal> {
 
   late EngineManager _coachEngine;
   CrossedEvalOrchestrator? _orchestrator;
+
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _reportScrollController =
+      ScrollController(); // ⚠️ Controller dedicato al testo finale
 
   @override
   void initState() {
     super.initState();
-    _coachEngine = EngineManager(); // Motore isolato dal resto dell'app!
+    _coachEngine = EngineManager();
   }
 
   @override
@@ -37,6 +40,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
     _orchestrator?.dispose();
     _coachEngine.dispose();
     _scrollController.dispose();
+    _reportScrollController.dispose();
     super.dispose();
   }
 
@@ -46,19 +50,16 @@ class _CoachModalState extends ConsumerState<CoachModal> {
       _logs.add("Avvio motore base (Alexander)...");
     });
 
-    // Inizializziamo il motore HCE di base
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;
 
-    // Assembliamo il cervello del Coach
     _orchestrator = CrossedEvalOrchestrator(
       engineManager: _coachEngine,
       loc: AppLocalizations.of(context)!,
       onLog: (log) {
         if (!mounted) return;
         setState(() => _logs.add(log));
-        // Auto-scroll verso il basso
         Future.delayed(const Duration(milliseconds: 50), () {
           if (_scrollController.hasClients) {
             _scrollController.jumpTo(
@@ -77,9 +78,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
       },
     );
 
-    // Lanciamo la valutazione sulla FEN attuale
     final fen = ref.read(boardControllerProvider).getFen();
-    _orchestrator!.startCrossedEval(fen, _elo.toInt(), _timeMs.toInt());
+    // ⚠️ Moltiplichiamo i secondi per 1000 per passare i millisecondi corretti all'orchestratore
+    _orchestrator!.startCrossedEval(
+      fen,
+      _elo.toInt(),
+      (_timeSec * 1000).toInt(),
+    );
   }
 
   @override
@@ -87,7 +92,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
     final loc = AppLocalizations.of(context)!;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      // Aumentato leggermente l'altezza per dare più respiro al testo
+      height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
@@ -116,8 +122,9 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             Slider(
               value: _elo,
               min: 800,
-              max: 3000,
-              divisions: 22,
+              max: 3190, // ⚠️ Limite aggiornato a 3190
+              divisions: 239, // Scatti da 10 Elo
+              label: _elo.toInt().toString(),
               activeColor: Colors.blueAccent,
               onChanged: (val) => setState(() => _elo = val),
             ),
@@ -128,16 +135,17 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             const SizedBox(height: 20),
 
             Text(
-              "Tempo di riflessione: ${_timeMs.toInt()} ms",
+              "Tempo di riflessione: ${_timeSec.toInt()} s", // ⚠️ UI in secondi
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
-              value: _timeMs,
-              min: 500,
-              max: 10000,
-              divisions: 19,
+              value: _timeSec,
+              min: 1,
+              max: 30, // Massimo 30 secondi
+              divisions: 29,
+              label: "${_timeSec.toInt()} s",
               activeColor: Colors.greenAccent,
-              onChanged: (val) => setState(() => _timeMs = val),
+              onChanged: (val) => setState(() => _timeSec = val),
             ),
             const Spacer(),
             ElevatedButton.icon(
@@ -192,17 +200,23 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    // ⚠️ FIX: Sostituito withOpacity(0.5) con withValues(alpha: 0.5)
                     color: Colors.orangeAccent.withValues(alpha: 0.5),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _report,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      height: 1.5,
+                child: Scrollbar(
+                  // ⚠️ Aggiunta barra di scorrimento visibile
+                  controller: _reportScrollController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _reportScrollController,
+                    child: SelectableText(
+                      // ⚠️ Testo ora selezionabile per il copia/incolla!
+                      _report,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ),

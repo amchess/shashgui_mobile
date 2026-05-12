@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../main.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/about_dialog.dart';
+import 'widgets/about_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

@@ -79,19 +79,22 @@ class NotationPanel extends ConsumerWidget {
     return Container(
       width: double.infinity,
       height: 100,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12), // Uniformato all'AnalysisPanel
       decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        color: Colors.black.withValues(
+          alpha: 0.3,
+        ), // Stessa trasparenza dell'analisi
+        borderRadius: BorderRadius.circular(12), // Stesso raggio di curvatura
+        border: Border.all(color: Colors.white12),
       ),
       child: SingleChildScrollView(
         child: Wrap(
+          spacing: 4, // Piccolo spazio tra le mosse
           children: widgets.isEmpty
               ? [
                   const Text(
                     "Inizia a muovere...",
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ]
               : widgets,

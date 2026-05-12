@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'board_provider.dart';
+import 'package:flutter/material.dart';
 
 class MoveNode {
   final String fen;
@@ -92,5 +93,90 @@ class NotationController extends StateNotifier<NotationState> {
 
   void reset() {
     state = _initialState();
+  }
+
+  Future<void> handleNewMove(
+    String newFen,
+    String san,
+    BuildContext context,
+  ) async {
+    // 1. Controlla se esiste già
+    for (var child in state.currentNode.children) {
+      if (child.fen == newFen) {
+        state = state.copyWith(currentNode: child);
+        return;
+      }
+    }
+
+    // 2. Chiedi se creare variante
+    String choice = 'main';
+    if (state.currentNode.children.isNotEmpty) {
+      choice = await _showBranchingDialog(context) ?? 'cancel';
+    }
+
+    if (choice == 'cancel') {
+      ref.read(boardControllerProvider).loadFen(state.currentNode.fen);
+      return;
+    }
+
+    final newNode = MoveNode(fen: newFen, san: san, parent: state.currentNode);
+    if (choice == 'overwrite') state.currentNode.children.clear();
+
+    if (choice == 'main' && state.currentNode.children.isNotEmpty) {
+      state.currentNode.children.insert(0, newNode);
+    } else {
+      state.currentNode.children.add(newNode);
+    }
+
+    state = state.copyWith(currentNode: newNode);
+  }
+
+  Future<String?> _showBranchingDialog(BuildContext context) {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        title: const Text(
+          "Variante Rilevata",
+          style: TextStyle(color: Colors.orangeAccent),
+        ),
+        content: const Text(
+          "Esiste già una mossa in questo punto. Cosa vuoi fare?",
+          style: TextStyle(color: Colors.white),
+        ),
+        actions: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'main'),
+                child: const Text("NUOVA LINEA PRINCIPALE"),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'variant'),
+                child: const Text("AGGIUNGI VARIANTE"),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'overwrite'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[900],
+                ),
+                child: const Text("SOVRASCRIVI"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                child: const Text(
+                  "ANNULLA",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

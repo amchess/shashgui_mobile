@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
+import '../../domain/notation_controller.dart'; // ⚠️ Import aggiunto per la notazione
 
 class BoardSection extends ConsumerStatefulWidget {
   const BoardSection({super.key});
@@ -22,43 +23,21 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
     });
   }
 
-  void _undoMove() {
-    final controller = ref.read(boardControllerProvider);
-    if (controller.game.history.isEmpty) return;
-
-    controller.undoMove();
-    setState(() {});
-    _triggerAnalysis();
-  }
-
-  void _resetBoard() {
-    ref.read(boardControllerProvider).resetBoard();
-    setState(() {});
-    _triggerAnalysis();
-  }
-
-  void _triggerAnalysis() {
-    if (ref.read(engineControllerProvider).isRunning) {
-      ref
-          .read(engineControllerProvider.notifier)
-          .analyzeCurrentPosition(ref.read(boardControllerProvider).getFen());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final engineState = ref.watch(engineControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
 
     List<BoardArrow> arrows = [];
-    if (engineState.isRunning && engineState.stats.pv.isNotEmpty) {
-      String bestMove = engineState.stats.pv.split(' ').first;
+    // Cambia stats.pv con stats.pvs
+    if (engineState.isRunning && engineState.stats.pvs.isNotEmpty) {
+      // Estrai la PV dalla primissima riga!
+      String bestMove = engineState.stats.pvs.first.split(' ').first;
       if (bestMove.length >= 4) {
         arrows.add(
           BoardArrow(
             from: bestMove.substring(0, 2),
             to: bestMove.substring(2, 4),
-            // ⚠️ FIX: Sostituito withOpacity(0.7) con withValues(alpha: 0.7)
             color: Colors.redAccent.withValues(alpha: 0.7),
           ),
         );
@@ -67,7 +46,7 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Aumentato il margine di sicurezza a 70 pixel per evitare l'overflow verticale
+        // Margine di sicurezza per evitare l'overflow verticale
         final availableHeight = constraints.maxHeight - 70;
 
         final boardSize = constraints.maxWidth < availableHeight
@@ -98,6 +77,28 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 arrows: arrows,
                 enableUserMoves: true,
                 onMove: () {
+                  // 1. RECUPERA IL SAN (nome mossa) dal PGN del gioco interno
+                  String pgn = boardController.game.pgn();
+                  pgn = pgn.replaceAll(
+                    RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'),
+                    '',
+                  );
+                  List<String> pgnParts = pgn.split(RegExp(r'\s+'));
+                  String moveSan = pgnParts.lastWhere(
+                    (s) => !s.contains('.'),
+                    orElse: () => "Mossa",
+                  );
+
+                  // 2. AGGIORNA LA NOTAZIONE (tramite il NotationController)
+                  ref
+                      .read(notationControllerProvider.notifier)
+                      .handleNewMove(
+                        boardController.getFen(),
+                        moveSan,
+                        context,
+                      );
+
+                  // 3. AVVIA L'ANALISI DEL MOTORE (se acceso)
                   if (engineState.isRunning) {
                     ref
                         .read(engineControllerProvider.notifier)
@@ -116,21 +117,25 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 color: Colors.black26,
                 borderRadius: BorderRadius.circular(8),
               ),
-              // ⚠️ IL FIX: FittedBox scalerà i pulsanti se la scacchiera è stretta!
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    // I tasti ora comunicano con il NotationController invece che fare "undo" brutale!
                     IconButton(
                       icon: const Icon(Icons.first_page),
                       color: Colors.white70,
-                      onPressed: _resetBoard,
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goToStart(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_left),
                       color: Colors.white,
-                      onPressed: _undoMove,
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goBack(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.sync),
@@ -140,12 +145,16 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
                       color: Colors.white30,
-                      onPressed: () {},
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goForward(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.last_page),
                       color: Colors.white30,
-                      onPressed: () {},
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goToEnd(),
                     ),
                   ],
                 ),

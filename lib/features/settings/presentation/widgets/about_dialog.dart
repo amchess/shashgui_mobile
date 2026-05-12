@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../l10n/app_localizations.dart';
+import '../../../../l10n/app_localizations.dart';
 
 void showShashGuiAboutDialog(BuildContext context) {
   final loc = AppLocalizations.of(context)!;

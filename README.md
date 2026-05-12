@@ -19,10 +19,18 @@ Unlike traditional chess GUIs, ShashGui reads the engine's WDL (Win/Draw/Loss) m
 The mobile frontend is designed to be an intelligent, offline-capable **pocket coach**, running all computation natively on-device with no server round-trip required.
 
 - **Real-Time Shashin Thermometer:** Reads the engine's WDL output and instantly maps the position to one of Shashin's zones. The thermometer shifts colour and style label as the game evolves, giving continuous feedback without interrupting the flow of thought.
-- **Dual Engine Support (C++ via Dart FFI):** Native support for **Alexander (HCE)** to simulate human-like weaknesses, and **ShashChess (NNUE)** for absolute mathematical truth. Both compiled for ARM64 and invoked through Dart FFI / Platform Channels.
-- **Single-Game Cross-Analysis:** Place both engines on the same position and compare their assessments side by side. Divergences between Alexander and ShashChess are the most instructive moments in any training session.
-- **PGN / FEN Import & Export:** Load games from file, paste raw FEN strings, or export annotated analysis sessions. All I/O is handled by a dedicated `ImportExportService`, cleanly decoupled from the UI layer.
-- **Livebook Integration:** Query the online opening book in real time to contextualise any position within known theory before diving into engine analysis.
+- **Dual Engine Support (C++ via native library):** Two engines run natively as compiled shared libraries (`.so`), invoked through a `MethodChannel`:
+  - **Alexander (HCE)** — classical hand-crafted evaluation, calibrated to simulate human-like weaknesses and heuristics.
+  - **ShashChess (NNUE)** — neural-network engine derived from Stockfish, representing mathematical ground truth.
+- **UCI Engine Configuration:** `UciOptionsModal` probes the engine at startup, dynamically renders all its UCI options (sliders, switches, dropdowns), and persists each setting to `SharedPreferences` under the key `{engineName}_{optionName}`. Options are automatically applied on the next `startEngine()` call.
+- **Cross-Analysis (Crossed Eval):** `CrossedEvalOrchestrator` runs a multi-phase evaluation — static eval, base eval, "student" move, master move — comparing human-calibrated Alexander against neural ShashChess. Enriched with spatial metrics (`centerType`, packing density `deltaK`) and fully internationalised via `AppLocalizations`.
+- **Tree-Based Notation Editor:** `NotationController` manages a `MoveNode` tree supporting main lines, variants, and overwrite. When a new move is played at a branching point, a dialog prompts the user to choose: *New Main Line*, *Add Variant*, *Overwrite*, or *Cancel*. Navigation: `goBack`, `goForward`, `goToStart`, `goToEnd`.
+- **Engine vs Engine Gauntlet (Autoplay):** `AutoplayController` manages full multi-game matches between any two engines, with configurable time controls (movetime or clock+increment), optional Livebook, colour-reversal between rounds, live score tracking (W/D/L), and automatic PGN export to `gauntlet_results.pgn` in the app's documents directory.
+- **Play vs Engine:** `PlayController` supports human-vs-engine games with configurable engine, player colour, time control, Livebook, and optional strength limitation (`limitStrength` / `eloValue`). Settings are persisted via `sharedPrefsProvider`.
+- **PGN / FEN Import & Export:** `ImportExportService` uses `file_picker` to open PGN, EPD, FEN, and TXT files from the device filesystem. Also fetches games directly from Lichess by URL via the `http` package.
+- **Livebook Integration:** Both single-analysis and autoplay modes can query the online opening book in real time, with per-engine toggles for white and black.
+- **In-App Help Manual:** HTML manuals (`assets/help/help_en.html`, `help_it.html`) are rendered natively inside the app using `flutter_widget_from_html`, with content shareable via `share_plus`.
+- **Language Switching (IT / EN):** The interface language switches at runtime from the Settings screen. The choice is persisted in `SharedPreferences` under the key `language` and restored on startup via a `ValueNotifier<Locale>` in `main.dart`.
 
 ---
 
@@ -30,9 +38,9 @@ The mobile frontend is designed to be an intelligent, offline-capable **pocket c
 
 ShashGui Mobile acts as the gateway to a high-performance Cloud infrastructure that unlocks **Data Science** and **Explainable AI (XAI)** features impossible to run on a mobile device alone.
 
-- **ChessBeauty (Qualimetry):** Measures the *aesthetic* and *strategic* quality of a game along three axes — Audacity, Harmony, and Depth. Goes beyond accuracy percentage to capture how *beautiful* the play actually was.
-- **Nugget Extraction:** Automatically scans PGN archives to surface tactical and strategic gems — positions of exceptional instructional value. Stop scrolling through hundreds of games manually; let the engine find the gold for you.
-- **Divergence Dossier (XAI):** The most advanced feature in the ecosystem. The Dossier identifies positions where **human dogma systematically fails** against neural understanding — not just one blunder in one game, but recurring patterns across an entire opening repertoire or playing style.
+- **ChessBeauty (Qualimetry):** Measures the *aesthetic* and *strategic* quality of a game along three axes — Audacity, Harmony, and Depth.
+- **Nugget Extraction:** Automatically scans PGN archives to surface tactical and strategic gems. Special WDL states (`wp == 25` or `wp == 75`) are flagged as "Nugget" positions.
+- **Divergence Dossier (XAI):** Identifies positions where human dogma systematically fails against neural understanding — recurring patterns across an entire opening repertoire or playing style.
 
 ---
 
@@ -40,11 +48,19 @@ ShashGui Mobile acts as the gateway to a high-performance Cloud infrastructure t
 
 | Layer | Technology |
 |---|---|
-| **Mobile Frontend** | Flutter / Dart |
-| **Local Engines** | C++ (ARM64), Dart FFI & Platform Channels |
-| **State Management** | Riverpod (`StateNotifier` / `ConsumerWidget`) |
+| **Mobile Frontend** | Flutter / Dart (SDK `^3.11.5`) |
+| **Local Engines** | C++ native shared libs (`libalexander.so`, `libshashchess.so`), invoked via `MethodChannel` |
+| **State Management** | Riverpod `^2.6.1` — `StateNotifierProvider`, `Provider`, `ConsumerWidget`, `ConsumerStatefulWidget` |
+| **Persistence** | `shared_preferences ^2.5.5`, injected app-wide via `sharedPrefsProvider` + `ProviderScope.overrides` |
+| **File I/O** | `file_picker ^11.0.2`, `path_provider ^2.1.5`, `path ^1.9.1` |
+| **Networking** | `http ^1.2.0` (Lichess API, Livebook) |
+| **Chess UI** | `flutter_chess_board ^1.0.1` |
+| **HTML Rendering** | `flutter_widget_from_html ^0.15.1` (in-app manual), `html ^0.15.4` |
+| **Sharing** | `share_plus ^12.0.2` |
+| **Audio** | `audioplayers ^5.2.1` |
+| **Localisation** | Flutter `l10n` + `flutter_localizations` + `intl 0.20.2` — English 🇬🇧 & Italian 🇮🇹 |
+| **Splash / Icons** | `flutter_native_splash ^2.4.1`, `flutter_launcher_icons ^0.13.1` |
 | **Backend / Cloud** | Python, SQLite, AWS / GCP *(external to this repo)* |
-| **Localisation** | Flutter `l10n` (English & Italian) |
 
 ---
 
@@ -64,7 +80,7 @@ Before running ShashGui Mobile, ensure the following tools are installed on your
 
 #### 1. Flutter SDK
 
-The project requires **Flutter 3.22 or later** (Dart 3.4+).
+The project requires **Flutter 3.22 or later** (Dart `^3.11.5`).
 
 ```bash
 # macOS / Linux — clone the stable channel
@@ -75,50 +91,37 @@ export PATH="$PATH:$HOME/flutter/bin"
 flutter doctor
 ```
 
-> On **Windows**, download the Flutter SDK zip from [flutter.dev](https://docs.flutter.dev/get-started/install/windows) and add the `flutter\bin` folder to your `PATH` environment variable.
+> On **Windows**, download the Flutter SDK zip from [flutter.dev](https://docs.flutter.dev/get-started/install/windows) and add the `flutter\bin` folder to your `PATH`.
 
 `flutter doctor` will report any missing dependencies. Address each warning before proceeding.
 
 #### 2. Android Toolchain (for Android builds)
 
 - Install **Android Studio** from [developer.android.com](https://developer.android.com/studio)
-- Open Android Studio → SDK Manager → install **Android SDK**, **Android SDK Command-line Tools**, and **Android SDK Build-Tools 34+**
+- SDK Manager → install **Android SDK**, **Android SDK Command-line Tools**, **Android SDK Build-Tools 34+**
 - Accept all SDK licences:
 
 ```bash
 flutter doctor --android-licenses
 ```
 
+The native engine shared libraries (`libalexander.so`, `libshashchess.so`) are already pre-compiled and placed in `android/app/src/main/jniLibs/`. No NDK compilation step is required unless you need to rebuild the engines from source.
+
 #### 3. Xcode (for iOS builds — macOS only)
 
 ```bash
-# Install Xcode from the Mac App Store, then run:
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
-```
-
-Install CocoaPods (required for iOS native dependencies):
-
-```bash
 sudo gem install cocoapods
 ```
 
-#### 4. Android NDK — Native C++ Engine Support
+#### 4. Generate Splash Screen & Launcher Icon
 
-The local chess engines are precompiled C++ shared libraries (`.so`). The **Android NDK** is required to link them correctly at build time.
-
-In Android Studio: **SDK Manager → SDK Tools → NDK (Side by side) → Apply**.
-
-Or via the command line:
+Run these once after cloning, or whenever `pubspec.yaml`'s icon/splash config changes:
 
 ```bash
-sdkmanager "ndk;27.0.12077973"
-```
-
-Set the environment variable in your shell profile:
-
-```bash
-export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/27.0.12077973"
+dart run flutter_launcher_icons
+dart run flutter_native_splash:create
 ```
 
 ---
@@ -130,10 +133,13 @@ export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/27.0.12077973"
 git clone https://github.com/your-org/shashgui_mobile.git
 cd shashgui_mobile
 
-# 2. Install all Dart / Flutter dependencies declared in pubspec.yaml
+# 2. Install all Dart / Flutter dependencies
 flutter pub get
 
-# 3. (iOS only) Install CocoaPods native dependencies
+# 3. Regenerate localisation files
+flutter gen-l10n
+
+# 4. (iOS only) Install CocoaPods native dependencies
 cd ios && pod install && cd ..
 ```
 
@@ -147,13 +153,13 @@ cd ios && pod install && cd ..
 # List all connected devices and emulators
 flutter devices
 
-# Run the app in debug mode on the default connected device
+# Run in debug mode on the default connected device
 flutter run
 
 # Run on a specific device by ID
 flutter run -d <device-id>
 
-# Run in release mode directly (no debugger, full performance)
+# Run in release mode (no debugger, full performance)
 flutter run --release
 ```
 
@@ -176,24 +182,14 @@ flutter pub remove <package_name>
 flutter pub outdated
 ```
 
-### Code Generation
-
-Some packages (Riverpod generators, Freezed, `json_serializable`) require a build step:
-
-```bash
-# Run once — regenerate all generated files
-dart run build_runner build --delete-conflicting-outputs
-
-# Watch mode — regenerate automatically on file changes during development
-dart run build_runner watch --delete-conflicting-outputs
-```
-
 ### Localisation
 
 ```bash
-# Regenerate Dart localisation classes from .arb files
+# Regenerate Dart localisation classes from .arb files (l10n.yaml controls output path)
 flutter gen-l10n
 ```
+
+> After adding or renaming a key in `lib/l10n/app_en.arb` or `app_it.arb`, always re-run `flutter gen-l10n` before building.
 
 ### Cleaning
 
@@ -205,7 +201,7 @@ flutter clean
 flutter pub get
 ```
 
-> **When to run `flutter clean`:** whenever you change native code, update the Flutter SDK, pull a branch with modified `pubspec.yaml`, or encounter unexplained build failures. It is slow, but almost always the right first step when something strange happens.
+> **When to run `flutter clean`:** after changing native code, updating the Flutter SDK, pulling a branch with modified `pubspec.yaml`, or when facing unexplained build failures.
 
 ### Testing
 
@@ -213,7 +209,7 @@ flutter pub get
 # Run all unit and widget tests
 flutter test
 
-# Run tests with a coverage report
+# Run with coverage report
 flutter test --coverage
 
 # Run a specific test file
@@ -232,7 +228,7 @@ flutter analyze
 # Auto-format all Dart source files
 dart format .
 
-# Check formatting without modifying files (useful in CI pipelines)
+# Check formatting without modifying files (useful in CI)
 dart format --output=none --set-exit-if-changed .
 ```
 
@@ -241,10 +237,10 @@ dart format --output=none --set-exit-if-changed .
 #### Android
 
 ```bash
-# Release APK — single file, larger (useful for direct side-loading)
+# Release APK — single file (useful for direct side-loading)
 flutter build apk --release
 
-# Release APKs split by ABI — smaller download per device (recommended for direct distribution)
+# Release APKs split by ABI — smaller download per device
 flutter build apk --release --split-per-abi
 
 # Release App Bundle — required for Google Play Store submission
@@ -255,7 +251,7 @@ Output paths:
 - APK → `build/app/outputs/flutter-apk/app-release.apk`
 - App Bundle → `build/app/outputs/bundle/release/app-release.aab`
 
-> **Signing:** configure your keystore in `android/key.properties` and reference it in `android/app/build.gradle` before publishing to the Play Store. **Never commit `key.properties` or `.jks` files to version control.** Add them to `.gitignore`.
+> **Signing:** the keystore is configured in `android/key.properties` (already present, not committed to git). Reference it in `android/app/build.gradle.kts`. **Never commit `key.properties` or `.jks` files.**
 
 #### iOS
 
@@ -267,7 +263,7 @@ flutter build ios --release
 flutter build ios --release --no-codesign
 ```
 
-For App Store submission, open `ios/Runner.xcworkspace` in Xcode, select the **Runner** target, configure your provisioning profile, and use **Product → Archive**.
+For App Store submission, open `ios/Runner.xcworkspace` in Xcode → select **Runner** target → configure provisioning profile → **Product → Archive**.
 
 ---
 
@@ -280,13 +276,11 @@ The codebase was re-engineered from a single-file monolith (`main.dart`, ~128 KB
 > *"Source code dependencies must point only inward, toward higher-level policies."*
 > — Robert C. Martin
 
-Commands flow inward; knowledge never leaks outward:
-
 ```
-UI (Widget) ──► Controller (Riverpod) ──► Orchestrator (Core / Native C++)
+UI (Widget) ──► Controller (Riverpod) ──► Orchestrator (Core) ──► EngineManager (Native)
 ```
 
-No layer knows about the layer above it. The UI knows Controllers. Controllers know Orchestrators. Orchestrators know only engines and platform APIs — never Flutter widgets or Riverpod state.
+No layer knows about the layer above it. Orchestrators know nothing about Flutter widgets or Riverpod state; they only speak UCI to the native engines and report results via callbacks.
 
 ---
 
@@ -295,89 +289,170 @@ No layer knows about the layer above it. The UI knows Controllers. Controllers k
 ```
 shashgui_mobile/
 │
-├── android/                              # Android native project
-│   └── app/
-│       ├── src/main/
-│       │   └── jniLibs/arm64-v8a/        # Compiled C++ engine .so libraries
-│       └── build.gradle
+├── android/
+│   └── app/src/main/
+│       ├── jniLibs/
+│       │   └── x86_64/
+│       │       ├── libalexander.so          # HCE engine — pre-compiled C++
+│       │       └── libshashchess.so         # NNUE engine — pre-compiled C++
+│       ├── kotlin/.../MainActivity.kt       # MethodChannel host: getNativeLibDir
+│       └── AndroidManifest.xml
 │
-├── ios/                                  # iOS native project
+├── ios/
 │   ├── Runner/
 │   └── Podfile
 │
-├── lib/                                  # All Dart application code
+├── assets/
+│   ├── demo/                                # Demo PGN games
+│   ├── engine/
+│   │   ├── nn-c288c895ea92.nnue             # NNUE network file (ShashChess)
+│   │   └── nn-37f18f62d772.nnue             # NNUE network file (ShashChess)
+│   ├── help/
+│   │   ├── help_en.html                     # In-app manual (English)
+│   │   └── help_it.html                     # In-app manual (Italian)
+│   └── images/
+│       ├── icon.png                         # App icon / launcher icon source
+│       ├── splash.jpg                       # Native splash screen source
+│       ├── capablanca.png                   # Shashin zone avatar
+│       ├── tal.png                          # Shashin zone avatar
+│       ├── petrosian.png                    # Shashin zone avatar
+│       ├── nugget.png                       # Nugget position badge
+│       ├── alexander.bmp                    # Engine avatar
+│       └── shashchess.bmp                   # Engine avatar
+│
+├── doc/                                     # Design documentation
+│   ├── 1.AnalisiRequisiti.docx
+│   ├── 2.SpecificaRequisiti.docx
+│   ├── 3.ProgettazioneArchitetturale.docx
+│   ├── 4.ProgettazioneDettagliata.docx
+│   └── 5.BusinessPlan.docx
+│
+├── lib/
 │   │
-│   ├── main.dart                         # Bootstrap only — ProviderScope + MaterialApp
+│   ├── main.dart                            # Bootstrap:
+│   │                                        #   1. Load SharedPreferences
+│   │                                        #   2. Restore saved language → appLocale
+│   │                                        #   3. Inject prefs via ProviderScope.overrides
+│   │                                        #   4. Wrap app in ValueListenableBuilder<Locale>
 │   │
-│   ├── core/                             # Shared infrastructure (feature-agnostic)
+│   ├── core/                                # Shared infrastructure — feature-agnostic
+│   │   │
 │   │   ├── engine/
-│   │   │   └── engine_manager.dart           # Low-level engine process lifecycle
+│   │   │   └── engine_manager.dart          # Spawns the native .so process via MethodChannel,
+│   │   │                                    # extracts NNUE files to documents dir on first run,
+│   │   │                                    # exposes Stream<String> engineOutput + sendCommand()
+│   │   │
 │   │   ├── logic/
-│   │   │   ├── shashin_logic.dart            # Shashin zone computation (pure Dart, no Flutter)
-│   │   │   ├── livebook_oracle.dart          # Online opening book queries
-│   │   │   └── livebook_scanner.dart         # Local opening book scanning
+│   │   │   ├── shashin_logic.dart           # Pure Dart: WDL → ShashinZone mapping,
+│   │   │   │                                # avatar selection, Nugget detection (wp==25/75)
+│   │   │   ├── livebook_oracle.dart         # Online Livebook queries (Lichess / ChessDB)
+│   │   │   └── livebook_scanner.dart        # Local Livebook opening book scanning
+│   │   │
 │   │   ├── orchestrators/
-│   │   │   ├── shashin_fsm.dart              # FSM: idle → analysing → phase1 → phase2
-│   │   │   ├── autoplay_orchestrator.dart    # Drives autoplay sessions
-│   │   │   ├── play_orchestrator.dart        # Drives human-vs-engine games
-│   │   │   └── crossed_eval.dart             # Dual-engine cross-analysis logic
+│   │   │   ├── shashin_fsm.dart             # FSM (idle → phase1 → phase2):
+│   │   │   │                                # drives go/stop commands, parses UCI info lines,
+│   │   │   │                                # updates ShashinZone + EngineStats via callbacks
+│   │   │   ├── autoplay_orchestrator.dart   # Engine-vs-engine match loop:
+│   │   │   │                                # time control (movetime or clock+inc),
+│   │   │   │                                # Livebook, watchdog timer, game-over detection,
+│   │   │   │                                # live clock updates (onClockUpdate callback)
+│   │   │   ├── play_orchestrator.dart       # Human-vs-engine game loop:
+│   │   │   │                                # Livebook, threefold-repetition detection,
+│   │   │   │                                # time control, position count map
+│   │   │   └── crossed_eval.dart            # CrossedEvalOrchestrator — multi-phase analysis:
+│   │   │                                    # static eval, base eval, student move, master move;
+│   │   │                                    # computes centerType, deltaK, spatial metrics;
+│   │   │                                    # fully localised via AppLocalizations
+│   │   │
 │   │   ├── services/
-│   │   │   └── import_export_service.dart    # PGN / FEN file I/O
-│   │   └── widgets/                          # Shared widgets (used by 2+ features)
-│   │       ├── about_dialog.dart             # ⚠️ Candidate → features/settings/
-│   │       └── setup_position_dialog.dart    # Shared: Analysis + Play
+│   │   │   ├── import_export_service.dart   # file_picker (PGN/EPD/FEN/TXT) +
+│   │   │   │                                # Lichess game fetch by URL
+│   │   │   └── shared_prefs_provider.dart   # Provider<SharedPreferences> — throws
+│   │   │                                    # UnimplementedError if not overridden;
+│   │   │                                    # always injected in main() via overrides[]
+│   │   │
+│   │   └── widgets/
+│   │       └── setup_position_dialog.dart   # Shared: used by Analysis AND Play
 │   │
-│   ├── features/                         # Vertical feature slices
+│   ├── features/
+│   │   │
 │   │   ├── analysis/
-│   │   │   ├── domain/                       # Business logic — zero Flutter widgets here
-│   │   │   │   ├── engine_controller.dart        # StateNotifier: engine lifecycle
-│   │   │   │   ├── engine_state.dart             # Immutable state DTO
-│   │   │   │   ├── board_provider.dart           # Board position & move history
-│   │   │   │   ├── notation_controller.dart      # PGN notation management
-│   │   │   │   └── autoplay_controller.dart      # Autoplay session management
+│   │   │   ├── domain/
+│   │   │   │   ├── engine_state.dart            # Immutable DTO:
+│   │   │   │   │                                # isRunning, selectedEngine, EngineStats,
+│   │   │   │   │                                # ShashinZone, outputLines + copyWith()
+│   │   │   │   ├── engine_controller.dart       # StateNotifier<EngineState>:
+│   │   │   │   │                                # startEngine() → loads UCI options from
+│   │   │   │   │                                # SharedPreferences, sends setoption commands,
+│   │   │   │   │                                # fires isready barrier, delegates to ShashinFsm;
+│   │   │   │   │                                # setUciOption() for real-time option updates
+│   │   │   │   ├── board_provider.dart          # Provider<ChessBoardController> — single
+│   │   │   │   │                                # board instance shared across Analysis
+│   │   │   │   ├── notation_controller.dart     # StateNotifier<NotationState>:
+│   │   │   │   │                                # MoveNode tree (fen, san, parent, children[]);
+│   │   │   │   │                                # addMove(), setCurrentNode(), goBack/Forward/
+│   │   │   │   │                                # Start/End(), handleNewMove() with branching
+│   │   │   │   │                                # dialog (Main / Variant / Overwrite / Cancel)
+│   │   │   │   └── autoplay_controller.dart     # StateNotifier<AutoplayState>:
+│   │   │   │                                    # full match lifecycle (start/stop/restart),
+│   │   │   │                                    # score tracking (W/D/L + 0.5 for draws),
+│   │   │   │                                    # colour reversal between rounds,
+│   │   │   │                                    # saves each game to gauntlet_results.pgn
+│   │   │   │
 │   │   │   └── presentation/
-│   │   │       ├── analysis_screen.dart          # Top-level ConsumerWidget
+│   │   │       ├── analysis_screen.dart         # Top-level ConsumerWidget — composes all panels
 │   │   │       └── widgets/
-│   │   │           ├── board_section.dart
-│   │   │           ├── engine_controls.dart
-│   │   │           ├── analysis_panel.dart
-│   │   │           ├── notation_panel.dart
-│   │   │           ├── analysis_setup_modal.dart
-│   │   │           ├── autoplay_modal.dart
-│   │   │           ├── livebook_modal.dart
-│   │   │           └── coach_modal.dart
+│   │   │           ├── board_section.dart        # Interactive chessboard + move handler
+│   │   │           ├── engine_controls.dart      # Start/stop, setup, autoplay, livebook,
+│   │   │           │                             # coach, import/export action buttons
+│   │   │           ├── analysis_panel.dart       # Shashin zone display + WDL bar
+│   │   │           ├── notation_panel.dart       # Move tree renderer + navigation controls
+│   │   │           ├── analysis_setup_modal.dart # Engine selector + time slider +
+│   │   │           │                             # "Configure UCI" button → UciOptionsModal
+│   │   │           ├── uci_options_modal.dart    # ConsumerStatefulWidget: probes engine
+│   │   │           │                             # for all UCI options, renders dynamic form,
+│   │   │           │                             # persists values to SharedPreferences
+│   │   │           ├── autoplay_modal.dart       # Gauntlet setup: engines, TC, games, Livebook
+│   │   │           ├── livebook_modal.dart       # Online opening book viewer
+│   │   │           └── coach_modal.dart          # Crossed-eval coach panel
+│   │   │
 │   │   ├── play/
 │   │   │   ├── domain/
-│   │   │   │   └── play_controller.dart
+│   │   │   │   └── play_controller.dart          # StateNotifier<PlayState>:
+│   │   │   │                                     # engine, colour, TC, Livebook, limitStrength,
+│   │   │   │                                     # eloValue; reads/writes sharedPrefsProvider;
+│   │   │   │                                     # delegates game loop to PlayOrchestrator
 │   │   │   └── presentation/
-│   │   │       └── play_screen.dart
+│   │   │       └── play_screen.dart              # ConsumerWidget — human vs engine UI
+│   │   │
 │   │   ├── settings/
 │   │   │   └── presentation/
-│   │   │       └── settings_screen.dart
+│   │   │       ├── settings_screen.dart          # Language switcher (IT/EN) dropdown,
+│   │   │       │                                 # persists via SharedPreferences,
+│   │   │       │                                 # triggers appLocale ValueNotifier
+│   │   │       └── widgets/
+│   │   │           └── about_dialog.dart         # App logo, version, credits dialog
+│   │   │                                         # (localised via AppLocalizations)
+│   │   │
 │   │   └── navigation/
 │   │       └── presentation/
-│   │           └── main_navigation_screen.dart
+│   │           └── main_navigation_screen.dart   # StatefulWidget with BottomNavigationBar:
+│   │                                             # Analysis | Play | Settings
+│   │                                             # + PlaceholderScreen for upcoming tabs
 │   │
-│   └── l10n/                             # Localisation (EN + IT)
-│       ├── app_en.arb
-│       ├── app_it.arb
-│       ├── app_localizations.dart
-│       ├── app_localizations_en.dart
-│       └── app_localizations_it.dart
+│   └── l10n/
+│       ├── app_en.arb                            # English string keys
+│       ├── app_it.arb                            # Italian string keys
+│       ├── app_localizations.dart                # Generated base class
+│       ├── app_localizations_en.dart             # Generated EN implementation
+│       └── app_localizations_it.dart             # Generated IT implementation
 │
-├── test/                                 # Unit & widget tests
-│   ├── unit/
-│   └── widget/
+├── test/                                         # Unit & widget tests
+├── integration_test/                             # End-to-end device tests
 │
-├── integration_test/                     # End-to-end tests on real devices
-│
-├── assets/                               # Static assets bundled with the app
-│   ├── pieces/                           # Chess piece SVGs
-│   ├── sounds/                           # Move / capture audio
-│   └── books/                            # Bundled opening book files
-│
-├── analysis_options.yaml                 # Dart linter rules
-├── pubspec.yaml                          # Dependencies & project metadata
+├── analysis_options.yaml                         # Dart linter rules
+├── l10n.yaml                                     # Localisation config (arb-dir, output-dir)
+├── pubspec.yaml                                  # Dependencies, assets, icons, splash config
 └── README.md
 ```
 
@@ -387,48 +462,84 @@ shashgui_mobile/
 
 #### Presentation & Domain — `features/`
 
-Each feature owns its state. The **Controller** (a Riverpod `StateNotifier`) is the entry point for all user-initiated actions within that feature. It:
+Each feature owns its state. The **Controller** (a Riverpod `StateNotifier`) is the single entry point for all user-initiated actions within that feature. It:
 
-- Receives commands from the UI (`startAnalysis()`, `stopEngine()`, `loadPgn()`)
+- Receives commands from the UI (`startEngine()`, `stopMatch()`, `handleNewMove()`)
 - Delegates execution to the relevant Orchestrator in `core/`
-- Listens to callbacks and **updates the immutable State object**
-- Never touches platform APIs or engine processes directly
+- Listens to callbacks and updates the **immutable State object** via `copyWith()`
+- Never touches platform APIs directly
 
 **The Controller commands** — it decides *what* should happen and *when*.
 
 #### Infrastructure — `core/orchestrators/`
 
-Orchestrators manage the messy reality of native processes: spawning engine subprocesses, writing UCI commands, parsing stdout streams, handling timeouts, and driving Finite State Machines. They:
+Orchestrators manage the messy reality of native processes: spawning the engine, writing UCI commands to stdin, parsing stdout streams, handling timeouts and watchdog timers, and driving Finite State Machines. They:
 
 - Know nothing about Flutter, Riverpod, or UI state
-- Expose a clean callback-based API to their callers
-- Can be reused across multiple features (e.g. `PlayOrchestrator` serves both `play/` and `analysis/`)
+- Expose a clean callback-based API (`onLog`, `onZoneChanged`, `onStatsUpdate`, `onGameOver`, `onClockUpdate`)
+- Are designed to be reusable across features (e.g. `AutoplayOrchestrator` is used from `features/analysis/`, `PlayOrchestrator` from `features/play/`)
 
 **The Orchestrator executes** — it knows *how* to talk to the C++ engine.
 
-> **Future evolution:** if an orchestrator ends up serving only one feature, it can be migrated inside `features/<name>/domain/` without breaking anything else. The Clean Architecture boundary makes this refactor mechanical and safe.
+---
+
+### 🗄️ Persistence Architecture
+
+All persistent user preferences flow through a single `SharedPreferences` instance injected at startup.
+
+**Bootstrap sequence (`main.dart`):**
+
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();   // load once at startup
+  appLocale.value = Locale(prefs.getString('language') ?? 'it');  // restore language
+  runApp(
+    ProviderScope(
+      overrides: [sharedPrefsProvider.overrideWithValue(prefs)],  // inject globally
+      child: const ShashGuiApp(),
+    ),
+  );
+}
+```
+
+**Key naming conventions:**
+
+| Key | Type | Description |
+|---|---|---|
+| `language` | `String` | Active UI language (`"it"` or `"en"`) |
+| `{engineName}_{optionName}` | `String` | UCI option for a specific engine |
+
+**UCI option apply sequence (`EngineController.startEngine`):**
+
+```
+1. initEngine()              → spawn process, load NNUE files
+2. Read all prefs keys        → filter by "{engineName}_" prefix
+3. sendCommand(setoption …)  → apply each persisted option
+4. sendCommand(isready)      → synchronisation barrier
+5. await 50 ms               → let engine digest options (e.g. MultiPV)
+6. fsm.startAnalysis(fen)    → begin analysis
+```
 
 ---
 
 ### 🧩 Widget Placement Policy
 
-A simple, enforceable rule governs where every widget lives:
-
 | Condition | Location |
 |---|---|
 | Widget used by **exactly one feature** | `features/<name>/presentation/widgets/` |
-| Widget used by **two or more features** | `lib/core/widgets/` (Shared Widget) |
+| Widget used by **two or more features** | `lib/core/widgets/` |
 
-**Examples in this project:**
-- `BoardSection`, `EngineControls`, `NotationPanel` → `features/analysis/presentation/widgets/` ✅
-- `SetupPositionDialog` → `lib/core/widgets/` (used by both Analysis and Play) ✅
-- `AboutDialog` → currently in `core/widgets/`, candidate to move to `features/settings/presentation/widgets/` if Settings is its only consumer
+**Current state:**
+- All Analysis widgets → `features/analysis/presentation/widgets/` ✅
+- `AboutDialog` → `features/settings/presentation/widgets/` ✅ *(migrated from `core/widgets/`)*
+- `SetupPositionDialog` → `lib/core/widgets/` ✅ *(shared: Analysis + Play)*
 
 ---
 
 ### 💬 Comment Policy
 
-A Finite State Machine (`ShashinFsm`) is non-trivial by nature. All non-obvious logic — state transitions, guard conditions, throttle timers, WDL mapping heuristics — must carry **explanatory comments** or Dart doc comments (`///`). Code that was clear at 2 AM during a refactor sprint will not be clear to a fresh reader six months later.
+Non-obvious logic — FSM state transitions, guard conditions, throttle timers, WDL zone boundaries, `context.mounted` safety checks after `async` gaps — must carry inline comments or Dart doc comments (`///`).
 
 Rule of thumb: **if you had to think for more than 30 seconds before writing a line, that line deserves a comment.**
 

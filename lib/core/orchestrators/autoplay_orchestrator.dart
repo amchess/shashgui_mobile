@@ -279,7 +279,8 @@ class AutoplayOrchestrator {
           selDepth: selDepth,
           nodes: nodes,
           nps: nps,
-          pv: fullPv ?? "",
+          // ⚠️ FIX: Usiamo 'pvs' (Lista) invece del vecchio 'pv' (Stringa)!
+          pvs: fullPv != null && fullPv.isNotEmpty ? [fullPv] : [],
         ),
       );
     }

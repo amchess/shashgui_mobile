@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
+import 'package:shared_preferences/shared_preferences.dart'; // ⚠️ AGGIUNGI QUESTO IMPORT!
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/orchestrators/play_orchestrator.dart';
+import '../../../core/services/shared_prefs_provider.dart';
 
 final playBoardProvider = Provider<ChessBoardController>((ref) {
   return ChessBoardController();
@@ -72,27 +74,72 @@ class PlayController extends StateNotifier<PlayState> {
   final Ref ref;
   final EngineManager _engineManager = EngineManager();
   PlayOrchestrator? _orchestrator;
+  late final SharedPreferences _prefs; // Variabile per la memoria
 
-  PlayController(this.ref) : super(PlayState());
+  PlayController(this.ref) : super(PlayState()) {
+    // Recuperiamo le preferenze istantaneamente grazie a Riverpod
+    _prefs = ref.read(sharedPrefsProvider);
+    _loadPreferences();
+  }
 
-  void setUserColor(PlayerColor color) =>
-      state = state.copyWith(userColor: color);
-  void setEngine(String engine) =>
-      state = state.copyWith(selectedEngine: engine);
+  // --- CARICAMENTO MEMORIA ---
+  void _loadPreferences() {
+    state = state.copyWith(
+      selectedEngine: _prefs.getString('play_engine') ?? 'alexander',
+      tcType: _prefs.getInt('play_tcType') ?? 1,
+      baseTime: _prefs.getInt('play_baseTime') ?? 3,
+      increment: _prefs.getInt('play_increment') ?? 0,
+      useLivebook: _prefs.getBool('play_useLivebook') ?? true,
+      limitStrength: _prefs.getBool('play_limitStrength') ?? false,
+      eloValue: _prefs.getDouble('play_eloValue') ?? 1500.0,
+    );
+  }
 
-  void setTcType(int type) => state = state.copyWith(
-    tcType: type,
-    baseTime: type == 0 ? 5 : 3,
-    increment: 0,
-  );
-  void setBaseTime(int time) => state = state.copyWith(baseTime: time);
-  void setIncrement(int inc) => state = state.copyWith(increment: inc);
+  // --- SETTER CON SALVATAGGIO IN MEMORIA ---
+  void setUserColor(PlayerColor color) {
+    // Non salviamo il colore, di solito l'utente lo sceglie al momento
+    state = state.copyWith(userColor: color);
+  }
 
-  // --- METODI PER I NUOVI PARAMETRI ---
-  void toggleLivebook(bool val) => state = state.copyWith(useLivebook: val);
-  void toggleLimitStrength(bool val) =>
-      state = state.copyWith(limitStrength: val);
-  void setEloValue(double val) => state = state.copyWith(eloValue: val);
+  void setEngine(String engine) {
+    _prefs.setString('play_engine', engine);
+    state = state.copyWith(selectedEngine: engine);
+  }
+
+  void setTcType(int type) {
+    _prefs.setInt('play_tcType', type);
+    int newBaseTime = type == 0
+        ? 5
+        : 3; // Reset dei tempi di default in base alla cadenza
+    _prefs.setInt('play_baseTime', newBaseTime);
+    _prefs.setInt('play_increment', 0);
+    state = state.copyWith(tcType: type, baseTime: newBaseTime, increment: 0);
+  }
+
+  void setBaseTime(int time) {
+    _prefs.setInt('play_baseTime', time);
+    state = state.copyWith(baseTime: time);
+  }
+
+  void setIncrement(int inc) {
+    _prefs.setInt('play_increment', inc);
+    state = state.copyWith(increment: inc);
+  }
+
+  void toggleLivebook(bool val) {
+    _prefs.setBool('play_useLivebook', val);
+    state = state.copyWith(useLivebook: val);
+  }
+
+  void toggleLimitStrength(bool val) {
+    _prefs.setBool('play_limitStrength', val);
+    state = state.copyWith(limitStrength: val);
+  }
+
+  void setEloValue(double val) {
+    _prefs.setDouble('play_eloValue', val);
+    state = state.copyWith(eloValue: val);
+  }
 
   Future<void> startGame() async {
     state = state.copyWith(

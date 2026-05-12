@@ -172,19 +172,23 @@ class AnalysisScreen extends ConsumerWidget {
       ),
       body: const Column(
         children: [
-          Expanded(flex: 6, child: Center(child: BoardSection())),
+          Expanded(child: Center(child: BoardSection())),
 
-          // FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: NotationPanel(),
           ),
 
+          SizedBox(
+            height: 12,
+          ), // 👈 Spazio di separazione costante tra i due moduli
+
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: AnalysisPanel(),
           ),
-          Spacer(),
+
+          SizedBox(height: 8), // Margine prima della barra comandi
           EngineControls(),
         ],
       ),

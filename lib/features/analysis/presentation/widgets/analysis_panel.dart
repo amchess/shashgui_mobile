@@ -24,7 +24,6 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // ⚠️ FIX: Sostituito withOpacity(0.3) con withValues(alpha: 0.3)
         color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -112,12 +111,12 @@ class AnalysisPanel extends ConsumerWidget {
               ),
               CircleAvatar(
                 radius: 20,
-                // ⚠️ FIX: Sostituito withOpacity(0.2) con withValues(alpha: 0.2)
                 backgroundColor: zone.color.withValues(alpha: 0.2),
                 backgroundImage: AssetImage(zone.avatars.first),
               ),
             ],
           ),
+
           const SizedBox(height: 12),
 
           // 4. TERMOMETRO SHASHIN
@@ -142,17 +141,35 @@ class AnalysisPanel extends ConsumerWidget {
             ],
           ),
 
-          // 6. PRINCIPAL VARIATION (PV)
-          if (stats.pv.isNotEmpty) ...[
+          // 6. PRINCIPAL VARIATION (PV) - SCROLLABILE!
+          if (stats.pvs.isNotEmpty) ...[
             const Divider(color: Colors.white12, height: 16),
-            Text(
-              "PV: ${stats.pv}",
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
+            ConstrainedBox(
+              // ⚠️ Imposta un'altezza massima fissa. Se le linee la superano, appare lo scroll.
+              constraints: const BoxConstraints(maxHeight: 85),
+              child: SingleChildScrollView(
+                physics:
+                    const BouncingScrollPhysics(), // Effetto rimbalzo morbido
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: stats.pvs.asMap().entries.map((entry) {
+                    int index = entry.key + 1;
+                    String pvLine = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0),
+                      child: Text(
+                        stats.pvs.length > 1
+                            ? "PV$index: $pvLine"
+                            : "PV: $pvLine",
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ],
@@ -183,7 +200,6 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        // ⚠️ FIX: Sostituiti i withOpacity con withValues(alpha: ...)
         color: isWhite
             ? Colors.white.withValues(alpha: 0.9)
             : Colors.black.withValues(alpha: 0.6),
@@ -256,6 +272,7 @@ class AnalysisPanel extends ConsumerWidget {
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 13,
+            fontFamily: 'monospace',
           ),
         ),
       ],

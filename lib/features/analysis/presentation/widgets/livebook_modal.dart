@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_chess_board/flutter_chess_board.dart'
+    hide Color; // ⚠️ Aggiunto per il traduttore SAN
 import '../../../../core/logic/livebook_scanner.dart';
+import '../../../../l10n/app_localizations.dart'; // ⚠️ Aggiunto per le lingue
 import '../../domain/board_provider.dart';
 import '../../domain/engine_controller.dart';
+import '../../domain/notation_controller.dart'; // ⚠️ Aggiunto per l'albero delle mosse
 
 class LivebookModal extends ConsumerStatefulWidget {
   const LivebookModal({super.key});
@@ -24,8 +28,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   Future<void> _fetchCloudData() async {
     final fen = ref.read(boardControllerProvider).getFen();
-
-    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa!
+    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa
     final results = await Future.wait([
       LiveBookScanner.scan(fen, [], true), // true = ChessDB
       LiveBookScanner.scan(fen, [], false), // false = Lichess
@@ -40,7 +43,35 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     }
   }
 
-  Widget _buildList(LiveBookResult? result) {
+  // --- IL TRADUTTORE UCI -> SAN ---
+  // Usa una scacchiera fantasma in RAM per calcolare il nome esatto della mossa
+  String _getSan(String fen, String uci) {
+    if (uci == "-" || uci.contains(".")) return uci;
+    try {
+      final tempChess = Chess.fromFEN(fen);
+      String fromSq = uci.substring(0, 2);
+      String toSq = uci.substring(2, 4);
+      String? prom = uci.length == 5 ? uci[4] : null;
+
+      var moveRes = tempChess.move({
+        'from': fromSq,
+        'to': toSq,
+        'promotion': prom,
+      });
+      if (moveRes != false) {
+        String pgn = tempChess.pgn();
+        pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
+        List<String> parts = pgn.split(RegExp(r'\s+'));
+        return parts.lastWhere(
+          (s) => !s.contains('.'),
+          orElse: () => uci.toUpperCase(),
+        );
+      }
+    } catch (_) {}
+    return uci.toUpperCase(); // Fallback in caso di mossa illegale
+  }
+
+  Widget _buildList(LiveBookResult? result, String currentFen) {
     if (result == null) return const SizedBox.shrink();
 
     return Column(
@@ -74,13 +105,16 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             itemCount: result.moves.length,
             itemBuilder: (context, index) {
               final move = result.moves[index];
+              // Convertiamo il brutto UCI (es. d4d5) nel bellissimo SAN (es. d5)
+              final sanMove = _getSan(currentFen, move.move);
+
               return ListTile(
                 leading: const Icon(
                   Icons.arrow_right_alt,
                   color: Colors.white54,
                 ),
                 title: Text(
-                  move.move.toUpperCase(),
+                  sanMove,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -94,9 +128,13 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                onTap: () {
+
+                onTap: () async {
+                  // ⚠️ Aggiunto 'async' qui!
                   if (move.move != "-" && !move.move.contains(".")) {
                     final boardCtrl = ref.read(boardControllerProvider);
+
+                    // 1. Applica mossa sulla scacchiera fisica
                     if (move.move.length == 5) {
                       boardCtrl.makeMoveWithPromotion(
                         from: move.move.substring(0, 2),
@@ -109,12 +147,25 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                         to: move.move.substring(2, 4),
                       );
                     }
+
+                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE E LE VARIANTI!
+                    ref
+                        .read(notationControllerProvider.notifier)
+                        .handleNewMove(boardCtrl.getFen(), sanMove, context);
+
+                    // 3. Riavvia l'analisi del motore se era acceso
                     if (ref.read(engineControllerProvider).isRunning) {
                       ref
                           .read(engineControllerProvider.notifier)
                           .analyzeCurrentPosition(boardCtrl.getFen());
                     }
-                    Navigator.pop(context);
+
+                    // 4. ⚠️ INVECE DI CHIUDERE IL PANNELLO, LO RICARICHIAMO!
+                    // Togliamo Navigator.pop(context); e mettiamo questo:
+                    setState(() {
+                      _isLoading = true; // Mostra la rotellina di caricamento
+                    });
+                    await _fetchCloudData(); // Scarica le mosse della nuova posizione
                   }
                 },
               );
@@ -127,6 +178,9 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final fen = ref.read(boardControllerProvider).getFen();
+
     if (_isLoading) {
       return const SizedBox(
         height: 350,
@@ -138,9 +192,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
     return Container(
       padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
-      height:
-          MediaQuery.of(context).size.height *
-          0.6, // Leggermente più alto per far spazio ai tab
+      height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -154,9 +206,9 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "📖 Esploratore Cloud",
-                  style: TextStyle(
+                Text(
+                  "📖 ${loc.livebook} Cloud", // ⚠️ Usa il file di lingua!
+                  style: const TextStyle(
                     color: Colors.blueAccent,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -182,8 +234,8 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildList(_chessDbResult),
-                  _buildList(_lichessResult),
+                  _buildList(_chessDbResult, fen),
+                  _buildList(_lichessResult, fen),
                 ],
               ),
             ),

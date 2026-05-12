@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/logic/shashin_logic.dart';
 import '../../../core/orchestrators/shashin_fsm.dart';
@@ -29,24 +30,18 @@ class EngineController extends StateNotifier<EngineState> {
     String engineName = 'shashchess',
   }) async {
     state = state.copyWith(isRunning: true, selectedEngine: engineName);
-
     try {
-      // Se l'utente ha scelto un motore diverso, puliamo quello vecchio
-      if (_engineManager.engineOutput != null &&
+      // 1. Inizializza il motore se non esiste o se è cambiato
+      if (_engineManager.engineOutput == null ||
           engineName != state.selectedEngine) {
         _engineManager.dispose();
         _engineManager = EngineManager();
-      }
 
-      // Se il motore non è acceso, lo inizializziamo
-      if (_engineManager.engineOutput == null) {
         await _engineManager.initEngine(engineName, [
           'nn-c288c895ea92.nnue',
           'nn-37f18f62d772.nnue',
         ]);
 
-        // ⚠️ IL FIX MAGICO: Creiamo la FSM *SOLO DOPO* che l'engine è inizializzato!
-        // Così si aggancerà al flusso dati corretto e non a un "null".
         _fsm?.dispose();
         _fsm = ShashinFsm(
           engineManager: _engineManager,
@@ -60,9 +55,32 @@ class EngineController extends StateNotifier<EngineState> {
         );
       }
 
+      // 2. ⚠️ APPLICA LE OPZIONI: Carica le preferenze e inviale al motore
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith('${engineName}_'));
+      for (var key in keys) {
+        final optionName = key.replaceFirst('${engineName}_', '');
+        final value = prefs.getString(key);
+        if (value != null && value.isNotEmpty) {
+          _engineManager.sendCommand('setoption name $optionName value $value');
+        }
+      }
+
+      // 3. ⚠️ BARRIERA DI SINCRONIZZAZIONE (Il Fix Magico)
+      // Costringe il motore a digerire le opzioni (es. MultiPV=2) prima di ricevere il comando 'go'
+      _engineManager.sendCommand('isready');
+      await Future.delayed(const Duration(milliseconds: 50));
+
       _fsm!.startAnalysis(fen, baseTimeMs: baseTimeMs);
     } catch (e) {
       state = state.copyWith(isRunning: false);
+    }
+  }
+
+  // ⚠️ NUOVO METODO: Invia opzioni al motore attivo in tempo reale
+  void setUciOption(String optionName, String value) {
+    if (_engineManager.engineOutput != null) {
+      _engineManager.sendCommand('setoption name $optionName value $value');
     }
   }
 

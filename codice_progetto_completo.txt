@@ -136,9 +136,12 @@ flutter:
 
 # --- CONFIGURAZIONE ICONA APP ---
 flutter_launcher_icons:
-  android: "launcher_icon"
+  android: true
   ios: true
   image_path: "assets/images/icon.png"
+  # Le due righe magiche per Android 8.0+:
+  adaptive_icon_background: "#0F1724" # Un blu molto scuro che si fonde col tuo logo
+  adaptive_icon_foreground: "assets/images/icon.png"
 
 # --- CONFIGURAZIONE SPLASH SCREEN ---
 flutter_native_splash:
@@ -219,6 +222,9 @@ include(":app")
 FILE: android\app\build.gradle.kts
 ================================================================================
 
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -226,12 +232,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// ⚠️ Lettura sicura del file key.properties
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.example.shashgui_mobile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    // ECCO LA MAGIA: Forziamo l'estrazione fisica di libshashchess.so
+    // Forziamo l'estrazione fisica di libshashchess.so
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -247,11 +260,18 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // ⚠️ Firma di Release con sintassi corretta per Kotlin DSL
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.shashgui_mobile"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -260,9 +280,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Applichiamo la firma "release"
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
@@ -283,7 +302,7 @@ FILE: android\app\src\main\AndroidManifest.xml
     <application
         android:label="shashgui_mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon"
+        android:icon="@mipmap/ic_launcher"
         android:extractNativeLibs="true">
         <activity
             android:name=".MainActivity"
@@ -346,6 +365,28 @@ FILE: android\app\src\main\res\drawable-v21\launch_background.xml
     </item>
 </layer-list>
 
+
+
+================================================================================
+FILE: android\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/ic_launcher_background"/>
+  <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>
+
+
+
+================================================================================
+FILE: android\app\src\main\res\values\colors.xml
+================================================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0F1724</color>
+</resources>
 
 
 ================================================================================
@@ -504,9 +545,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'l10n/app_localizations.dart';
-
-// 1. CAMBIA QUESTO IMPORT:
 import 'features/navigation/presentation/main_navigation_screen.dart';
+import 'core/services/shared_prefs_provider.dart';
 
 final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('it'));
 
@@ -517,7 +557,15 @@ void main() async {
   final savedLang = prefs.getString('language') ?? 'it';
   appLocale.value = Locale(savedLang);
 
-  runApp(const ProviderScope(child: ShashGuiApp()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        // ⚠️ MAGIA RIVERPOD: Iniettiamo le prefs caricate in tutta l'app!
+        sharedPrefsProvider.overrideWithValue(prefs),
+      ],
+      child: const ShashGuiApp(),
+    ),
+  );
 }
 
 class ShashGuiApp extends StatelessWidget {
@@ -530,6 +578,7 @@ class ShashGuiApp extends StatelessWidget {
       builder: (context, locale, child) {
         return MaterialApp(
           title: 'ShashGui',
+          debugShowCheckedModeBanner: false,
           locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -1608,7 +1657,8 @@ class AutoplayOrchestrator {
           selDepth: selDepth,
           nodes: nodes,
           nps: nps,
-          pv: fullPv ?? "",
+          // ⚠️ FIX: Usiamo 'pvs' (Lista) invece del vecchio 'pv' (Stringa)!
+          pvs: fullPv != null && fullPv.isNotEmpty ? [fullPv] : [],
         ),
       );
     }
@@ -1856,27 +1906,26 @@ import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
 import '../logic/livebook_scanner.dart';
-import '../../l10n/app_localizations.dart'; // <--- IMPORT CRITICO AGGIUNTO QUI!
+import '../../l10n/app_localizations.dart';
 
 enum CrossedState {
   idle,
   staticEval,
   baseEval,
   studentThinking,
-  masterStaticEval, // <--- NUOVO STATO
+  masterStaticEval,
   masterThinking,
 }
 
 class CrossedEvalOrchestrator {
   final EngineManager engineManager;
-  final AppLocalizations loc; // <--- VARIABILE LINGUA AGGIUNTA
+  final AppLocalizations loc;
   CrossedState currentState = CrossedState.idle;
   StreamSubscription<String>? _outputSubscription;
 
   String currentFen = "";
   bool isWhiteToMove = true;
-
-  int baseTimeMs = 2000; // <--- NUOVO
+  int baseTimeMs = 2000;
 
   int studentElo = 1500;
   int masterElo = 2000;
@@ -1892,15 +1941,20 @@ class CrossedEvalOrchestrator {
   String? masterMove;
   ShashinZone? masterZone;
 
-  // Variabili per l'analisi Statica (comando 'eval')
+  // --- VARIABILI ANALISI STATICA (EVAL) ---
   int? spaceWhite;
   int? spaceBlack;
   String? worstPieceWhite;
   String? worstPieceBlack;
-
   String? worstPieceNnue;
 
-  // Callback per la UI
+  // ⚠️ NUOVE VARIABILI PER ARRICCHIRE IL COACH
+  String? centerType;
+  double? deltaK; // Packing density difference
+  double? deltaExpansion; // Center of Gravity difference
+  bool hasBishopPairWhite = false;
+  bool hasBishopPairBlack = false;
+
   final Function(String) onLog;
   final Function(String) onReportReady;
 
@@ -1908,7 +1962,7 @@ class CrossedEvalOrchestrator {
     required this.engineManager,
     required this.onLog,
     required this.onReportReady,
-    required this.loc, // <--- RICHIESTO NEL COSTRUTTORE
+    required this.loc,
   }) {
     _outputSubscription = engineManager.engineOutput?.listen(
       _handleEngineOutput,
@@ -1926,33 +1980,37 @@ class CrossedEvalOrchestrator {
       masterElo = 2399;
       masterSchool = loc.schoolAdvanced;
     } else if (elo < 2500) {
-      // <--- Soglia portata a 2500
       studentSchool = loc.schoolAdvanced;
       masterElo = 3190;
       masterSchool = loc.schoolExpertHCE;
     } else {
       studentSchool = loc.schoolExpert;
-      masterElo = 3500; // Flag per ShashChess
+      masterElo = 3500;
       masterSchool = loc.schoolSuperhumanNNUE;
     }
   }
 
   void startCrossedEval(String fen, int playerElo, int timeMs) async {
-    // <--- Aggiunto int timeMs
     if (currentState != CrossedState.idle) {
       engineManager.sendCommand('stop');
     }
 
     currentFen = fen;
-    baseTimeMs = timeMs; // <--- Salva il tempo
+    baseTimeMs = timeMs;
     isWhiteToMove = fen.split(' ')[1] == 'w';
     _determineSchools(playerElo);
 
-    // Reset variabili statiche
+    // Reset di tutte le variabili statiche
     spaceWhite = null;
     spaceBlack = null;
     worstPieceWhite = null;
     worstPieceBlack = null;
+    worstPieceNnue = null;
+    centerType = null;
+    deltaK = null;
+    deltaExpansion = null;
+    hasBishopPairWhite = false;
+    hasBishopPairBlack = false;
 
     onLog("===========================================");
     onLog(loc.logQueryingOracles);
@@ -1964,7 +2022,6 @@ class CrossedEvalOrchestrator {
       onLog("${loc.logCloudError} $e");
     }
 
-    // FASE 1: Estrazione parametri semantici (comando eval)
     currentState = CrossedState.staticEval;
     onLog(loc.logSemanticScan);
     engineManager.sendCommand('position fen $fen');
@@ -1982,7 +2039,6 @@ class CrossedEvalOrchestrator {
       if (match != null) {
         String pieceChar = match.group(2)!;
         String sq = match.group(3)!;
-
         switch (pieceChar) {
           case 'N':
             worstPieceNnue = '${loc.pieceKnight} in $sq';
@@ -2005,15 +2061,15 @@ class CrossedEvalOrchestrator {
       }
 
       if (line.startsWith("*** Note: Static activity")) {
-        // Fine lettura neurale, avvia il pensiero del Maestro!
         currentState = CrossedState.masterThinking;
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
       return;
     }
-    // --- LETTURA TRACCIA STATICA (EVAL) ---
+
+    // --- LETTURA TRACCIA STATICA (ALEXANDER EVAL) ---
     if (currentState == CrossedState.staticEval) {
-      // Cattura Spazio (Alexander)
+      // 1. Spazio
       final spaceMatch = RegExp(
         r"Total Space: White (\d+) - Black (\d+)",
       ).firstMatch(line);
@@ -2022,7 +2078,29 @@ class CrossedEvalOrchestrator {
         spaceBlack = int.tryParse(spaceMatch.group(2)!);
       }
 
-      // Helper interno per tradurre i pezzi
+      // 2. Tipo di Centro
+      final centerMatch = RegExp(r"Center Type:\s*(.+)").firstMatch(line);
+      if (centerMatch != null) centerType = centerMatch.group(1)!.trim();
+
+      // 3. Densità e Coordinazione (Knights/Deltak)
+      final deltaKMatch = RegExp(
+        r"deltak \(White - Black\):\s*(-?\d+\.\d+)",
+      ).firstMatch(line);
+      if (deltaKMatch != null) deltaK = double.tryParse(deltaKMatch.group(1)!);
+
+      // 4. Baricentro/Espansione
+      final expMatch = RegExp(
+        r"Delta Expansion \(White-Black\):\s*(-?\d+\.\d+)",
+      ).firstMatch(line);
+      if (expMatch != null) {
+        deltaExpansion = double.tryParse(expMatch.group(1)!);
+      }
+
+      // 5. Coppia Alfieri
+      if (line.contains("White bishops: 2")) hasBishopPairWhite = true;
+      if (line.contains("Black bishops: 2")) hasBishopPairBlack = true;
+
+      // 6. Pezzo peggiore (Makogonov)
       String translatePiece(String engPiece) {
         switch (engPiece.trim().toLowerCase()) {
           case 'pawn':
@@ -2042,7 +2120,6 @@ class CrossedEvalOrchestrator {
         }
       }
 
-      // Cattura Pezzi Peggiori (Makogonov per Alexander) - ORA PRENDE ANCHE LA CASA!
       final makWhiteMatch = RegExp(
         r"Makogonov White: Improve (.+?) on ([a-h][1-8])",
       ).firstMatch(line);
@@ -2065,8 +2142,6 @@ class CrossedEvalOrchestrator {
           line.startsWith("*** Note:")) {
         currentState = CrossedState.baseEval;
         onLog(loc.logCalcThermodynamicZone);
-
-        // Usa esattamente il tempo scelto dall'utente!
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
       return;
@@ -2099,7 +2174,7 @@ class CrossedEvalOrchestrator {
           onLog(
             "${loc.logStudentThinking1} $studentSchool ${loc.logStudentThinking2} $studentElo ${loc.logStudentThinking3}",
           );
-          // --- INIZIO PARTE MANCANTE ---
+
           engineManager.sendCommand('position fen $currentFen');
           engineManager.sendCommand(
             'setoption name UCI_LimitStrength value true',
@@ -2117,112 +2192,134 @@ class CrossedEvalOrchestrator {
     }
   }
 
-  // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
   Future<void> _startMasterPhase() async {
     currentState = CrossedState.masterThinking;
     onLog("${loc.logPrepMaster1} $masterSchool ${loc.logPrepMaster2}");
 
     if (masterElo >= 3500) {
       onLog(loc.logEngineSwap);
-
-      // 1. Uccidiamo il vecchio processo Alexander
       engineManager.dispose();
-
-      // 2. Inizializziamo ShashChess (con le sue reti neurali)
       await engineManager.initEngine('shashchess', [
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
-
-      // 3. CRITICO: Ri-agganciamo l'ascoltatore!
       _outputSubscription?.cancel();
       _outputSubscription = engineManager.engineOutput?.listen(
         _handleEngineOutput,
       );
-
       onLog(loc.logShashReady);
 
-      // Chiediamo a ShashChess di valutare i suoi pezzi peggiori
       currentState = CrossedState.masterStaticEval;
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('eval');
       return;
     } else {
-      // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
       engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
-
       currentState = CrossedState.masterThinking;
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('go movetime $baseTimeMs');
     }
   }
 
-  // NLP: Genera l'analisi testuale della posizione iniziale
+  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) ARRICCHITO
   String _generateStaticAnalysisText() {
-    String txt = "";
+    StringBuffer txt = StringBuffer();
 
+    // 1. TIPO DI CENTRO
+    if (centerType != null && centerType!.isNotEmpty) {
+      txt.write(
+        "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. ",
+      );
+    }
+
+    // 2. EQUILIBRI E SQUILIBRI DI SPAZIO
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
-      if (diff >= 4) {
-        txt += loc.evalWhiteDominate;
-      } else if (diff >= 1 && diff <= 3) {
-        txt += loc.evalWhiteSlightEdge;
+      if (diff == 0) {
+        txt.write(
+          "Lo spazio controllato è in **perfetto equilibrio** ($spaceWhite a $spaceBlack). ",
+        );
+      } else if (diff >= 4) {
+        txt.write("Il Bianco gode di un netto dominio territoriale. ");
+      } else if (diff >= 1) {
+        txt.write("Il Bianco possiede un lieve vantaggio di spazio. ");
       } else if (diff <= -4) {
-        txt += loc.evalBlackDominate;
-      } else if (diff >= -3 && diff <= -1) {
-        txt += loc.evalBlackSlightEdge;
+        txt.write(
+          "Il Nero ha asfissiato i pezzi bianchi con un forte vantaggio spaziale. ",
+        );
       } else {
-        txt += loc.evalSpaceBalanced;
+        txt.write(
+          "Il Nero detiene un leggero controllo territoriale superiore. ",
+        );
       }
     }
 
+    // 3. BARICENTRO ED ESPANSIONE (Chi sta spingendo di più?)
+    if (deltaExpansion != null) {
+      if (deltaExpansion!.abs() < 0.2) {
+        txt.write("Il baricentro dei due schieramenti è simmetrico. ");
+      } else if (deltaExpansion! > 0.5) {
+        txt.write(
+          "Il Bianco è molto più espanso, tenendo i pezzi in ranghi avanzati. ",
+        );
+      } else if (deltaExpansion! < -0.5) {
+        txt.write(
+          "Il Nero ha un fattore di espansione superiore e sta spingendo le linee. ",
+        );
+      }
+    }
+
+    // 4. DENSITÀ E COORDINAZIONE (Principio di Shashin sui pezzi a corto raggio)
+    if (deltaK != null) {
+      if (deltaK!.abs() <= 0.02) {
+        txt.write(
+          "La densità di imballaggio (coordinazione dei pezzi a corto raggio) è bilanciata. ",
+        );
+      } else if (deltaK! > 0.05) {
+        txt.write(
+          "Il Bianco ha pezzi a corto raggio (Cavalli/Pedoni) meglio raggruppati. ",
+        );
+      } else if (deltaK! < -0.05) {
+        txt.write("Il Nero ha una struttura più densa e compatta. ");
+      }
+    }
+
+    // 5. VANTAGGI MATERIALI STATICI (Coppia degli Alfieri)
+    if (hasBishopPairWhite && !hasBishopPairBlack) {
+      txt.write(
+        "\nIl Bianco possiede il vantaggio a lungo termine della **coppia degli alfieri**. ",
+      );
+    } else if (hasBishopPairBlack && !hasBishopPairWhite) {
+      txt.write(
+        "\nIl Nero detiene la **coppia degli alfieri**, un fattore chiave in posizioni aperte. ",
+      );
+    }
+
+    // 6. PRINCIPIO DI MAKOGONOV (Il pezzo peggiore)
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
     if (worst != null) {
-      txt += "${loc.evalMakogonovWorst} $worst.";
+      txt.write(
+        "\nInfine, per il principio di Makogonov, l'unità che richiede l'urgenza maggiore di essere riattivata è **$worst**.",
+      );
     }
 
-    return txt.isNotEmpty ? txt.trim() : loc.evalComplex;
+    return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
   }
 
-  // Helper interno per assegnare l'indice di Zona Shashin (0-12)
   int _getZoneIndex(double wp) {
-    if (wp <= 5) {
-      return 0;
-    }
-    if (wp <= 10) {
-      return 1;
-    }
-    if (wp <= 15) {
-      return 2;
-    }
-    if (wp <= 20) {
-      return 3;
-    }
-    if (wp <= 24) {
-      return 4;
-    }
-    if (wp <= 49) {
-      return 5;
-    }
-    if (wp <= 50) {
-      return 6;
-    }
-    if (wp <= 75) {
-      return 7;
-    }
-    if (wp <= 79) {
-      return 8;
-    }
-    if (wp <= 84) {
-      return 9;
-    }
-    if (wp <= 89) {
-      return 10;
-    }
-    if (wp <= 94) {
-      return 11;
-    }
+    if (wp <= 5) return 0;
+    if (wp <= 10) return 1;
+    if (wp <= 15) return 2;
+    if (wp <= 20) return 3;
+    if (wp <= 24) return 4;
+    if (wp <= 49) return 5;
+    if (wp <= 50) return 6;
+    if (wp <= 75) return 7;
+    if (wp <= 79) return 8;
+    if (wp <= 84) return 9;
+    if (wp <= 89) return 10;
+    if (wp <= 94) return 11;
     return 12;
   }
 
@@ -2250,7 +2347,7 @@ class CrossedEvalOrchestrator {
     }
     report.writeln("");
 
-    // 2. ANALISI PRE-MOSSA
+    // 2. ANALISI PRE-MOSSA (Ora potentissima!)
     report.writeln(loc.reportTitleStatic);
     report.writeln(
       "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
@@ -2277,7 +2374,6 @@ class CrossedEvalOrchestrator {
       "• ${loc.reportExpectation}: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
     );
 
-    // NUOVO: Integrazione Makogonov ShashChess sempre visibile
     if (worstPieceNnue != null) {
       report.writeln("🔍 ${loc.reportNnueWorstPiece}: $worstPieceNnue");
     }
@@ -2320,7 +2416,7 @@ class CrossedEvalOrchestrator {
       }
     }
 
-    // 6. VISIONE AVANZATA (Solo ShashChess e se le mosse differiscono)
+    // 6. VISIONE AVANZATA
     if (masterElo >= 3500 &&
         worstPieceNnue != null &&
         studentMove != masterMove) {
@@ -2661,22 +2757,20 @@ class EngineStats {
   final int selDepth;
   final int nodes;
   final int nps;
-  final String pv;
+  final List<String> pvs;
 
   const EngineStats({
     this.depth = 0,
     this.selDepth = 0,
     this.nodes = 0,
     this.nps = 0,
-    this.pv = "",
+    this.pvs = const [],
   });
 }
 
 class ShashinFsm {
   final EngineManager engineManager;
-
   FsmState currentState = FsmState.idle;
-  DateTime _lastStatsTime = DateTime.now();
   StreamSubscription<String>? _outputSubscription;
 
   ShashinZone currentZone = ShashinZone(
@@ -2696,10 +2790,18 @@ class ShashinFsm {
 
   bool _isSearchingPhase1 = false;
   bool _isSearchingPhase2 = false;
-
   int _baseTimeMs = 1500;
   int _iteration = 1;
   String currentFen = "";
+
+  final Map<int, String> _multiPvMap = {};
+
+  // ⚠️ NUOVE VARIABILI DI STATO PER IL DEBOUNCE GRAFICO
+  int _currentDepth = 0;
+  int _currentSelDepth = 0;
+  int _currentNodes = 0;
+  int _currentNps = 0;
+  bool _statsUpdatePending = false;
 
   ShashinFsm({
     required this.engineManager,
@@ -2721,58 +2823,66 @@ class ShashinFsm {
       int w = int.parse(wdlMatch.group(1)!);
       int d = int.parse(wdlMatch.group(2)!);
       int l = int.parse(wdlMatch.group(3)!);
-
       currentZone = analyzeShashinZone(w, d, l);
       onZoneChanged(currentZone);
     }
 
     if (line.startsWith("info")) {
-      // ⚠️ FIX ANTI 0/0
       if (!line.contains("depth") &&
           !line.contains("nodes") &&
           !line.contains("pv")) {
         return;
       }
 
-      int depth =
+      // 1. Aggiorniamo silenziosamente i dati in RAM appena arrivano
+      final dMatch = RegExp(r"depth (\d+)").firstMatch(line);
+      if (dMatch != null) _currentDepth = int.parse(dMatch.group(1)!);
+
+      final sdMatch = RegExp(r"seldepth (\d+)").firstMatch(line);
+      if (sdMatch != null) _currentSelDepth = int.parse(sdMatch.group(1)!);
+
+      final nMatch = RegExp(r"nodes (\d+)").firstMatch(line);
+      if (nMatch != null) _currentNodes = int.parse(nMatch.group(1)!);
+
+      final npsMatch = RegExp(r"nps (\d+)").firstMatch(line);
+      if (npsMatch != null) _currentNps = int.parse(npsMatch.group(1)!);
+
+      int multipv =
           int.tryParse(
-            RegExp(r"depth (\d+)").firstMatch(line)?.group(1) ?? "0",
+            RegExp(r"multipv (\d+)").firstMatch(line)?.group(1) ?? "1",
           ) ??
-          0;
-      int selDepth =
-          int.tryParse(
-            RegExp(r"seldepth (\d+)").firstMatch(line)?.group(1) ?? "0",
-          ) ??
-          0;
-      int nodes =
-          int.tryParse(
-            RegExp(r"nodes (\d+)").firstMatch(line)?.group(1) ?? "0",
-          ) ??
-          0;
-      int nps =
-          int.tryParse(
-            RegExp(r"nps (\d+)").firstMatch(line)?.group(1) ?? "0",
-          ) ??
-          0;
+          1;
       String? fullPv = RegExp(r" pv (.*)$").firstMatch(line)?.group(1);
 
-      if (depth == 0 && nodes == 0) return;
-
-      final now = DateTime.now();
-      if (now.difference(_lastStatsTime).inMilliseconds > 200) {
-        _lastStatsTime = now;
-        onStatsUpdate(
-          EngineStats(
-            depth: depth,
-            selDepth: selDepth,
-            nodes: nodes,
-            nps: nps,
-            pv: fullPv ?? "",
-          ),
-        );
+      if (fullPv != null && fullPv.isNotEmpty) {
+        _multiPvMap[multipv] = fullPv;
       }
 
-      if (fullPv != null && fullPv.isNotEmpty) {
+      // 2. ⚠️ IL NUOVO THROTTLE INTELLIGENTE
+      // Invece di bloccare le righe, imposta un timer. Se arrivano 5 righe nello stesso istante,
+      // il timer scatta una volta sola dopo 200ms e spedisce tutta la mappa aggiornata alla UI!
+      if (!_statsUpdatePending && (_currentDepth > 0 || _currentNodes > 0)) {
+        _statsUpdatePending = true;
+        Future.delayed(const Duration(milliseconds: 200), () {
+          _statsUpdatePending = false;
+
+          final sortedKeys = _multiPvMap.keys.toList()..sort();
+          final currentPvs = sortedKeys.map((k) => _multiPvMap[k]!).toList();
+
+          onStatsUpdate(
+            EngineStats(
+              depth: _currentDepth,
+              selDepth: _currentSelDepth,
+              nodes: _currentNodes,
+              nps: _currentNps,
+              pvs: currentPvs,
+            ),
+          );
+        });
+      }
+
+      // La freccia rossa reagisce solo alla linea principale (multipv = 1)
+      if (multipv == 1 && fullPv != null && fullPv.isNotEmpty) {
         String firstMove = fullPv.trim().split(' ').first;
         onPvUpdate(firstMove);
       }
@@ -2798,6 +2908,13 @@ class ShashinFsm {
     currentFen = fen;
     _baseTimeMs = baseTimeMs;
     _iteration = 1;
+
+    // Reset di tutta la RAM per il nuovo calcolo
+    _multiPvMap.clear();
+    _currentDepth = 0;
+    _currentSelDepth = 0;
+    _currentNodes = 0;
+    _currentNps = 0;
 
     onLog("===========================================");
     _runPhase1();
@@ -2915,100 +3032,18 @@ class ImportExportService {
 
 
 ================================================================================
-FILE: lib\core\widgets\about_dialog.dart
+FILE: lib\core\services\shared_prefs_provider.dart
 ================================================================================
 
-import 'package:flutter/material.dart';
-import '../../l10n/app_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void showShashGuiAboutDialog(BuildContext context) {
-  final loc = AppLocalizations.of(context)!;
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: const Color(0xFF2b2b2b),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // --- LOGO ---
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.orangeAccent, width: 2),
-                image: const DecorationImage(
-                  image: AssetImage('assets/images/icon.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            // --- TITOLO E SOTTOTITOLO ---
-            Text(
-              loc.shashgui,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.orangeAccent,
-              ),
-            ),
-            Text(
-              loc.beyondTheEval,
-              style: TextStyle(
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-                color: Colors.cyanAccent,
-              ),
-            ),
-            const Divider(color: Colors.white24, height: 30),
-
-            // --- INFO TESTUALI ---
-            Text(
-              loc.sviluppatoreAndreaManzo,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              loc.motoriIntegratiShashchessNnueA,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 15),
-            Text(
-              // <-- Niente "const" qui!
-              loc.aboutDesc,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              loc.chiudi1,
-              style: TextStyle(
-                color: Colors.orangeAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      );
-    },
+// Provider che conterrà l'istanza globale delle SharedPreferences
+final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
+  throw UnimplementedError(
+    'sharedPrefsProvider deve essere overridato nel main.dart',
   );
-}
+});
 
 
 
@@ -3729,6 +3764,7 @@ FILE: lib\features\analysis\domain\engine_controller.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/logic/shashin_logic.dart';
 import '../../../core/orchestrators/shashin_fsm.dart';
@@ -3758,24 +3794,18 @@ class EngineController extends StateNotifier<EngineState> {
     String engineName = 'shashchess',
   }) async {
     state = state.copyWith(isRunning: true, selectedEngine: engineName);
-
     try {
-      // Se l'utente ha scelto un motore diverso, puliamo quello vecchio
-      if (_engineManager.engineOutput != null &&
+      // 1. Inizializza il motore se non esiste o se è cambiato
+      if (_engineManager.engineOutput == null ||
           engineName != state.selectedEngine) {
         _engineManager.dispose();
         _engineManager = EngineManager();
-      }
 
-      // Se il motore non è acceso, lo inizializziamo
-      if (_engineManager.engineOutput == null) {
         await _engineManager.initEngine(engineName, [
           'nn-c288c895ea92.nnue',
           'nn-37f18f62d772.nnue',
         ]);
 
-        // ⚠️ IL FIX MAGICO: Creiamo la FSM *SOLO DOPO* che l'engine è inizializzato!
-        // Così si aggancerà al flusso dati corretto e non a un "null".
         _fsm?.dispose();
         _fsm = ShashinFsm(
           engineManager: _engineManager,
@@ -3789,9 +3819,32 @@ class EngineController extends StateNotifier<EngineState> {
         );
       }
 
+      // 2. ⚠️ APPLICA LE OPZIONI: Carica le preferenze e inviale al motore
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith('${engineName}_'));
+      for (var key in keys) {
+        final optionName = key.replaceFirst('${engineName}_', '');
+        final value = prefs.getString(key);
+        if (value != null && value.isNotEmpty) {
+          _engineManager.sendCommand('setoption name $optionName value $value');
+        }
+      }
+
+      // 3. ⚠️ BARRIERA DI SINCRONIZZAZIONE (Il Fix Magico)
+      // Costringe il motore a digerire le opzioni (es. MultiPV=2) prima di ricevere il comando 'go'
+      _engineManager.sendCommand('isready');
+      await Future.delayed(const Duration(milliseconds: 50));
+
       _fsm!.startAnalysis(fen, baseTimeMs: baseTimeMs);
     } catch (e) {
       state = state.copyWith(isRunning: false);
+    }
+  }
+
+  // ⚠️ NUOVO METODO: Invia opzioni al motore attivo in tempo reale
+  void setUciOption(String optionName, String value) {
+    if (_engineManager.engineOutput != null) {
+      _engineManager.sendCommand('setoption name $optionName value $value');
     }
   }
 
@@ -3871,6 +3924,7 @@ FILE: lib\features\analysis\domain\notation_controller.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'board_provider.dart';
+import 'package:flutter/material.dart';
 
 class MoveNode {
   final String fen;
@@ -3963,6 +4017,91 @@ class NotationController extends StateNotifier<NotationState> {
 
   void reset() {
     state = _initialState();
+  }
+
+  Future<void> handleNewMove(
+    String newFen,
+    String san,
+    BuildContext context,
+  ) async {
+    // 1. Controlla se esiste già
+    for (var child in state.currentNode.children) {
+      if (child.fen == newFen) {
+        state = state.copyWith(currentNode: child);
+        return;
+      }
+    }
+
+    // 2. Chiedi se creare variante
+    String choice = 'main';
+    if (state.currentNode.children.isNotEmpty) {
+      choice = await _showBranchingDialog(context) ?? 'cancel';
+    }
+
+    if (choice == 'cancel') {
+      ref.read(boardControllerProvider).loadFen(state.currentNode.fen);
+      return;
+    }
+
+    final newNode = MoveNode(fen: newFen, san: san, parent: state.currentNode);
+    if (choice == 'overwrite') state.currentNode.children.clear();
+
+    if (choice == 'main' && state.currentNode.children.isNotEmpty) {
+      state.currentNode.children.insert(0, newNode);
+    } else {
+      state.currentNode.children.add(newNode);
+    }
+
+    state = state.copyWith(currentNode: newNode);
+  }
+
+  Future<String?> _showBranchingDialog(BuildContext context) {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        title: const Text(
+          "Variante Rilevata",
+          style: TextStyle(color: Colors.orangeAccent),
+        ),
+        content: const Text(
+          "Esiste già una mossa in questo punto. Cosa vuoi fare?",
+          style: TextStyle(color: Colors.white),
+        ),
+        actions: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'main'),
+                child: const Text("NUOVA LINEA PRINCIPALE"),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'variant'),
+                child: const Text("AGGIUNGI VARIANTE"),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'overwrite'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[900],
+                ),
+                child: const Text("SOVRASCRIVI"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                child: const Text(
+                  "ANNULLA",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -4146,19 +4285,23 @@ class AnalysisScreen extends ConsumerWidget {
       ),
       body: const Column(
         children: [
-          Expanded(flex: 6, child: Center(child: BoardSection())),
+          Expanded(child: Center(child: BoardSection())),
 
-          // FINESTRA DELLA NOTAZIONE E DELL'ALBERO VARIANTI
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: NotationPanel(),
           ),
 
+          SizedBox(
+            height: 12,
+          ), // 👈 Spazio di separazione costante tra i due moduli
+
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: AnalysisPanel(),
           ),
-          Spacer(),
+
+          SizedBox(height: 8), // Margine prima della barra comandi
           EngineControls(),
         ],
       ),
@@ -4198,7 +4341,6 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // ⚠️ FIX: Sostituito withOpacity(0.3) con withValues(alpha: 0.3)
         color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -4286,12 +4428,12 @@ class AnalysisPanel extends ConsumerWidget {
               ),
               CircleAvatar(
                 radius: 20,
-                // ⚠️ FIX: Sostituito withOpacity(0.2) con withValues(alpha: 0.2)
                 backgroundColor: zone.color.withValues(alpha: 0.2),
                 backgroundImage: AssetImage(zone.avatars.first),
               ),
             ],
           ),
+
           const SizedBox(height: 12),
 
           // 4. TERMOMETRO SHASHIN
@@ -4316,17 +4458,35 @@ class AnalysisPanel extends ConsumerWidget {
             ],
           ),
 
-          // 6. PRINCIPAL VARIATION (PV)
-          if (stats.pv.isNotEmpty) ...[
+          // 6. PRINCIPAL VARIATION (PV) - SCROLLABILE!
+          if (stats.pvs.isNotEmpty) ...[
             const Divider(color: Colors.white12, height: 16),
-            Text(
-              "PV: ${stats.pv}",
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
+            ConstrainedBox(
+              // ⚠️ Imposta un'altezza massima fissa. Se le linee la superano, appare lo scroll.
+              constraints: const BoxConstraints(maxHeight: 85),
+              child: SingleChildScrollView(
+                physics:
+                    const BouncingScrollPhysics(), // Effetto rimbalzo morbido
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: stats.pvs.asMap().entries.map((entry) {
+                    int index = entry.key + 1;
+                    String pvLine = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0),
+                      child: Text(
+                        stats.pvs.length > 1
+                            ? "PV$index: $pvLine"
+                            : "PV: $pvLine",
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ],
@@ -4357,7 +4517,6 @@ class AnalysisPanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        // ⚠️ FIX: Sostituiti i withOpacity con withValues(alpha: ...)
         color: isWhite
             ? Colors.white.withValues(alpha: 0.9)
             : Colors.black.withValues(alpha: 0.6),
@@ -4430,6 +4589,7 @@ class AnalysisPanel extends ConsumerWidget {
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 13,
+            fontFamily: 'monospace',
           ),
         ),
       ],
@@ -4451,13 +4611,14 @@ FILE: lib\features\analysis\presentation\widgets\analysis_setup_modal.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// ⚠️ FIX: Abbiamo aggiunto un "../" in più per risalire correttamente alla cartella "domain"!
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
+import 'uci_options_modal.dart';
 
 class AnalysisSetupModal extends ConsumerStatefulWidget {
   const AnalysisSetupModal({super.key});
+
   @override
   ConsumerState<AnalysisSetupModal> createState() => _AnalysisSetupModalState();
 }
@@ -4468,59 +4629,83 @@ class _AnalysisSetupModalState extends ConsumerState<AnalysisSetupModal> {
 
   @override
   Widget build(BuildContext context) {
+    // Inizializziamo il file delle lingue
+    final loc = AppLocalizations.of(context)!;
+
     return AlertDialog(
       backgroundColor: const Color(0xFF2b2b2b),
-      title: const Text(
-        "Configura Analisi",
-        style: TextStyle(color: Colors.orangeAccent),
+      title: Text(
+        loc.impostazioniAnalisi,
+        style: const TextStyle(color: Colors.orangeAccent),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          DropdownButton<String>(
-            value: _selectedEngine,
-            isExpanded: true,
-            dropdownColor: const Color(0xFF2b2b2b),
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-            items: [
-              DropdownMenuItem(
-                value: 'shashchess',
-                child: Row(
-                  children: [
-                    Image.asset(
-                      'assets/images/shashchess.bmp',
-                      width: 20,
-                      height: 20,
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButton<String>(
+                  value: _selectedEngine,
+                  isExpanded: true,
+                  dropdownColor: const Color(0xFF2b2b2b),
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'shashchess',
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/shashchess.bmp',
+                            width: 20,
+                            height: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text("ShashChess (NNUE)"),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    const Text("ShashChess (NNUE)"),
+                    DropdownMenuItem(
+                      value: 'alexander',
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/alexander.bmp',
+                            width: 20,
+                            height: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text("Alexander (HCE)"),
+                        ],
+                      ),
+                    ),
                   ],
+                  onChanged: (v) => setState(() => _selectedEngine = v!),
                 ),
               ),
-              DropdownMenuItem(
-                value: 'alexander',
-                child: Row(
-                  children: [
-                    Image.asset(
-                      'assets/images/alexander.bmp',
-                      width: 20,
-                      height: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text("Alexander (HCE)"),
-                  ],
-                ),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.blueAccent),
+                tooltip: loc.configuraParametri,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) =>
+                        UciOptionsModal(engineName: _selectedEngine),
+                  );
+                },
               ),
             ],
-            onChanged: (v) => setState(() => _selectedEngine = v!),
           ),
           const SizedBox(height: 20),
+
           Text(
-            "Tempo base T1: ${_t1.toInt()} secondi",
+            "${loc.tempoInizialeT1PerMossa} ${_t1.toInt()} s",
             style: const TextStyle(
               color: Colors.cyanAccent,
               fontWeight: FontWeight.bold,
             ),
+            textAlign: TextAlign.center,
           ),
           Slider(
             value: _t1,
@@ -4530,25 +4715,29 @@ class _AnalysisSetupModalState extends ConsumerState<AnalysisSetupModal> {
             activeColor: Colors.cyanAccent,
             onChanged: (v) => setState(() => _t1 = v),
           ),
-          const Text(
-            "Il tempo raddoppierà in Fase 2.",
-            style: TextStyle(
+
+          Text(
+            loc.ilTempoRaddoppierAutomaticamen,
+            style: const TextStyle(
               color: Colors.grey,
               fontSize: 11,
               fontStyle: FontStyle.italic,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text("ANNULLA", style: TextStyle(color: Colors.grey)),
+          child: Text(
+            loc.annulla.toUpperCase(),
+            style: const TextStyle(color: Colors.grey),
+          ),
         ),
         ElevatedButton(
           onPressed: () {
             Navigator.pop(context);
-            // Avvia il motore passando sia il FEN che il tempo T1 in millisecondi!
             ref
                 .read(engineControllerProvider.notifier)
                 .startEngine(
@@ -4558,7 +4747,10 @@ class _AnalysisSetupModalState extends ConsumerState<AnalysisSetupModal> {
                 );
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
-          child: const Text("AVVIA", style: TextStyle(color: Colors.white)),
+          child: Text(
+            loc.avviaAnalisi.toUpperCase(),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       ],
     );
@@ -4999,6 +5191,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
+import '../../domain/notation_controller.dart'; // ⚠️ Import aggiunto per la notazione
 
 class BoardSection extends ConsumerStatefulWidget {
   const BoardSection({super.key});
@@ -5018,43 +5211,21 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
     });
   }
 
-  void _undoMove() {
-    final controller = ref.read(boardControllerProvider);
-    if (controller.game.history.isEmpty) return;
-
-    controller.undoMove();
-    setState(() {});
-    _triggerAnalysis();
-  }
-
-  void _resetBoard() {
-    ref.read(boardControllerProvider).resetBoard();
-    setState(() {});
-    _triggerAnalysis();
-  }
-
-  void _triggerAnalysis() {
-    if (ref.read(engineControllerProvider).isRunning) {
-      ref
-          .read(engineControllerProvider.notifier)
-          .analyzeCurrentPosition(ref.read(boardControllerProvider).getFen());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final engineState = ref.watch(engineControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
 
     List<BoardArrow> arrows = [];
-    if (engineState.isRunning && engineState.stats.pv.isNotEmpty) {
-      String bestMove = engineState.stats.pv.split(' ').first;
+    // Cambia stats.pv con stats.pvs
+    if (engineState.isRunning && engineState.stats.pvs.isNotEmpty) {
+      // Estrai la PV dalla primissima riga!
+      String bestMove = engineState.stats.pvs.first.split(' ').first;
       if (bestMove.length >= 4) {
         arrows.add(
           BoardArrow(
             from: bestMove.substring(0, 2),
             to: bestMove.substring(2, 4),
-            // ⚠️ FIX: Sostituito withOpacity(0.7) con withValues(alpha: 0.7)
             color: Colors.redAccent.withValues(alpha: 0.7),
           ),
         );
@@ -5063,7 +5234,7 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Aumentato il margine di sicurezza a 70 pixel per evitare l'overflow verticale
+        // Margine di sicurezza per evitare l'overflow verticale
         final availableHeight = constraints.maxHeight - 70;
 
         final boardSize = constraints.maxWidth < availableHeight
@@ -5094,6 +5265,28 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 arrows: arrows,
                 enableUserMoves: true,
                 onMove: () {
+                  // 1. RECUPERA IL SAN (nome mossa) dal PGN del gioco interno
+                  String pgn = boardController.game.pgn();
+                  pgn = pgn.replaceAll(
+                    RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'),
+                    '',
+                  );
+                  List<String> pgnParts = pgn.split(RegExp(r'\s+'));
+                  String moveSan = pgnParts.lastWhere(
+                    (s) => !s.contains('.'),
+                    orElse: () => "Mossa",
+                  );
+
+                  // 2. AGGIORNA LA NOTAZIONE (tramite il NotationController)
+                  ref
+                      .read(notationControllerProvider.notifier)
+                      .handleNewMove(
+                        boardController.getFen(),
+                        moveSan,
+                        context,
+                      );
+
+                  // 3. AVVIA L'ANALISI DEL MOTORE (se acceso)
                   if (engineState.isRunning) {
                     ref
                         .read(engineControllerProvider.notifier)
@@ -5112,21 +5305,25 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 color: Colors.black26,
                 borderRadius: BorderRadius.circular(8),
               ),
-              // ⚠️ IL FIX: FittedBox scalerà i pulsanti se la scacchiera è stretta!
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    // I tasti ora comunicano con il NotationController invece che fare "undo" brutale!
                     IconButton(
                       icon: const Icon(Icons.first_page),
                       color: Colors.white70,
-                      onPressed: _resetBoard,
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goToStart(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_left),
                       color: Colors.white,
-                      onPressed: _undoMove,
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goBack(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.sync),
@@ -5136,12 +5333,16 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
                       color: Colors.white30,
-                      onPressed: () {},
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goForward(),
                     ),
                     IconButton(
                       icon: const Icon(Icons.last_page),
                       color: Colors.white30,
-                      onPressed: () {},
+                      onPressed: () => ref
+                          .read(notationControllerProvider.notifier)
+                          .goToEnd(),
                     ),
                   ],
                 ),
@@ -5176,7 +5377,7 @@ class CoachModal extends ConsumerStatefulWidget {
 
 class _CoachModalState extends ConsumerState<CoachModal> {
   double _elo = 1500;
-  double _timeMs = 2000;
+  double _timeSec = 2; // ⚠️ Modificato in secondi!
 
   bool _isRunning = false;
   bool _isFinished = false;
@@ -5186,12 +5387,15 @@ class _CoachModalState extends ConsumerState<CoachModal> {
 
   late EngineManager _coachEngine;
   CrossedEvalOrchestrator? _orchestrator;
+
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _reportScrollController =
+      ScrollController(); // ⚠️ Controller dedicato al testo finale
 
   @override
   void initState() {
     super.initState();
-    _coachEngine = EngineManager(); // Motore isolato dal resto dell'app!
+    _coachEngine = EngineManager();
   }
 
   @override
@@ -5199,6 +5403,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
     _orchestrator?.dispose();
     _coachEngine.dispose();
     _scrollController.dispose();
+    _reportScrollController.dispose();
     super.dispose();
   }
 
@@ -5208,19 +5413,16 @@ class _CoachModalState extends ConsumerState<CoachModal> {
       _logs.add("Avvio motore base (Alexander)...");
     });
 
-    // Inizializziamo il motore HCE di base
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;
 
-    // Assembliamo il cervello del Coach
     _orchestrator = CrossedEvalOrchestrator(
       engineManager: _coachEngine,
       loc: AppLocalizations.of(context)!,
       onLog: (log) {
         if (!mounted) return;
         setState(() => _logs.add(log));
-        // Auto-scroll verso il basso
         Future.delayed(const Duration(milliseconds: 50), () {
           if (_scrollController.hasClients) {
             _scrollController.jumpTo(
@@ -5239,9 +5441,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
       },
     );
 
-    // Lanciamo la valutazione sulla FEN attuale
     final fen = ref.read(boardControllerProvider).getFen();
-    _orchestrator!.startCrossedEval(fen, _elo.toInt(), _timeMs.toInt());
+    // ⚠️ Moltiplichiamo i secondi per 1000 per passare i millisecondi corretti all'orchestratore
+    _orchestrator!.startCrossedEval(
+      fen,
+      _elo.toInt(),
+      (_timeSec * 1000).toInt(),
+    );
   }
 
   @override
@@ -5249,7 +5455,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
     final loc = AppLocalizations.of(context)!;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      // Aumentato leggermente l'altezza per dare più respiro al testo
+      height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
@@ -5278,8 +5485,9 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             Slider(
               value: _elo,
               min: 800,
-              max: 3000,
-              divisions: 22,
+              max: 3190, // ⚠️ Limite aggiornato a 3190
+              divisions: 239, // Scatti da 10 Elo
+              label: _elo.toInt().toString(),
               activeColor: Colors.blueAccent,
               onChanged: (val) => setState(() => _elo = val),
             ),
@@ -5290,16 +5498,17 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             const SizedBox(height: 20),
 
             Text(
-              "Tempo di riflessione: ${_timeMs.toInt()} ms",
+              "Tempo di riflessione: ${_timeSec.toInt()} s", // ⚠️ UI in secondi
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
-              value: _timeMs,
-              min: 500,
-              max: 10000,
-              divisions: 19,
+              value: _timeSec,
+              min: 1,
+              max: 30, // Massimo 30 secondi
+              divisions: 29,
+              label: "${_timeSec.toInt()} s",
               activeColor: Colors.greenAccent,
-              onChanged: (val) => setState(() => _timeMs = val),
+              onChanged: (val) => setState(() => _timeSec = val),
             ),
             const Spacer(),
             ElevatedButton.icon(
@@ -5354,17 +5563,23 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    // ⚠️ FIX: Sostituito withOpacity(0.5) con withValues(alpha: 0.5)
                     color: Colors.orangeAccent.withValues(alpha: 0.5),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _report,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      height: 1.5,
+                child: Scrollbar(
+                  // ⚠️ Aggiunta barra di scorrimento visibile
+                  controller: _reportScrollController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _reportScrollController,
+                    child: SelectableText(
+                      // ⚠️ Testo ora selezionabile per il copia/incolla!
+                      _report,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ),
@@ -5401,6 +5616,8 @@ import 'autoplay_modal.dart';
 import 'livebook_modal.dart';
 import 'coach_modal.dart';
 import '../../domain/autoplay_controller.dart';
+// Importiamo il file separato correttamente!
+import 'analysis_setup_modal.dart';
 
 class EngineControls extends ConsumerWidget {
   const EngineControls({super.key});
@@ -5429,7 +5646,7 @@ class EngineControls extends ConsumerWidget {
               color: engineState.isRunning
                   ? Colors.redAccent
                   : Colors.greenAccent,
-              label: engineState.isRunning ? "Spegni" : loc.accendi,
+              label: engineState.isRunning ? "Stop" : loc.accendi,
               onPressed: () {
                 if (engineState.isRunning) {
                   ref.read(engineControllerProvider.notifier).stopEngine();
@@ -5543,115 +5760,6 @@ class EngineControls extends ConsumerWidget {
   }
 }
 
-class AnalysisSetupModal extends ConsumerStatefulWidget {
-  const AnalysisSetupModal({super.key});
-  @override
-  ConsumerState<AnalysisSetupModal> createState() => _AnalysisSetupModalState();
-}
-
-class _AnalysisSetupModalState extends ConsumerState<AnalysisSetupModal> {
-  String _selectedEngine = 'shashchess';
-  double _t1 = 2.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF2b2b2b),
-      title: const Text(
-        "Configura Analisi",
-        style: TextStyle(color: Colors.orangeAccent),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButton<String>(
-            value: _selectedEngine,
-            isExpanded: true,
-            dropdownColor: const Color(0xFF2b2b2b),
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-            items: [
-              DropdownMenuItem(
-                value: 'shashchess',
-                child: Row(
-                  children: [
-                    Image.asset(
-                      'assets/images/shashchess.bmp',
-                      width: 20,
-                      height: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text("ShashChess (NNUE)"),
-                  ],
-                ),
-              ),
-              DropdownMenuItem(
-                value: 'alexander',
-                child: Row(
-                  children: [
-                    Image.asset(
-                      'assets/images/alexander.bmp',
-                      width: 20,
-                      height: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text("Alexander (HCE)"),
-                  ],
-                ),
-              ),
-            ],
-            onChanged: (v) => setState(() => _selectedEngine = v!),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "Tempo base T1: ${_t1.toInt()} secondi",
-            style: const TextStyle(
-              color: Colors.cyanAccent,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Slider(
-            value: _t1,
-            min: 1,
-            max: 10,
-            divisions: 9,
-            activeColor: Colors.cyanAccent,
-            onChanged: (v) => setState(() => _t1 = v),
-          ),
-          const Text(
-            "Il tempo raddoppierà in Fase 2.",
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("ANNULLA", style: TextStyle(color: Colors.grey)),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            // ⚠️ FIX: Passiamo al controller il Mome del Motore selezionato e il Tempo!
-            ref
-                .read(engineControllerProvider.notifier)
-                .startEngine(
-                  ref.read(boardControllerProvider).getFen(),
-                  baseTimeMs: (_t1 * 1000).toInt(),
-                  engineName: _selectedEngine,
-                );
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
-          child: const Text("AVVIA", style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    );
-  }
-}
-
 
 
 ================================================================================
@@ -5660,9 +5768,13 @@ FILE: lib\features\analysis\presentation\widgets\livebook_modal.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_chess_board/flutter_chess_board.dart'
+    hide Color; // ⚠️ Aggiunto per il traduttore SAN
 import '../../../../core/logic/livebook_scanner.dart';
+import '../../../../l10n/app_localizations.dart'; // ⚠️ Aggiunto per le lingue
 import '../../domain/board_provider.dart';
 import '../../domain/engine_controller.dart';
+import '../../domain/notation_controller.dart'; // ⚠️ Aggiunto per l'albero delle mosse
 
 class LivebookModal extends ConsumerStatefulWidget {
   const LivebookModal({super.key});
@@ -5684,8 +5796,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   Future<void> _fetchCloudData() async {
     final fen = ref.read(boardControllerProvider).getFen();
-
-    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa!
+    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa
     final results = await Future.wait([
       LiveBookScanner.scan(fen, [], true), // true = ChessDB
       LiveBookScanner.scan(fen, [], false), // false = Lichess
@@ -5700,7 +5811,35 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     }
   }
 
-  Widget _buildList(LiveBookResult? result) {
+  // --- IL TRADUTTORE UCI -> SAN ---
+  // Usa una scacchiera fantasma in RAM per calcolare il nome esatto della mossa
+  String _getSan(String fen, String uci) {
+    if (uci == "-" || uci.contains(".")) return uci;
+    try {
+      final tempChess = Chess.fromFEN(fen);
+      String fromSq = uci.substring(0, 2);
+      String toSq = uci.substring(2, 4);
+      String? prom = uci.length == 5 ? uci[4] : null;
+
+      var moveRes = tempChess.move({
+        'from': fromSq,
+        'to': toSq,
+        'promotion': prom,
+      });
+      if (moveRes != false) {
+        String pgn = tempChess.pgn();
+        pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
+        List<String> parts = pgn.split(RegExp(r'\s+'));
+        return parts.lastWhere(
+          (s) => !s.contains('.'),
+          orElse: () => uci.toUpperCase(),
+        );
+      }
+    } catch (_) {}
+    return uci.toUpperCase(); // Fallback in caso di mossa illegale
+  }
+
+  Widget _buildList(LiveBookResult? result, String currentFen) {
     if (result == null) return const SizedBox.shrink();
 
     return Column(
@@ -5734,13 +5873,16 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             itemCount: result.moves.length,
             itemBuilder: (context, index) {
               final move = result.moves[index];
+              // Convertiamo il brutto UCI (es. d4d5) nel bellissimo SAN (es. d5)
+              final sanMove = _getSan(currentFen, move.move);
+
               return ListTile(
                 leading: const Icon(
                   Icons.arrow_right_alt,
                   color: Colors.white54,
                 ),
                 title: Text(
-                  move.move.toUpperCase(),
+                  sanMove,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -5754,9 +5896,13 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                onTap: () {
+
+                onTap: () async {
+                  // ⚠️ Aggiunto 'async' qui!
                   if (move.move != "-" && !move.move.contains(".")) {
                     final boardCtrl = ref.read(boardControllerProvider);
+
+                    // 1. Applica mossa sulla scacchiera fisica
                     if (move.move.length == 5) {
                       boardCtrl.makeMoveWithPromotion(
                         from: move.move.substring(0, 2),
@@ -5769,12 +5915,25 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                         to: move.move.substring(2, 4),
                       );
                     }
+
+                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE E LE VARIANTI!
+                    ref
+                        .read(notationControllerProvider.notifier)
+                        .handleNewMove(boardCtrl.getFen(), sanMove, context);
+
+                    // 3. Riavvia l'analisi del motore se era acceso
                     if (ref.read(engineControllerProvider).isRunning) {
                       ref
                           .read(engineControllerProvider.notifier)
                           .analyzeCurrentPosition(boardCtrl.getFen());
                     }
-                    Navigator.pop(context);
+
+                    // 4. ⚠️ INVECE DI CHIUDERE IL PANNELLO, LO RICARICHIAMO!
+                    // Togliamo Navigator.pop(context); e mettiamo questo:
+                    setState(() {
+                      _isLoading = true; // Mostra la rotellina di caricamento
+                    });
+                    await _fetchCloudData(); // Scarica le mosse della nuova posizione
                   }
                 },
               );
@@ -5787,6 +5946,9 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final fen = ref.read(boardControllerProvider).getFen();
+
     if (_isLoading) {
       return const SizedBox(
         height: 350,
@@ -5798,9 +5960,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
     return Container(
       padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
-      height:
-          MediaQuery.of(context).size.height *
-          0.6, // Leggermente più alto per far spazio ai tab
+      height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -5814,9 +5974,9 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "📖 Esploratore Cloud",
-                  style: TextStyle(
+                Text(
+                  "📖 ${loc.livebook} Cloud", // ⚠️ Usa il file di lingua!
+                  style: const TextStyle(
                     color: Colors.blueAccent,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -5842,8 +6002,8 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildList(_chessDbResult),
-                  _buildList(_lichessResult),
+                  _buildList(_chessDbResult, fen),
+                  _buildList(_lichessResult, fen),
                 ],
               ),
             ),
@@ -5941,23 +6101,215 @@ class NotationPanel extends ConsumerWidget {
     return Container(
       width: double.infinity,
       height: 100,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12), // Uniformato all'AnalysisPanel
       decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        color: Colors.black.withValues(
+          alpha: 0.3,
+        ), // Stessa trasparenza dell'analisi
+        borderRadius: BorderRadius.circular(12), // Stesso raggio di curvatura
+        border: Border.all(color: Colors.white12),
       ),
       child: SingleChildScrollView(
         child: Wrap(
+          spacing: 4, // Piccolo spazio tra le mosse
           children: widgets.isEmpty
               ? [
                   const Text(
                     "Inizia a muovere...",
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ]
               : widgets,
         ),
+      ),
+    );
+  }
+}
+
+
+
+================================================================================
+FILE: lib\features\analysis\presentation\widgets\uci_options_modal.dart
+================================================================================
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // ⚠️ Aggiunto
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/engine/engine_manager.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../domain/engine_controller.dart'; // ⚠️ Aggiunto
+
+// ⚠️ Trasformato in ConsumerStatefulWidget
+class UciOptionsModal extends ConsumerStatefulWidget {
+  final String engineName;
+  const UciOptionsModal({super.key, required this.engineName});
+
+  @override
+  ConsumerState<UciOptionsModal> createState() => _UciOptionsModalState();
+}
+
+class _UciOptionsModalState extends ConsumerState<UciOptionsModal> {
+  final EngineManager _probeManager = EngineManager();
+  final List<Map<String, String>> _optionsMeta = [];
+  final Map<String, String> _uciValues = {};
+  bool _isLoading = true;
+  SharedPreferences? _prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _probeOptions();
+  }
+
+  Future<void> _probeOptions() async {
+    _prefs = await SharedPreferences.getInstance();
+    try {
+      await _probeManager.initEngine(
+        widget.engineName,
+        [],
+        onLine: (line) {
+          if (line.trim().startsWith("option name")) {
+            _parseUciOption(line);
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint("Errore Sonda UCI: $e");
+    } finally {
+      _probeManager.dispose();
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _parseUciOption(String line) {
+    line = line.replaceAll(RegExp(r'\s+'), ' ');
+    if (!line.contains("option name ") || !line.contains(" type ")) return;
+
+    int nameStart = line.indexOf("option name ") + 12;
+    int nameEnd = line.indexOf(" type ");
+    String name = line.substring(nameStart, nameEnd).trim();
+
+    int typeStart = nameEnd + 6;
+    int typeEnd = line.indexOf(" ", typeStart);
+    if (typeEnd == -1) typeEnd = line.length;
+    String type = line.substring(typeStart, typeEnd).trim();
+
+    String def = "";
+    if (line.contains(" default ")) {
+      int defStart = line.indexOf(" default ") + 9;
+      int defEnd = line.indexOf(" min ", defStart);
+      if (defEnd == -1) defEnd = line.indexOf(" max ", defStart);
+      if (defEnd == -1) defEnd = line.indexOf(" combo ", defStart);
+      if (defEnd == -1) defEnd = line.length;
+      def = line.substring(defStart, defEnd).trim();
+    }
+
+    if (!_optionsMeta.any((opt) => opt['name'] == name)) {
+      if (mounted) {
+        setState(() {
+          _optionsMeta.add({'name': name, 'type': type});
+          String savedValue =
+              _prefs?.getString('${widget.engineName}_$name') ?? "";
+          if (savedValue.isNotEmpty) {
+            _uciValues[name] = savedValue;
+          } else if (!_uciValues.containsKey(name) && def.isNotEmpty) {
+            _uciValues[name] = def;
+          }
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1e1e1e),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "OPZIONI ${widget.engineName.toUpperCase()}",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orangeAccent,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ],
+          ),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 10),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.orangeAccent,
+                    ),
+                  )
+                : _optionsMeta.isEmpty
+                ? Center(
+                    child: Text(
+                      loc.nessunaOpzioneTrovataOCaricame,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _optionsMeta.length,
+                    itemBuilder: (context, index) {
+                      final opt = _optionsMeta[index];
+                      final name = opt['name']!;
+
+                      if (opt['type'] == 'button') {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: TextFormField(
+                          initialValue: _uciValues[name] ?? "",
+                          decoration: InputDecoration(
+                            labelText: name,
+                            labelStyle: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 12,
+                            ),
+                            border: const OutlineInputBorder(),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                          ),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
+                          onChanged: (v) {
+                            _uciValues[name] = v;
+                            _prefs?.setString('${widget.engineName}_$name', v);
+                            // ⚠️ LA MAGIA: Applica l'opzione in tempo reale!
+                            ref
+                                .read(engineControllerProvider.notifier)
+                                .setUciOption(name, v);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -6061,8 +6413,10 @@ FILE: lib\features\play\domain\play_controller.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
+import 'package:shared_preferences/shared_preferences.dart'; // ⚠️ AGGIUNGI QUESTO IMPORT!
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/orchestrators/play_orchestrator.dart';
+import '../../../core/services/shared_prefs_provider.dart';
 
 final playBoardProvider = Provider<ChessBoardController>((ref) {
   return ChessBoardController();
@@ -6133,27 +6487,72 @@ class PlayController extends StateNotifier<PlayState> {
   final Ref ref;
   final EngineManager _engineManager = EngineManager();
   PlayOrchestrator? _orchestrator;
+  late final SharedPreferences _prefs; // Variabile per la memoria
 
-  PlayController(this.ref) : super(PlayState());
+  PlayController(this.ref) : super(PlayState()) {
+    // Recuperiamo le preferenze istantaneamente grazie a Riverpod
+    _prefs = ref.read(sharedPrefsProvider);
+    _loadPreferences();
+  }
 
-  void setUserColor(PlayerColor color) =>
-      state = state.copyWith(userColor: color);
-  void setEngine(String engine) =>
-      state = state.copyWith(selectedEngine: engine);
+  // --- CARICAMENTO MEMORIA ---
+  void _loadPreferences() {
+    state = state.copyWith(
+      selectedEngine: _prefs.getString('play_engine') ?? 'alexander',
+      tcType: _prefs.getInt('play_tcType') ?? 1,
+      baseTime: _prefs.getInt('play_baseTime') ?? 3,
+      increment: _prefs.getInt('play_increment') ?? 0,
+      useLivebook: _prefs.getBool('play_useLivebook') ?? true,
+      limitStrength: _prefs.getBool('play_limitStrength') ?? false,
+      eloValue: _prefs.getDouble('play_eloValue') ?? 1500.0,
+    );
+  }
 
-  void setTcType(int type) => state = state.copyWith(
-    tcType: type,
-    baseTime: type == 0 ? 5 : 3,
-    increment: 0,
-  );
-  void setBaseTime(int time) => state = state.copyWith(baseTime: time);
-  void setIncrement(int inc) => state = state.copyWith(increment: inc);
+  // --- SETTER CON SALVATAGGIO IN MEMORIA ---
+  void setUserColor(PlayerColor color) {
+    // Non salviamo il colore, di solito l'utente lo sceglie al momento
+    state = state.copyWith(userColor: color);
+  }
 
-  // --- METODI PER I NUOVI PARAMETRI ---
-  void toggleLivebook(bool val) => state = state.copyWith(useLivebook: val);
-  void toggleLimitStrength(bool val) =>
-      state = state.copyWith(limitStrength: val);
-  void setEloValue(double val) => state = state.copyWith(eloValue: val);
+  void setEngine(String engine) {
+    _prefs.setString('play_engine', engine);
+    state = state.copyWith(selectedEngine: engine);
+  }
+
+  void setTcType(int type) {
+    _prefs.setInt('play_tcType', type);
+    int newBaseTime = type == 0
+        ? 5
+        : 3; // Reset dei tempi di default in base alla cadenza
+    _prefs.setInt('play_baseTime', newBaseTime);
+    _prefs.setInt('play_increment', 0);
+    state = state.copyWith(tcType: type, baseTime: newBaseTime, increment: 0);
+  }
+
+  void setBaseTime(int time) {
+    _prefs.setInt('play_baseTime', time);
+    state = state.copyWith(baseTime: time);
+  }
+
+  void setIncrement(int inc) {
+    _prefs.setInt('play_increment', inc);
+    state = state.copyWith(increment: inc);
+  }
+
+  void toggleLivebook(bool val) {
+    _prefs.setBool('play_useLivebook', val);
+    state = state.copyWith(useLivebook: val);
+  }
+
+  void toggleLimitStrength(bool val) {
+    _prefs.setBool('play_limitStrength', val);
+    state = state.copyWith(limitStrength: val);
+  }
+
+  void setEloValue(double val) {
+    _prefs.setDouble('play_eloValue', val);
+    state = state.copyWith(eloValue: val);
+  }
 
   Future<void> startGame() async {
     state = state.copyWith(
@@ -6621,7 +7020,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../main.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/about_dialog.dart';
+import 'widgets/about_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -6746,6 +7145,104 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+
+
+================================================================================
+FILE: lib\features\settings\presentation\widgets\about_dialog.dart
+================================================================================
+
+import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
+
+void showShashGuiAboutDialog(BuildContext context) {
+  final loc = AppLocalizations.of(context)!;
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF2b2b2b),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // --- LOGO ---
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orangeAccent, width: 2),
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/icon.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // --- TITOLO E SOTTOTITOLO ---
+            Text(
+              loc.shashgui,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            Text(
+              loc.beyondTheEval,
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.cyanAccent,
+              ),
+            ),
+            const Divider(color: Colors.white24, height: 30),
+
+            // --- INFO TESTUALI ---
+            Text(
+              loc.sviluppatoreAndreaManzo,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              loc.motoriIntegratiShashchessNnueA,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 15),
+            Text(
+              // <-- Niente "const" qui!
+              loc.aboutDesc,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              loc.chiudi1,
+              style: TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 

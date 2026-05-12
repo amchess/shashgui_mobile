@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'l10n/app_localizations.dart';
-
-// 1. CAMBIA QUESTO IMPORT:
 import 'features/navigation/presentation/main_navigation_screen.dart';
+import 'core/services/shared_prefs_provider.dart';
 
 final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('it'));
 
@@ -15,7 +14,15 @@ void main() async {
   final savedLang = prefs.getString('language') ?? 'it';
   appLocale.value = Locale(savedLang);
 
-  runApp(const ProviderScope(child: ShashGuiApp()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        // ⚠️ MAGIA RIVERPOD: Iniettiamo le prefs caricate in tutta l'app!
+        sharedPrefsProvider.overrideWithValue(prefs),
+      ],
+      child: const ShashGuiApp(),
+    ),
+  );
 }
 
 class ShashGuiApp extends StatelessWidget {
@@ -28,6 +35,7 @@ class ShashGuiApp extends StatelessWidget {
       builder: (context, locale, child) {
         return MaterialApp(
           title: 'ShashGui',
+          debugShowCheckedModeBanner: false,
           locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,

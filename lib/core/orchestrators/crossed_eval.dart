@@ -2,27 +2,26 @@ import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
 import '../logic/livebook_scanner.dart';
-import '../../l10n/app_localizations.dart'; // <--- IMPORT CRITICO AGGIUNTO QUI!
+import '../../l10n/app_localizations.dart';
 
 enum CrossedState {
   idle,
   staticEval,
   baseEval,
   studentThinking,
-  masterStaticEval, // <--- NUOVO STATO
+  masterStaticEval,
   masterThinking,
 }
 
 class CrossedEvalOrchestrator {
   final EngineManager engineManager;
-  final AppLocalizations loc; // <--- VARIABILE LINGUA AGGIUNTA
+  final AppLocalizations loc;
   CrossedState currentState = CrossedState.idle;
   StreamSubscription<String>? _outputSubscription;
 
   String currentFen = "";
   bool isWhiteToMove = true;
-
-  int baseTimeMs = 2000; // <--- NUOVO
+  int baseTimeMs = 2000;
 
   int studentElo = 1500;
   int masterElo = 2000;
@@ -38,15 +37,20 @@ class CrossedEvalOrchestrator {
   String? masterMove;
   ShashinZone? masterZone;
 
-  // Variabili per l'analisi Statica (comando 'eval')
+  // --- VARIABILI ANALISI STATICA (EVAL) ---
   int? spaceWhite;
   int? spaceBlack;
   String? worstPieceWhite;
   String? worstPieceBlack;
-
   String? worstPieceNnue;
 
-  // Callback per la UI
+  // ⚠️ NUOVE VARIABILI PER ARRICCHIRE IL COACH
+  String? centerType;
+  double? deltaK; // Packing density difference
+  double? deltaExpansion; // Center of Gravity difference
+  bool hasBishopPairWhite = false;
+  bool hasBishopPairBlack = false;
+
   final Function(String) onLog;
   final Function(String) onReportReady;
 
@@ -54,7 +58,7 @@ class CrossedEvalOrchestrator {
     required this.engineManager,
     required this.onLog,
     required this.onReportReady,
-    required this.loc, // <--- RICHIESTO NEL COSTRUTTORE
+    required this.loc,
   }) {
     _outputSubscription = engineManager.engineOutput?.listen(
       _handleEngineOutput,
@@ -72,33 +76,37 @@ class CrossedEvalOrchestrator {
       masterElo = 2399;
       masterSchool = loc.schoolAdvanced;
     } else if (elo < 2500) {
-      // <--- Soglia portata a 2500
       studentSchool = loc.schoolAdvanced;
       masterElo = 3190;
       masterSchool = loc.schoolExpertHCE;
     } else {
       studentSchool = loc.schoolExpert;
-      masterElo = 3500; // Flag per ShashChess
+      masterElo = 3500;
       masterSchool = loc.schoolSuperhumanNNUE;
     }
   }
 
   void startCrossedEval(String fen, int playerElo, int timeMs) async {
-    // <--- Aggiunto int timeMs
     if (currentState != CrossedState.idle) {
       engineManager.sendCommand('stop');
     }
 
     currentFen = fen;
-    baseTimeMs = timeMs; // <--- Salva il tempo
+    baseTimeMs = timeMs;
     isWhiteToMove = fen.split(' ')[1] == 'w';
     _determineSchools(playerElo);
 
-    // Reset variabili statiche
+    // Reset di tutte le variabili statiche
     spaceWhite = null;
     spaceBlack = null;
     worstPieceWhite = null;
     worstPieceBlack = null;
+    worstPieceNnue = null;
+    centerType = null;
+    deltaK = null;
+    deltaExpansion = null;
+    hasBishopPairWhite = false;
+    hasBishopPairBlack = false;
 
     onLog("===========================================");
     onLog(loc.logQueryingOracles);
@@ -110,7 +118,6 @@ class CrossedEvalOrchestrator {
       onLog("${loc.logCloudError} $e");
     }
 
-    // FASE 1: Estrazione parametri semantici (comando eval)
     currentState = CrossedState.staticEval;
     onLog(loc.logSemanticScan);
     engineManager.sendCommand('position fen $fen');
@@ -128,7 +135,6 @@ class CrossedEvalOrchestrator {
       if (match != null) {
         String pieceChar = match.group(2)!;
         String sq = match.group(3)!;
-
         switch (pieceChar) {
           case 'N':
             worstPieceNnue = '${loc.pieceKnight} in $sq';
@@ -151,15 +157,15 @@ class CrossedEvalOrchestrator {
       }
 
       if (line.startsWith("*** Note: Static activity")) {
-        // Fine lettura neurale, avvia il pensiero del Maestro!
         currentState = CrossedState.masterThinking;
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
       return;
     }
-    // --- LETTURA TRACCIA STATICA (EVAL) ---
+
+    // --- LETTURA TRACCIA STATICA (ALEXANDER EVAL) ---
     if (currentState == CrossedState.staticEval) {
-      // Cattura Spazio (Alexander)
+      // 1. Spazio
       final spaceMatch = RegExp(
         r"Total Space: White (\d+) - Black (\d+)",
       ).firstMatch(line);
@@ -168,7 +174,29 @@ class CrossedEvalOrchestrator {
         spaceBlack = int.tryParse(spaceMatch.group(2)!);
       }
 
-      // Helper interno per tradurre i pezzi
+      // 2. Tipo di Centro
+      final centerMatch = RegExp(r"Center Type:\s*(.+)").firstMatch(line);
+      if (centerMatch != null) centerType = centerMatch.group(1)!.trim();
+
+      // 3. Densità e Coordinazione (Knights/Deltak)
+      final deltaKMatch = RegExp(
+        r"deltak \(White - Black\):\s*(-?\d+\.\d+)",
+      ).firstMatch(line);
+      if (deltaKMatch != null) deltaK = double.tryParse(deltaKMatch.group(1)!);
+
+      // 4. Baricentro/Espansione
+      final expMatch = RegExp(
+        r"Delta Expansion \(White-Black\):\s*(-?\d+\.\d+)",
+      ).firstMatch(line);
+      if (expMatch != null) {
+        deltaExpansion = double.tryParse(expMatch.group(1)!);
+      }
+
+      // 5. Coppia Alfieri
+      if (line.contains("White bishops: 2")) hasBishopPairWhite = true;
+      if (line.contains("Black bishops: 2")) hasBishopPairBlack = true;
+
+      // 6. Pezzo peggiore (Makogonov)
       String translatePiece(String engPiece) {
         switch (engPiece.trim().toLowerCase()) {
           case 'pawn':
@@ -188,7 +216,6 @@ class CrossedEvalOrchestrator {
         }
       }
 
-      // Cattura Pezzi Peggiori (Makogonov per Alexander) - ORA PRENDE ANCHE LA CASA!
       final makWhiteMatch = RegExp(
         r"Makogonov White: Improve (.+?) on ([a-h][1-8])",
       ).firstMatch(line);
@@ -211,8 +238,6 @@ class CrossedEvalOrchestrator {
           line.startsWith("*** Note:")) {
         currentState = CrossedState.baseEval;
         onLog(loc.logCalcThermodynamicZone);
-
-        // Usa esattamente il tempo scelto dall'utente!
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
       return;
@@ -245,7 +270,7 @@ class CrossedEvalOrchestrator {
           onLog(
             "${loc.logStudentThinking1} $studentSchool ${loc.logStudentThinking2} $studentElo ${loc.logStudentThinking3}",
           );
-          // --- INIZIO PARTE MANCANTE ---
+
           engineManager.sendCommand('position fen $currentFen');
           engineManager.sendCommand(
             'setoption name UCI_LimitStrength value true',
@@ -263,112 +288,134 @@ class CrossedEvalOrchestrator {
     }
   }
 
-  // --- NUOVO METODO PER LO SWAP DEL MOTORE ---
   Future<void> _startMasterPhase() async {
     currentState = CrossedState.masterThinking;
     onLog("${loc.logPrepMaster1} $masterSchool ${loc.logPrepMaster2}");
 
     if (masterElo >= 3500) {
       onLog(loc.logEngineSwap);
-
-      // 1. Uccidiamo il vecchio processo Alexander
       engineManager.dispose();
-
-      // 2. Inizializziamo ShashChess (con le sue reti neurali)
       await engineManager.initEngine('shashchess', [
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
-
-      // 3. CRITICO: Ri-agganciamo l'ascoltatore!
       _outputSubscription?.cancel();
       _outputSubscription = engineManager.engineOutput?.listen(
         _handleEngineOutput,
       );
-
       onLog(loc.logShashReady);
 
-      // Chiediamo a ShashChess di valutare i suoi pezzi peggiori
       currentState = CrossedState.masterStaticEval;
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('eval');
       return;
     } else {
-      // Se il maestro è ancora Alexander, impostiamo solo l'handicap UCI
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
       engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
-
       currentState = CrossedState.masterThinking;
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('go movetime $baseTimeMs');
     }
   }
 
-  // NLP: Genera l'analisi testuale della posizione iniziale
+  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) ARRICCHITO
   String _generateStaticAnalysisText() {
-    String txt = "";
+    StringBuffer txt = StringBuffer();
 
+    // 1. TIPO DI CENTRO
+    if (centerType != null && centerType!.isNotEmpty) {
+      txt.write(
+        "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. ",
+      );
+    }
+
+    // 2. EQUILIBRI E SQUILIBRI DI SPAZIO
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
-      if (diff >= 4) {
-        txt += loc.evalWhiteDominate;
-      } else if (diff >= 1 && diff <= 3) {
-        txt += loc.evalWhiteSlightEdge;
+      if (diff == 0) {
+        txt.write(
+          "Lo spazio controllato è in **perfetto equilibrio** ($spaceWhite a $spaceBlack). ",
+        );
+      } else if (diff >= 4) {
+        txt.write("Il Bianco gode di un netto dominio territoriale. ");
+      } else if (diff >= 1) {
+        txt.write("Il Bianco possiede un lieve vantaggio di spazio. ");
       } else if (diff <= -4) {
-        txt += loc.evalBlackDominate;
-      } else if (diff >= -3 && diff <= -1) {
-        txt += loc.evalBlackSlightEdge;
+        txt.write(
+          "Il Nero ha asfissiato i pezzi bianchi con un forte vantaggio spaziale. ",
+        );
       } else {
-        txt += loc.evalSpaceBalanced;
+        txt.write(
+          "Il Nero detiene un leggero controllo territoriale superiore. ",
+        );
       }
     }
 
+    // 3. BARICENTRO ED ESPANSIONE (Chi sta spingendo di più?)
+    if (deltaExpansion != null) {
+      if (deltaExpansion!.abs() < 0.2) {
+        txt.write("Il baricentro dei due schieramenti è simmetrico. ");
+      } else if (deltaExpansion! > 0.5) {
+        txt.write(
+          "Il Bianco è molto più espanso, tenendo i pezzi in ranghi avanzati. ",
+        );
+      } else if (deltaExpansion! < -0.5) {
+        txt.write(
+          "Il Nero ha un fattore di espansione superiore e sta spingendo le linee. ",
+        );
+      }
+    }
+
+    // 4. DENSITÀ E COORDINAZIONE (Principio di Shashin sui pezzi a corto raggio)
+    if (deltaK != null) {
+      if (deltaK!.abs() <= 0.02) {
+        txt.write(
+          "La densità di imballaggio (coordinazione dei pezzi a corto raggio) è bilanciata. ",
+        );
+      } else if (deltaK! > 0.05) {
+        txt.write(
+          "Il Bianco ha pezzi a corto raggio (Cavalli/Pedoni) meglio raggruppati. ",
+        );
+      } else if (deltaK! < -0.05) {
+        txt.write("Il Nero ha una struttura più densa e compatta. ");
+      }
+    }
+
+    // 5. VANTAGGI MATERIALI STATICI (Coppia degli Alfieri)
+    if (hasBishopPairWhite && !hasBishopPairBlack) {
+      txt.write(
+        "\nIl Bianco possiede il vantaggio a lungo termine della **coppia degli alfieri**. ",
+      );
+    } else if (hasBishopPairBlack && !hasBishopPairWhite) {
+      txt.write(
+        "\nIl Nero detiene la **coppia degli alfieri**, un fattore chiave in posizioni aperte. ",
+      );
+    }
+
+    // 6. PRINCIPIO DI MAKOGONOV (Il pezzo peggiore)
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
     if (worst != null) {
-      txt += "${loc.evalMakogonovWorst} $worst.";
+      txt.write(
+        "\nInfine, per il principio di Makogonov, l'unità che richiede l'urgenza maggiore di essere riattivata è **$worst**.",
+      );
     }
 
-    return txt.isNotEmpty ? txt.trim() : loc.evalComplex;
+    return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
   }
 
-  // Helper interno per assegnare l'indice di Zona Shashin (0-12)
   int _getZoneIndex(double wp) {
-    if (wp <= 5) {
-      return 0;
-    }
-    if (wp <= 10) {
-      return 1;
-    }
-    if (wp <= 15) {
-      return 2;
-    }
-    if (wp <= 20) {
-      return 3;
-    }
-    if (wp <= 24) {
-      return 4;
-    }
-    if (wp <= 49) {
-      return 5;
-    }
-    if (wp <= 50) {
-      return 6;
-    }
-    if (wp <= 75) {
-      return 7;
-    }
-    if (wp <= 79) {
-      return 8;
-    }
-    if (wp <= 84) {
-      return 9;
-    }
-    if (wp <= 89) {
-      return 10;
-    }
-    if (wp <= 94) {
-      return 11;
-    }
+    if (wp <= 5) return 0;
+    if (wp <= 10) return 1;
+    if (wp <= 15) return 2;
+    if (wp <= 20) return 3;
+    if (wp <= 24) return 4;
+    if (wp <= 49) return 5;
+    if (wp <= 50) return 6;
+    if (wp <= 75) return 7;
+    if (wp <= 79) return 8;
+    if (wp <= 84) return 9;
+    if (wp <= 89) return 10;
+    if (wp <= 94) return 11;
     return 12;
   }
 
@@ -396,7 +443,7 @@ class CrossedEvalOrchestrator {
     }
     report.writeln("");
 
-    // 2. ANALISI PRE-MOSSA
+    // 2. ANALISI PRE-MOSSA (Ora potentissima!)
     report.writeln(loc.reportTitleStatic);
     report.writeln(
       "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
@@ -423,7 +470,6 @@ class CrossedEvalOrchestrator {
       "• ${loc.reportExpectation}: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
     );
 
-    // NUOVO: Integrazione Makogonov ShashChess sempre visibile
     if (worstPieceNnue != null) {
       report.writeln("🔍 ${loc.reportNnueWorstPiece}: $worstPieceNnue");
     }
@@ -466,7 +512,7 @@ class CrossedEvalOrchestrator {
       }
     }
 
-    // 6. VISIONE AVANZATA (Solo ShashChess e se le mosse differiscono)
+    // 6. VISIONE AVANZATA
     if (masterElo >= 3500 &&
         worstPieceNnue != null &&
         studentMove != masterMove) {
