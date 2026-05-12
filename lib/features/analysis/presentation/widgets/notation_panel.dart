@@ -44,6 +44,25 @@ class NotationPanel extends ConsumerWidget {
         ),
       );
 
+      // =========================================================
+      // ⚠️ MOSTRA IL COMMENTO SE ESISTE (Es. Valutazioni o Livebook)
+      // =========================================================
+      if (mainMove.comment != null && mainMove.comment!.isNotEmpty) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(right: 4.0),
+            child: Text(
+              "{ ${mainMove.comment} } ",
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        );
+      }
+
       if (node.children.length > 1) {
         for (int i = 1; i < node.children.length; i++) {
           var variant = node.children[i];
@@ -89,6 +108,7 @@ class NotationPanel extends ConsumerWidget {
       ),
       child: SingleChildScrollView(
         child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 4, // Piccolo spazio tra le mosse
           children: widgets.isEmpty
               ? [

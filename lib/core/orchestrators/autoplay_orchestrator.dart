@@ -20,6 +20,7 @@ class AutoplayOrchestrator {
   final Function(ShashinZone) onZoneChanged;
   final Function(EngineStats) onStatsUpdate;
   final Function(int wTimeMs, int bTimeMs) onClockUpdate;
+  final Function(String san, String fen)? onMovePlayed;
 
   final bool whiteUseLivebook;
   final bool blackUseLivebook;
@@ -62,6 +63,7 @@ class AutoplayOrchestrator {
     required this.onZoneChanged,
     required this.onStatsUpdate,
     required this.onClockUpdate,
+    this.onMovePlayed,
     required this.whiteUseLivebook,
     required this.blackUseLivebook,
     this.tcType = 1,
@@ -287,9 +289,7 @@ class AutoplayOrchestrator {
   }
 
   void _executeMoveOnBoard(String uciMove, {bool fromBook = false}) {
-    if (!_isRunning || _isGameOver) {
-      return;
-    }
+    if (!_isRunning || _isGameOver) return;
 
     try {
       if (uciMove.length >= 4) {
@@ -304,6 +304,17 @@ class AutoplayOrchestrator {
         } else {
           boardController.makeMove(from: fromSq, to: toSq);
         }
+
+        // ⚠️ MAGIA: Estraiamo il SAN e la FEN per il pannello notazione!
+        String pgn = boardController.game.pgn();
+        pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
+        List<String> pgnParts = pgn.split(RegExp(r'\s+'));
+        String moveSan = pgnParts.lastWhere(
+          (s) => !s.contains('.'),
+          orElse: () => uciMove,
+        );
+
+        onMovePlayed?.call(moveSan, boardController.getFen());
       }
     } catch (e) {
       onLog("Errore nell'esecuzione della mossa $uciMove");

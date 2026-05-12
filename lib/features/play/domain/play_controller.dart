@@ -178,17 +178,25 @@ class PlayController extends StateNotifier<PlayState> {
         isPlaying: false,
         logMessage: msg ?? "Partita Terminata!",
       ),
-      useLivebook: state.useLivebook, // <--- ORA È DINAMICO!
+      useLivebook: state.useLivebook,
       tcType: state.tcType,
       baseTimeMs: state.tcType == 0
           ? (state.baseTime * 60 * 1000)
           : (state.baseTime * 1000),
       incMs: state.increment * 1000,
     );
-
     _orchestrator!.startGame();
 
-    if (state.userColor == PlayerColor.black) {
+    // ⚠️ FIX RACE CONDITION: Ora che l'orchestratore è nato, controlliamo di chi è il turno!
+    // Se l'utente gioca col Nero, o se gioca col Bianco ma ha GIA' mosso mentre
+    // il motore stava caricando, il turno sarà del computer. Quindi lo facciamo partire!
+    final fen = boardCtrl.getFen();
+    final isWhiteTurn = fen.split(' ')[1] == 'w';
+    final isEngineTurn =
+        (state.userColor == PlayerColor.white && !isWhiteTurn) ||
+        (state.userColor == PlayerColor.black && isWhiteTurn);
+
+    if (isEngineTurn) {
       _orchestrator!.playCycle();
     }
   }

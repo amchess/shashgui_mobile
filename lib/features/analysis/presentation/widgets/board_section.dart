@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart';
+import 'package:flutter_chess_board/flutter_chess_board.dart'; // Lo teniamo come "motore logico" invisibile
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
-import '../../domain/notation_controller.dart'; // ⚠️ Import aggiunto per la notazione
+import '../../domain/notation_controller.dart';
+import 'package:shashgui_mobile/features/play/presentation/custom_chess_board.dart'; // ⚠️ Assicurati che il percorso sia corretto se l'hai salvato altrove!
 
 class BoardSection extends ConsumerStatefulWidget {
   const BoardSection({super.key});
@@ -13,13 +14,39 @@ class BoardSection extends ConsumerStatefulWidget {
 }
 
 class _BoardSectionState extends ConsumerState<BoardSection> {
-  PlayerColor _boardOrientation = PlayerColor.white;
+  bool _isWhiteBottom =
+      true; // Sostituisce PlayerColor.white per la nuova scacchiera
+  ChessBoardController? _boardControllerListener;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ LA MAGIA: Colleghiamo il vecchio controller alla nuova scacchiera!
+    // Se l'engine muove o se premi "Indietro", la nuova scacchiera si aggiorna da sola.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _boardControllerListener = ref.read(boardControllerProvider);
+      _boardControllerListener?.addListener(_syncBoard);
+      _syncBoard(); // Sincronizzazione iniziale
+    });
+  }
+
+  void _syncBoard() {
+    if (_boardControllerListener != null) {
+      ref
+          .read(customBoardProvider.notifier)
+          .updateFen(_boardControllerListener!.getFen());
+    }
+  }
+
+  @override
+  void dispose() {
+    _boardControllerListener?.removeListener(_syncBoard);
+    super.dispose();
+  }
 
   void _flipBoard() {
     setState(() {
-      _boardOrientation = _boardOrientation == PlayerColor.white
-          ? PlayerColor.black
-          : PlayerColor.white;
+      _isWhiteBottom = !_isWhiteBottom;
     });
   }
 
@@ -28,27 +55,16 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
     final engineState = ref.watch(engineControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
 
-    List<BoardArrow> arrows = [];
-    // Cambia stats.pv con stats.pvs
+    // 1. Recuperiamo la mossa suggerita dal motore (se acceso)
+    String engineBestMoveUci = "";
     if (engineState.isRunning && engineState.stats.pvs.isNotEmpty) {
-      // Estrai la PV dalla primissima riga!
-      String bestMove = engineState.stats.pvs.first.split(' ').first;
-      if (bestMove.length >= 4) {
-        arrows.add(
-          BoardArrow(
-            from: bestMove.substring(0, 2),
-            to: bestMove.substring(2, 4),
-            color: Colors.redAccent.withValues(alpha: 0.7),
-          ),
-        );
-      }
+      engineBestMoveUci = engineState.stats.pvs.first.split(' ').first;
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Margine di sicurezza per evitare l'overflow verticale
+        // Margine per la pulsantiera
         final availableHeight = constraints.maxHeight - 70;
-
         final boardSize = constraints.maxWidth < availableHeight
             ? constraints.maxWidth
             : availableHeight;
@@ -56,61 +72,76 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // SCACCHIERA
-            Container(
+            // ==========================================
+            // LA NUOVA SCACCHIERA CON FRECCIA ENGINE
+            // ==========================================
+            SizedBox(
               width: boardSize,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white24, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black54,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: ChessBoard(
-                size: boardSize - 4, // Sottraiamo i bordi
-                controller: boardController,
-                boardColor: BoardColor.brown,
-                boardOrientation: _boardOrientation,
-                arrows: arrows,
-                enableUserMoves: true,
-                onMove: () {
-                  // 1. RECUPERA IL SAN (nome mossa) dal PGN del gioco interno
-                  String pgn = boardController.game.pgn();
-                  pgn = pgn.replaceAll(
-                    RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'),
-                    '',
-                  );
-                  List<String> pgnParts = pgn.split(RegExp(r'\s+'));
-                  String moveSan = pgnParts.lastWhere(
-                    (s) => !s.contains('.'),
-                    orElse: () => "Mossa",
-                  );
+              height: boardSize,
+              child: Stack(
+                children: [
+                  // Il nostro nuovo Widget col Tap-to-Move
+                  CustomChessBoard(
+                    isWhiteBottom: _isWhiteBottom,
+                    onUserMove: (uciMove) {
+                      // 1. Estraiamo la casa di partenza e arrivo (es. "e2" -> "e4")
+                      final fromSq = uciMove.substring(0, 2);
+                      final toSq = uciMove.substring(2, 4);
 
-                  // 2. AGGIORNA LA NOTAZIONE (tramite il NotationController)
-                  ref
-                      .read(notationControllerProvider.notifier)
-                      .handleNewMove(
-                        boardController.getFen(),
-                        moveSan,
-                        context,
+                      // 2. Passiamo la mossa al VECCHIO controller logico (senza "promotion")
+                      boardController.makeMove(from: fromSq, to: toSq);
+
+                      // 3. Estraiamo il SAN (es. "Nf3") per la notazione esatta come prima
+                      String pgn = boardController.game.pgn();
+                      pgn = pgn.replaceAll(
+                        RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'),
+                        '',
+                      );
+                      List<String> pgnParts = pgn.split(RegExp(r'\s+'));
+                      String moveSan = pgnParts.lastWhere(
+                        (s) => !s.contains('.'),
+                        orElse: () => "Mossa",
                       );
 
-                  // 3. AVVIA L'ANALISI DEL MOTORE (se acceso)
-                  if (engineState.isRunning) {
-                    ref
-                        .read(engineControllerProvider.notifier)
-                        .analyzeCurrentPosition(boardController.getFen());
-                  }
-                },
+                      // 4. Aggiorniamo la barra della notazione
+                      ref
+                          .read(notationControllerProvider.notifier)
+                          .handleNewMove(
+                            boardController.getFen(),
+                            moveSan,
+                            context,
+                          );
+
+                      // 5. Riavvia l'analisi del motore se era acceso
+                      if (engineState.isRunning) {
+                        ref
+                            .read(engineControllerProvider.notifier)
+                            .analyzeCurrentPosition(boardController.getFen());
+                      }
+                    },
+                  ),
+
+                  // La Freccia dell'Euristica (disegnata dinamicamente sopra la scacchiera)
+                  if (engineBestMoveUci.length >= 4)
+                    IgnorePointer(
+                      // Per far passare i tocchi alla scacchiera sotto
+                      child: CustomPaint(
+                        size: Size(boardSize, boardSize),
+                        painter: EngineArrowPainter(
+                          engineBestMoveUci,
+                          _isWhiteBottom,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
             const SizedBox(height: 8),
 
+            // ==========================================
             // BARRA NAVIGAZIONE
+            // ==========================================
             Container(
               width: boardSize,
               decoration: BoxDecoration(
@@ -122,7 +153,7 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // I tasti ora comunicano con il NotationController invece che fare "undo" brutale!
+                    // Ora non serve forzare la grafica, ci pensa l'addListener in alto!
                     IconButton(
                       icon: const Icon(Icons.first_page),
                       color: Colors.white70,
@@ -164,5 +195,60 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
         );
       },
     );
+  }
+}
+
+// ============================================================================
+// PAINTER: IL DISEGNATORE DELLE FRECCE
+// ============================================================================
+class EngineArrowPainter extends CustomPainter {
+  final String moveUci;
+  final bool isWhiteBottom;
+
+  EngineArrowPainter(this.moveUci, this.isWhiteBottom);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (moveUci.length < 4) return;
+
+    final sqSize = size.width / 8;
+
+    // Decodifica la mossa UCI (da "e2" a coordinate matematiche X,Y)
+    int fromFile = moveUci.codeUnitAt(0) - 97; // 'a' = 0
+    int fromRank = int.parse(moveUci[1]) - 1; // '1' = 0
+    int toFile = moveUci.codeUnitAt(2) - 97;
+    int toRank = int.parse(moveUci[3]) - 1;
+
+    // Ribalta matematicamente se giochiamo coi neri
+    if (!isWhiteBottom) {
+      fromFile = 7 - fromFile;
+      fromRank = 7 - fromRank;
+      toFile = 7 - toFile;
+      toRank = 7 - toRank;
+    }
+
+    // Calcola il centro esatto delle case di partenza e arrivo
+    final start = Offset(
+      (fromFile + 0.5) * sqSize,
+      (7 - fromRank + 0.5) * sqSize,
+    );
+    final end = Offset((toFile + 0.5) * sqSize, (7 - toRank + 0.5) * sqSize);
+
+    // Stile della freccia (Rossa semitrasparente stile ChessBase)
+    final paint = Paint()
+      ..color = Colors.redAccent.withValues(alpha: 0.6)
+      ..strokeWidth = sqSize * 0.15
+      ..strokeCap = StrokeCap.round;
+
+    // Disegna la linea
+    canvas.drawLine(start, end, paint);
+    // Disegna un elegante cerchio ("pallino") sulla casa di destinazione per indicare la direzione
+    canvas.drawCircle(end, sqSize * 0.25, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant EngineArrowPainter oldDelegate) {
+    return oldDelegate.moveUci != moveUci ||
+        oldDelegate.isWhiteBottom != isWhiteBottom;
   }
 }

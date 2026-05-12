@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 class MoveNode {
   final String fen;
   final String san;
+  final String? comment;
   MoveNode? parent;
   List<MoveNode> children = [];
-  MoveNode({required this.fen, required this.san, this.parent});
+  MoveNode({required this.fen, required this.san, this.comment, this.parent});
 }
 
 class NotationState {
@@ -40,7 +41,7 @@ class NotationController extends StateNotifier<NotationState> {
     return NotationState(root: root, currentNode: root);
   }
 
-  void addMove(String san, String fen, String choice) {
+  void addMove(String san, String fen, String choice, {String? comment}) {
     // Se la mossa esiste già tra i figli, ci spostiamo lì
     for (var child in state.currentNode.children) {
       if (child.fen == fen) {
@@ -49,7 +50,12 @@ class NotationController extends StateNotifier<NotationState> {
       }
     }
 
-    final newNode = MoveNode(fen: fen, san: san, parent: state.currentNode);
+    final newNode = MoveNode(
+      fen: fen,
+      san: san,
+      comment: comment,
+      parent: state.currentNode,
+    );
 
     if (state.currentNode.children.isEmpty || choice == 'overwrite') {
       if (choice == 'overwrite') state.currentNode.children.clear();
@@ -98,8 +104,9 @@ class NotationController extends StateNotifier<NotationState> {
   Future<void> handleNewMove(
     String newFen,
     String san,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    String? comment,
+  }) async {
     // 1. Controlla se esiste già
     for (var child in state.currentNode.children) {
       if (child.fen == newFen) {
@@ -119,7 +126,12 @@ class NotationController extends StateNotifier<NotationState> {
       return;
     }
 
-    final newNode = MoveNode(fen: newFen, san: san, parent: state.currentNode);
+    final newNode = MoveNode(
+      fen: newFen,
+      san: san,
+      comment: comment,
+      parent: state.currentNode,
+    );
     if (choice == 'overwrite') state.currentNode.children.clear();
 
     if (choice == 'main' && state.currentNode.children.isNotEmpty) {

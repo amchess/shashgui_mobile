@@ -8,6 +8,7 @@ import '../../../core/orchestrators/shashin_fsm.dart';
 import '../../../core/logic/shashin_logic.dart';
 import 'board_provider.dart';
 import 'engine_controller.dart';
+import 'notation_controller.dart';
 
 class AutoplayState {
   final bool isPlaying;
@@ -179,6 +180,12 @@ class AutoplayController extends StateNotifier<AutoplayState> {
 
     boardCtrl.loadFen(state.savedStartingFen);
 
+    // ⚠️ Azzera la notazione se iniziamo una nuova partita dalla posizione base
+    if (state.savedStartingFen ==
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+      ref.read(notationControllerProvider.notifier).goToStart();
+    }
+
     _whiteManager?.dispose();
     _blackManager?.dispose();
     _whiteManager = EngineManager();
@@ -212,6 +219,12 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       onStatsUpdate: (ns) => state = state.copyWith(stats: ns),
       onClockUpdate: (w, b) =>
           state = state.copyWith(whiteTime: w, blackTime: b),
+
+      // ⚠️ RICEVIAMO LA MOSSA E LA STAMPIAMO SULLA UI!
+      onMovePlayed: (san, fen) {
+        ref.read(notationControllerProvider.notifier).addMove(san, fen, 'main');
+      },
+
       onGameOver: (res) => _handleEndOfGame(context, res),
     );
 

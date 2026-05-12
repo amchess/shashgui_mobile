@@ -151,7 +151,12 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                     // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE E LE VARIANTI!
                     ref
                         .read(notationControllerProvider.notifier)
-                        .handleNewMove(boardCtrl.getFen(), sanMove, context);
+                        .handleNewMove(
+                          boardCtrl.getFen(),
+                          sanMove,
+                          context,
+                          comment: move.description, // ⚠️ BONUS INIETTATO!
+                        );
 
                     // 3. Riavvia l'analisi del motore se era acceso
                     if (ref.read(engineControllerProvider).isRunning) {
