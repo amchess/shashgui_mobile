@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'
-    hide Color; // ⚠️ Aggiunto per il traduttore SAN
 import '../../../../core/logic/livebook_scanner.dart';
-import '../../../../l10n/app_localizations.dart'; // ⚠️ Aggiunto per le lingue
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/board_provider.dart';
 import '../../domain/engine_controller.dart';
-import '../../domain/notation_controller.dart'; // ⚠️ Aggiunto per l'albero delle mosse
+import '../../domain/notation_controller.dart';
 
 class LivebookModal extends ConsumerStatefulWidget {
   const LivebookModal({super.key});
@@ -28,10 +26,23 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   Future<void> _fetchCloudData() async {
     final fen = ref.read(boardControllerProvider).getFen();
-    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa
+
+    List<String> history = [];
+    var tempNode = ref.read(notationControllerProvider).currentNode;
+
+    // ⚠️ FIX Loop Sicuro: Usiamo add e un contatore per non impallare mai la RAM
+    int safeCounter = 0;
+    while (tempNode.parent != null && safeCounter < 200) {
+      history.add(tempNode.san);
+      tempNode = tempNode.parent!;
+      safeCounter++;
+    }
+    history = history.reversed.toList();
+
+    // Esegue le due chiamate in parallelo passando la cronologia corretta
     final results = await Future.wait([
-      LiveBookScanner.scan(fen, [], true), // true = ChessDB
-      LiveBookScanner.scan(fen, [], false), // false = Lichess
+      LiveBookScanner.scan(fen, history, true), // true = ChessDB
+      LiveBookScanner.scan(fen, history, false), // false = Lichess
     ]);
 
     if (mounted) {
@@ -43,37 +54,8 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     }
   }
 
-  // --- IL TRADUTTORE UCI -> SAN ---
-  // Usa una scacchiera fantasma in RAM per calcolare il nome esatto della mossa
-  String _getSan(String fen, String uci) {
-    if (uci == "-" || uci.contains(".")) return uci;
-    try {
-      final tempChess = Chess.fromFEN(fen);
-      String fromSq = uci.substring(0, 2);
-      String toSq = uci.substring(2, 4);
-      String? prom = uci.length == 5 ? uci[4] : null;
-
-      var moveRes = tempChess.move({
-        'from': fromSq,
-        'to': toSq,
-        'promotion': prom,
-      });
-      if (moveRes != false) {
-        String pgn = tempChess.pgn();
-        pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
-        List<String> parts = pgn.split(RegExp(r'\s+'));
-        return parts.lastWhere(
-          (s) => !s.contains('.'),
-          orElse: () => uci.toUpperCase(),
-        );
-      }
-    } catch (_) {}
-    return uci.toUpperCase(); // Fallback in caso di mossa illegale
-  }
-
   Widget _buildList(LiveBookResult? result, String currentFen) {
     if (result == null) return const SizedBox.shrink();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -89,32 +71,39 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
           const SizedBox(height: 4),
         ],
         if (result.engineComment.isNotEmpty) ...[
-          Text(
-            result.engineComment,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
+          // ⚠️ FIX DEFINITIVO: Rimosso lo "Scrollbar" e i suoi parametri che causavano il loop e l'overflow!
+          // Usiamo un semplice Expanded -> SingleChildScrollView
+          Expanded(
+            flex: 1, // Occupa 1 porzione di spazio, blindando il testo
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                result.engineComment,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
         ],
         const Divider(color: Colors.white24),
         Expanded(
+          flex: 2, // La lista mosse occupa 2 porzioni di spazio
           child: ListView.builder(
             itemCount: result.moves.length,
             itemBuilder: (context, index) {
               final move = result.moves[index];
-              // Convertiamo il brutto UCI (es. d4d5) nel bellissimo SAN (es. d5)
-              final sanMove = _getSan(currentFen, move.move);
-
               return ListTile(
                 leading: const Icon(
                   Icons.arrow_right_alt,
                   color: Colors.white54,
                 ),
                 title: Text(
-                  sanMove,
+                  move.san, // Accesso diretto e immediato alla stringa pre-calcolata
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -128,9 +117,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 onTap: () async {
-                  // ⚠️ Aggiunto 'async' qui!
                   if (move.move != "-" && !move.move.contains(".")) {
                     final boardCtrl = ref.read(boardControllerProvider);
 
@@ -148,14 +135,14 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                       );
                     }
 
-                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE E LE VARIANTI!
+                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE
                     ref
                         .read(notationControllerProvider.notifier)
                         .handleNewMove(
                           boardCtrl.getFen(),
-                          sanMove,
+                          move.san,
                           context,
-                          comment: move.description, // ⚠️ BONUS INIETTATO!
+                          comment: move.description,
                         );
 
                     // 3. Riavvia l'analisi del motore se era acceso
@@ -165,12 +152,11 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                           .analyzeCurrentPosition(boardCtrl.getFen());
                     }
 
-                    // 4. ⚠️ INVECE DI CHIUDERE IL PANNELLO, LO RICARICHIAMO!
-                    // Togliamo Navigator.pop(context); e mettiamo questo:
+                    // 4. RICARICHIAMO I DATI DELLA NUOVA POSIZIONE
                     setState(() {
-                      _isLoading = true; // Mostra la rotellina di caricamento
+                      _isLoading = true;
                     });
-                    await _fetchCloudData(); // Scarica le mosse della nuova posizione
+                    await _fetchCloudData();
                   }
                 },
               );
@@ -187,9 +173,13 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     final fen = ref.read(boardControllerProvider).getFen();
 
     if (_isLoading) {
-      return const SizedBox(
-        height: 350,
-        child: Center(
+      return Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1a1a1a),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: const Center(
           child: CircularProgressIndicator(color: Colors.blueAccent),
         ),
       );
@@ -212,7 +202,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "📖 ${loc.livebook} Cloud", // ⚠️ Usa il file di lingua!
+                  "📖 ${loc.livebook} Cloud",
                   style: const TextStyle(
                     color: Colors.blueAccent,
                     fontSize: 18,

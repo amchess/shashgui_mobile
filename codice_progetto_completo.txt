@@ -882,17 +882,26 @@ FILE: lib\core\logic\livebook_scanner.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:chess/chess.dart'
+    as chess_lib; // ⚠️ Aggiunto per calcolare il SAN nel background
 
 class LiveBookMove {
-  final String move;
+  final String move; // La mossa UCI (es. e2e4)
+  final String san; // La mossa SAN (es. e4) - ⚠️ NUOVA VARIABILE
   final String description;
-  LiveBookMove({required this.move, required this.description});
+
+  LiveBookMove({
+    required this.move,
+    required this.san,
+    required this.description,
+  });
 }
 
 class LiveBookResult {
   final List<LiveBookMove> moves;
   final String openingName;
   final String engineComment;
+
   LiveBookResult({
     required this.moves,
     this.openingName = "",
@@ -948,16 +957,46 @@ class LiveBookScanner {
             return 0.0;
           }
 
-          for (int i = 0; i < moves.length; i++) {
-            String uci = moves[i]['uci'];
-            double winrate = parseSafeDouble(moves[i]['winrate']);
+          // Ordiniamo le mosse per winrate decrescente
+          moves.sort(
+            (a, b) => parseSafeDouble(
+              b['winrate'],
+            ).compareTo(parseSafeDouble(a['winrate'])),
+          );
+
+          // =========================================================================
+          // ⚠️ IL FIX ANTI-FREEZE: LIMITIAMO A 15 MOSSE!
+          // ChessDB restituisce centinaia di mosse. Processarle tutte uccide la CPU.
+          // =========================================================================
+          final topMoves = moves.take(15).toList();
+
+          // Inizializziamo una scacchiera temporanea per calcolare i SAN
+          final tempChess = chess_lib.Chess.fromFEN(fen);
+
+          for (int i = 0; i < topMoves.length; i++) {
+            String uci = topMoves[i]['uci'];
+            double winrate = parseSafeDouble(topMoves[i]['winrate']);
+
+            // ⚠️ CALCOLO SAN VELOCE IN BACKGROUND (SOLO SULLE 15 MIGLIORI)
+            String san = uci;
+            try {
+              var m = tempChess.move(uci);
+              if (m != false && m != null) {
+                san = (m as dynamic).san ?? uci;
+                tempChess
+                    .undo(); // Torniamo subito indietro per la prossima mossa
+              }
+            } catch (_) {}
+
             if (i == 0) {
               bestWp = winrate;
-              bestSan = uci;
+              bestSan = san;
             }
+
             results.add(
               LiveBookMove(
                 move: uci,
+                san: san,
                 description: "${winrate.toStringAsFixed(2)}%",
               ),
             );
@@ -965,6 +1004,7 @@ class LiveBookScanner {
         }
       }
 
+      // Scraping Ottimizzato (Niente regex pesanti, solo string indexOf per evitare blocchi!)
       try {
         final webUrl =
             "https://www.chessdb.cn/queryc_en/?${fen.replaceAll(' ', '_')}";
@@ -977,24 +1017,31 @@ class LiveBookScanner {
               },
             )
             .timeout(const Duration(seconds: 4));
+
         if (webResp.statusCode == 200) {
-          final match = RegExp(
-            r"""var\s+suggest_note\s*=\s*(["'])(.*?)(?<!\\)\1\s*;""",
-            dotAll: true,
-          ).firstMatch(webResp.body);
-          if (match != null) {
-            aiComment = _stripHtml(match.group(2) ?? "");
-            aiComment = aiComment.replaceAll(r"\'", "'").replaceAll(r'\"', '"');
+          int start = webResp.body.indexOf('var suggest_note="');
+          if (start == -1) start = webResp.body.indexOf("var suggest_note='");
+
+          if (start != -1) {
+            int end = webResp.body.indexOf(";", start);
+            if (end != -1) {
+              String raw = webResp.body.substring(start + 18, end - 1);
+              aiComment = _stripHtml(
+                raw,
+              ).replaceAll(r"\'", "'").replaceAll(r'\"', '"');
+            }
           }
         }
       } catch (e) {
         debugPrint("Scrape ChessDB failed: $e");
       }
 
+      // Se non c'è il commento AI online, generiamo quello discorsivo in Inglese
       if (aiComment.isEmpty && results.isNotEmpty) {
         bool isWhiteTurn = fen.split(' ')[1] == 'w';
         String side = isWhiteTurn ? "White's" : "Black's";
         String oppSide = isWhiteTurn ? "Black" : "White";
+
         aiComment = "From $side view the position is ";
         if (bestWp >= 60.0) {
           aiComment +=
@@ -1016,7 +1063,7 @@ class LiveBookScanner {
 
       if (results.isEmpty) {
         results.add(
-          LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),
+          LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria NNUE"),
         );
       }
 
@@ -1027,7 +1074,7 @@ class LiveBookScanner {
       );
     } catch (e) {
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Errore")],
+        moves: [LiveBookMove(move: "-", san: "-", description: "Errore")],
         engineComment: "Errore connessione: $e",
       );
     }
@@ -1055,17 +1102,23 @@ class LiveBookScanner {
 
       if (response.statusCode == 401) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "...", description: "Token Scaduto")],
+          moves: [
+            LiveBookMove(move: "...", san: "...", description: "Token Scaduto"),
+          ],
         );
       }
       if (response.statusCode == 429) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "...", description: "Lichess Busy")],
+          moves: [
+            LiveBookMove(move: "...", san: "...", description: "Lichess Busy"),
+          ],
         );
       }
       if (response.statusCode == 404) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
+          moves: [
+            LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria"),
+          ],
         );
       }
 
@@ -1081,10 +1134,15 @@ class LiveBookScanner {
         }
 
         String wikiExtract = "";
+
+        // ⚠️ ANTI-FREEZE WIKIBOOKS: La teoria non supera quasi mai la 12a mossa.
         if (moveHistory.isNotEmpty) {
+          final maxPlies = moveHistory.length > 24 ? 24 : moveHistory.length;
+
           List<String> pathsToTry = [];
           String currentPath = "Chess_Opening_Theory";
-          for (int i = 0; i < moveHistory.length; i++) {
+
+          for (int i = 0; i < maxPlies; i++) {
             int turn = (i ~/ 2) + 1;
             String cleanMove = moveHistory[i].replaceAll(RegExp(r'[+#?!]'), '');
             if (i % 2 == 0) {
@@ -1094,13 +1152,18 @@ class LiveBookScanner {
             }
             pathsToTry.add(currentPath);
           }
-          for (String path in pathsToTry.reversed) {
+
+          // Controlliamo SOLO le ultime 6 diramazioni per non intasare le chiamate HTTP
+          final pathsToCheck = pathsToTry.reversed.take(6).toList();
+
+          for (String path in pathsToCheck) {
             final wbUrl =
                 "https://en.wikibooks.org/w/api.php?action=query&prop=extracts&format=json&titles=${Uri.encodeComponent(path)}";
             try {
               final wbResp = await http
                   .get(Uri.parse(wbUrl))
-                  .timeout(const Duration(seconds: 3));
+                  .timeout(const Duration(seconds: 2));
+
               if (wbResp.statusCode == 200) {
                 final wbData = json.decode(wbResp.body);
                 final pages =
@@ -1112,7 +1175,7 @@ class LiveBookScanner {
                       page['extract'].toString().isNotEmpty) {
                     wikiExtract = _stripHtml(page['extract']);
                     openingTitle += " (Fonte: Wikibooks - $path)";
-                    break;
+                    break; // Trovato, usciamo dal ciclo!
                   }
                 }
               }
@@ -1126,6 +1189,7 @@ class LiveBookScanner {
         if (moves != null && moves.isNotEmpty) {
           bool isWhiteTurn = fen.split(' ')[1] == 'w';
           List<Map<String, dynamic>> processedMoves = [];
+
           int globalTot = 0;
           for (var move in moves) {
             globalTot +=
@@ -1149,17 +1213,27 @@ class LiveBookScanner {
                 ? ((w + d / 2.0) / total) * 100.0
                 : ((b + d / 2.0) / total) * 100.0;
             double pEff = (wpPura * 0.70) + (freqPct * 0.30);
-            processedMoves.add({'uci': move['uci'], 'pEff': pEff});
+
+            // ⚠️ MIRACOLO LICHESS: Ci passa il SAN direttamente dal JSON!
+            processedMoves.add({
+              'uci': move['uci'],
+              'san': move['san'] ?? move['uci'],
+              'pEff': pEff,
+            });
           }
 
+          // Ordiniamo e limitiamo anche Lichess per estrema sicurezza (massimo 15 mosse logiche)
           processedMoves.sort(
             (a, b) => (b['pEff'] as double).compareTo(a['pEff'] as double),
           );
 
-          for (var pm in processedMoves) {
+          final topLichessMoves = processedMoves.take(15).toList();
+
+          for (var pm in topLichessMoves) {
             results.add(
               LiveBookMove(
                 move: pm['uci'] as String,
+                san: pm['san'] as String,
                 description: "${(pm['pEff'] as double).toStringAsFixed(1)}%",
               ),
             );
@@ -1167,7 +1241,11 @@ class LiveBookScanner {
 
           if (results.isEmpty) {
             results.add(
-              LiveBookMove(move: "-", description: "Nessuna Teoria Lichess"),
+              LiveBookMove(
+                move: "-",
+                san: "-",
+                description: "Nessuna Teoria Lichess",
+              ),
             );
           }
 
@@ -1178,18 +1256,22 @@ class LiveBookScanner {
           );
         } else {
           return LiveBookResult(
-            moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
+            moves: [
+              LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria"),
+            ],
             openingName: openingTitle,
             engineComment: wikiExtract,
           );
         }
       }
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Errore API")],
+        moves: [LiveBookMove(move: "-", san: "-", description: "Errore API")],
       );
     } catch (e) {
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Nessuna connessione")],
+        moves: [
+          LiveBookMove(move: "-", san: "-", description: "Nessuna connessione"),
+        ],
       );
     }
   }
@@ -6061,13 +6143,11 @@ FILE: lib\features\analysis\presentation\widgets\livebook_modal.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'
-    hide Color; // ⚠️ Aggiunto per il traduttore SAN
 import '../../../../core/logic/livebook_scanner.dart';
-import '../../../../l10n/app_localizations.dart'; // ⚠️ Aggiunto per le lingue
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/board_provider.dart';
 import '../../domain/engine_controller.dart';
-import '../../domain/notation_controller.dart'; // ⚠️ Aggiunto per l'albero delle mosse
+import '../../domain/notation_controller.dart';
 
 class LivebookModal extends ConsumerStatefulWidget {
   const LivebookModal({super.key});
@@ -6089,10 +6169,23 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
 
   Future<void> _fetchCloudData() async {
     final fen = ref.read(boardControllerProvider).getFen();
-    // Esegue le due chiamate in parallelo per dimezzare i tempi d'attesa
+
+    List<String> history = [];
+    var tempNode = ref.read(notationControllerProvider).currentNode;
+
+    // ⚠️ FIX Loop Sicuro: Usiamo add e un contatore per non impallare mai la RAM
+    int safeCounter = 0;
+    while (tempNode.parent != null && safeCounter < 200) {
+      history.add(tempNode.san);
+      tempNode = tempNode.parent!;
+      safeCounter++;
+    }
+    history = history.reversed.toList();
+
+    // Esegue le due chiamate in parallelo passando la cronologia corretta
     final results = await Future.wait([
-      LiveBookScanner.scan(fen, [], true), // true = ChessDB
-      LiveBookScanner.scan(fen, [], false), // false = Lichess
+      LiveBookScanner.scan(fen, history, true), // true = ChessDB
+      LiveBookScanner.scan(fen, history, false), // false = Lichess
     ]);
 
     if (mounted) {
@@ -6104,37 +6197,8 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     }
   }
 
-  // --- IL TRADUTTORE UCI -> SAN ---
-  // Usa una scacchiera fantasma in RAM per calcolare il nome esatto della mossa
-  String _getSan(String fen, String uci) {
-    if (uci == "-" || uci.contains(".")) return uci;
-    try {
-      final tempChess = Chess.fromFEN(fen);
-      String fromSq = uci.substring(0, 2);
-      String toSq = uci.substring(2, 4);
-      String? prom = uci.length == 5 ? uci[4] : null;
-
-      var moveRes = tempChess.move({
-        'from': fromSq,
-        'to': toSq,
-        'promotion': prom,
-      });
-      if (moveRes != false) {
-        String pgn = tempChess.pgn();
-        pgn = pgn.replaceAll(RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'), '');
-        List<String> parts = pgn.split(RegExp(r'\s+'));
-        return parts.lastWhere(
-          (s) => !s.contains('.'),
-          orElse: () => uci.toUpperCase(),
-        );
-      }
-    } catch (_) {}
-    return uci.toUpperCase(); // Fallback in caso di mossa illegale
-  }
-
   Widget _buildList(LiveBookResult? result, String currentFen) {
     if (result == null) return const SizedBox.shrink();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -6150,32 +6214,39 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
           const SizedBox(height: 4),
         ],
         if (result.engineComment.isNotEmpty) ...[
-          Text(
-            result.engineComment,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
+          // ⚠️ FIX DEFINITIVO: Rimosso lo "Scrollbar" e i suoi parametri che causavano il loop e l'overflow!
+          // Usiamo un semplice Expanded -> SingleChildScrollView
+          Expanded(
+            flex: 1, // Occupa 1 porzione di spazio, blindando il testo
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                result.engineComment,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
         ],
         const Divider(color: Colors.white24),
         Expanded(
+          flex: 2, // La lista mosse occupa 2 porzioni di spazio
           child: ListView.builder(
             itemCount: result.moves.length,
             itemBuilder: (context, index) {
               final move = result.moves[index];
-              // Convertiamo il brutto UCI (es. d4d5) nel bellissimo SAN (es. d5)
-              final sanMove = _getSan(currentFen, move.move);
-
               return ListTile(
                 leading: const Icon(
                   Icons.arrow_right_alt,
                   color: Colors.white54,
                 ),
                 title: Text(
-                  sanMove,
+                  move.san, // Accesso diretto e immediato alla stringa pre-calcolata
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -6189,9 +6260,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 onTap: () async {
-                  // ⚠️ Aggiunto 'async' qui!
                   if (move.move != "-" && !move.move.contains(".")) {
                     final boardCtrl = ref.read(boardControllerProvider);
 
@@ -6209,14 +6278,14 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                       );
                     }
 
-                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE E LE VARIANTI!
+                    // 2. AGGIORNA L'ALBERO DELLA NOTAZIONE
                     ref
                         .read(notationControllerProvider.notifier)
                         .handleNewMove(
                           boardCtrl.getFen(),
-                          sanMove,
+                          move.san,
                           context,
-                          comment: move.description, // ⚠️ BONUS INIETTATO!
+                          comment: move.description,
                         );
 
                     // 3. Riavvia l'analisi del motore se era acceso
@@ -6226,12 +6295,11 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
                           .analyzeCurrentPosition(boardCtrl.getFen());
                     }
 
-                    // 4. ⚠️ INVECE DI CHIUDERE IL PANNELLO, LO RICARICHIAMO!
-                    // Togliamo Navigator.pop(context); e mettiamo questo:
+                    // 4. RICARICHIAMO I DATI DELLA NUOVA POSIZIONE
                     setState(() {
-                      _isLoading = true; // Mostra la rotellina di caricamento
+                      _isLoading = true;
                     });
-                    await _fetchCloudData(); // Scarica le mosse della nuova posizione
+                    await _fetchCloudData();
                   }
                 },
               );
@@ -6248,9 +6316,13 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
     final fen = ref.read(boardControllerProvider).getFen();
 
     if (_isLoading) {
-      return const SizedBox(
-        height: 350,
-        child: Center(
+      return Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1a1a1a),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: const Center(
           child: CircularProgressIndicator(color: Colors.blueAccent),
         ),
       );
@@ -6273,7 +6345,7 @@ class _LivebookModalState extends ConsumerState<LivebookModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "📖 ${loc.livebook} Cloud", // ⚠️ Usa il file di lingua!
+                  "📖 ${loc.livebook} Cloud",
                   style: const TextStyle(
                     color: Colors.blueAccent,
                     fontSize: 18,
@@ -10970,6 +11042,3797 @@ FILE: windows\flutter\generated_plugin_registrant.h
 void RegisterPlugins(flutter::PluginRegistry* registry);
 
 #endif  // GENERATED_PLUGIN_REGISTRANT_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\flutter_export.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_EXPORT_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_EXPORT_H_
+
+#ifdef FLUTTER_DESKTOP_LIBRARY
+
+// Add visibility/export annotations when building the library.
+#ifdef _WIN32
+#define FLUTTER_EXPORT __declspec(dllexport)
+#else
+#define FLUTTER_EXPORT __attribute__((visibility("default")))
+#endif
+
+#else  // FLUTTER_DESKTOP_LIBRARY
+
+// Add import annotations when consuming the library.
+#ifdef _WIN32
+#define FLUTTER_EXPORT __declspec(dllimport)
+#else
+#define FLUTTER_EXPORT
+#endif
+
+#endif  // FLUTTER_DESKTOP_LIBRARY
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_EXPORT_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\flutter_messenger.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_MESSENGER_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_MESSENGER_H_
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "flutter_export.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif  // defined(__cplusplus)
+
+// Opaque reference to a Flutter engine messenger.
+typedef struct FlutterDesktopMessenger* FlutterDesktopMessengerRef;
+
+// Opaque handle for tracking responses to messages.
+typedef struct _FlutterPlatformMessageResponseHandle
+    FlutterDesktopMessageResponseHandle;
+
+// The callback expected as a response of a binary message.
+typedef void (*FlutterDesktopBinaryReply)(const uint8_t* data,
+                                          size_t data_size,
+                                          void* user_data);
+
+// A message received from Flutter.
+typedef struct {
+  // Size of this struct as created by Flutter.
+  size_t struct_size;
+  // The name of the channel used for this message.
+  const char* channel;
+  // The raw message data.
+  const uint8_t* message;
+  // The length of |message|.
+  size_t message_size;
+  // The response handle. If non-null, the receiver of this message must call
+  // FlutterDesktopSendMessageResponse exactly once with this handle.
+  const FlutterDesktopMessageResponseHandle* response_handle;
+} FlutterDesktopMessage;
+
+// Function pointer type for message handler callback registration.
+//
+// The user data will be whatever was passed to FlutterDesktopSetMessageHandler
+// for the channel the message is received on.
+typedef void (*FlutterDesktopMessageCallback)(
+    FlutterDesktopMessengerRef /* messenger */,
+    const FlutterDesktopMessage* /* message*/,
+    void* /* user data */);
+
+// Sends a binary message to the Flutter side on the specified channel.
+FLUTTER_EXPORT bool FlutterDesktopMessengerSend(
+    FlutterDesktopMessengerRef messenger,
+    const char* channel,
+    const uint8_t* message,
+    const size_t message_size);
+
+// Sends a binary message to the Flutter side on the specified channel.
+// The |reply| callback will be executed when a response is received.
+FLUTTER_EXPORT bool FlutterDesktopMessengerSendWithReply(
+    FlutterDesktopMessengerRef messenger,
+    const char* channel,
+    const uint8_t* message,
+    const size_t message_size,
+    const FlutterDesktopBinaryReply reply,
+    void* user_data);
+
+// Sends a reply to a FlutterDesktopMessage for the given response handle.
+//
+// Once this has been called, |handle| is invalid and must not be used again.
+FLUTTER_EXPORT void FlutterDesktopMessengerSendResponse(
+    FlutterDesktopMessengerRef messenger,
+    const FlutterDesktopMessageResponseHandle* handle,
+    const uint8_t* data,
+    size_t data_length);
+
+// Registers a callback function for incoming binary messages from the Flutter
+// side on the specified channel.
+//
+// Replaces any existing callback. Provide a null handler to unregister the
+// existing callback.
+//
+// If |user_data| is provided, it will be passed in |callback| calls.
+FLUTTER_EXPORT void FlutterDesktopMessengerSetCallback(
+    FlutterDesktopMessengerRef messenger,
+    const char* channel,
+    FlutterDesktopMessageCallback callback,
+    void* user_data);
+
+// Increments the reference count for the |messenger|.
+//
+// Operation is thread-safe.
+//
+// See also: |FlutterDesktopMessengerRelease|
+FLUTTER_EXPORT FlutterDesktopMessengerRef
+FlutterDesktopMessengerAddRef(FlutterDesktopMessengerRef messenger);
+
+// Decrements the reference count for the |messenger|.
+//
+// Operation is thread-safe.
+//
+// See also: |FlutterDesktopMessengerAddRef|
+FLUTTER_EXPORT void FlutterDesktopMessengerRelease(
+    FlutterDesktopMessengerRef messenger);
+
+// Returns `true` if the |FlutterDesktopMessengerRef| still references a running
+// engine.
+//
+// This check should be made inside of a |FlutterDesktopMessengerLock| and
+// before any other calls are made to the FlutterDesktopMessengerRef when using
+// it from a thread other than the platform thread.
+FLUTTER_EXPORT bool FlutterDesktopMessengerIsAvailable(
+    FlutterDesktopMessengerRef messenger);
+
+// Locks the `FlutterDesktopMessengerRef` ensuring that
+// |FlutterDesktopMessengerIsAvailable| does not change while locked.
+//
+// All calls to the FlutterDesktopMessengerRef from threads other than the
+// platform thread should happen inside of a lock.
+//
+// Operation is thread-safe.
+//
+// Returns the |messenger| value.
+//
+// See also: |FlutterDesktopMessengerUnlock|
+FLUTTER_EXPORT FlutterDesktopMessengerRef
+FlutterDesktopMessengerLock(FlutterDesktopMessengerRef messenger);
+
+// Unlocks the `FlutterDesktopMessengerRef`.
+//
+// Operation is thread-safe.
+//
+// See also: |FlutterDesktopMessengerLock|
+FLUTTER_EXPORT void FlutterDesktopMessengerUnlock(
+    FlutterDesktopMessengerRef messenger);
+
+#if defined(__cplusplus)
+}  // extern "C"
+#endif
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_MESSENGER_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\flutter_plugin_registrar.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_PLUGIN_REGISTRAR_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_PLUGIN_REGISTRAR_H_
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "flutter_export.h"
+#include "flutter_messenger.h"
+#include "flutter_texture_registrar.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif  // defined(__cplusplus)
+
+// Opaque reference to a plugin registrar.
+typedef struct FlutterDesktopPluginRegistrar* FlutterDesktopPluginRegistrarRef;
+
+// Function pointer type for registrar destruction callback.
+typedef void (*FlutterDesktopOnPluginRegistrarDestroyed)(
+    FlutterDesktopPluginRegistrarRef);
+
+// Returns the engine messenger associated with this registrar.
+FLUTTER_EXPORT FlutterDesktopMessengerRef
+FlutterDesktopPluginRegistrarGetMessenger(
+    FlutterDesktopPluginRegistrarRef registrar);
+
+// Returns the texture registrar associated with this registrar.
+FLUTTER_EXPORT FlutterDesktopTextureRegistrarRef
+FlutterDesktopRegistrarGetTextureRegistrar(
+    FlutterDesktopPluginRegistrarRef registrar);
+
+// Registers a callback to be called when the plugin registrar is destroyed.
+FLUTTER_EXPORT void FlutterDesktopPluginRegistrarSetDestructionHandler(
+    FlutterDesktopPluginRegistrarRef registrar,
+    FlutterDesktopOnPluginRegistrarDestroyed callback);
+
+#if defined(__cplusplus)
+}  // extern "C"
+#endif
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_PLUGIN_REGISTRAR_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\flutter_texture_registrar.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_TEXTURE_REGISTRAR_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_TEXTURE_REGISTRAR_H_
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "flutter_export.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+struct FlutterDesktopTextureRegistrar;
+// Opaque reference to a texture registrar.
+typedef struct FlutterDesktopTextureRegistrar*
+    FlutterDesktopTextureRegistrarRef;
+
+// Possible values for the type specified in FlutterDesktopTextureInfo.
+// Additional types may be added in the future.
+typedef enum {
+  // A Pixel buffer-based texture.
+  kFlutterDesktopPixelBufferTexture,
+  // A platform-specific GPU surface-backed texture.
+  kFlutterDesktopGpuSurfaceTexture
+} FlutterDesktopTextureType;
+
+// Supported GPU surface types.
+typedef enum {
+  // Uninitialized.
+  kFlutterDesktopGpuSurfaceTypeNone,
+  // A DXGI shared texture handle (Windows only).
+  // See
+  // https://docs.microsoft.com/en-us/windows/win32/api/dxgi/nf-dxgi-idxgiresource-getsharedhandle
+  kFlutterDesktopGpuSurfaceTypeDxgiSharedHandle,
+  // A |ID3D11Texture2D| (Windows only).
+  kFlutterDesktopGpuSurfaceTypeD3d11Texture2D
+} FlutterDesktopGpuSurfaceType;
+
+// Supported pixel formats.
+typedef enum {
+  // Uninitialized.
+  kFlutterDesktopPixelFormatNone,
+  // Represents a 32-bit RGBA color format with 8 bits each for red, green, blue
+  // and alpha.
+  kFlutterDesktopPixelFormatRGBA8888,
+  // Represents a 32-bit BGRA color format with 8 bits each for blue, green, red
+  // and alpha.
+  kFlutterDesktopPixelFormatBGRA8888
+} FlutterDesktopPixelFormat;
+
+// An image buffer object.
+typedef struct {
+  // The pixel data buffer.
+  const uint8_t* buffer;
+  // Width of the pixel buffer.
+  size_t width;
+  // Height of the pixel buffer.
+  size_t height;
+  // An optional callback that gets invoked when the |buffer| can be released.
+  void (*release_callback)(void* release_context);
+  // Opaque data passed to |release_callback|.
+  void* release_context;
+} FlutterDesktopPixelBuffer;
+
+// A GPU surface descriptor.
+typedef struct {
+  // The size of this struct. Must be
+  // sizeof(FlutterDesktopGpuSurfaceDescriptor).
+  size_t struct_size;
+  // The surface handle. The expected type depends on the
+  // |FlutterDesktopGpuSurfaceType|.
+  //
+  // Provide a |ID3D11Texture2D*| when using
+  // |kFlutterDesktopGpuSurfaceTypeD3d11Texture2D| or a |HANDLE| when using
+  // |kFlutterDesktopGpuSurfaceTypeDxgiSharedHandle|.
+  //
+  // The referenced resource needs to stay valid until it has been opened by
+  // Flutter. Consider incrementing the resource's reference count in the
+  // |FlutterDesktopGpuSurfaceTextureCallback| and registering a
+  // |release_callback| for decrementing the reference count once it has been
+  // opened.
+  void* handle;
+  // The physical width.
+  size_t width;
+  // The physical height.
+  size_t height;
+  // The visible width.
+  // It might be less or equal to the physical |width|.
+  size_t visible_width;
+  // The visible height.
+  // It might be less or equal to the physical |height|.
+  size_t visible_height;
+  // The pixel format which might be optional depending on the surface type.
+  FlutterDesktopPixelFormat format;
+  // An optional callback that gets invoked when the |handle| has been opened.
+  void (*release_callback)(void* release_context);
+  // Opaque data passed to |release_callback|.
+  void* release_context;
+} FlutterDesktopGpuSurfaceDescriptor;
+
+// The pixel buffer copy callback definition provided to
+// the Flutter engine to copy the texture.
+// It is invoked with the intended surface size specified by |width| and
+// |height| and the |user_data| held by
+// |FlutterDesktopPixelBufferTextureConfig|.
+//
+// As this is usually called from the render thread, the callee must take
+// care of proper synchronization. It also needs to be ensured that the
+// returned |FlutterDesktopPixelBuffer| isn't released prior to unregistering
+// the corresponding texture.
+typedef const FlutterDesktopPixelBuffer* (
+    *FlutterDesktopPixelBufferTextureCallback)(size_t width,
+                                               size_t height,
+                                               void* user_data);
+
+// The GPU surface callback definition provided to the Flutter engine to obtain
+// the surface. It is invoked with the intended surface size specified by
+// |width| and |height| and the |user_data| held by
+// |FlutterDesktopGpuSurfaceTextureConfig|.
+typedef const FlutterDesktopGpuSurfaceDescriptor* (
+    *FlutterDesktopGpuSurfaceTextureCallback)(size_t width,
+                                              size_t height,
+                                              void* user_data);
+
+// An object used to configure pixel buffer textures.
+typedef struct {
+  // The callback used by the engine to copy the pixel buffer object.
+  FlutterDesktopPixelBufferTextureCallback callback;
+  // Opaque data that will get passed to the provided |callback|.
+  void* user_data;
+} FlutterDesktopPixelBufferTextureConfig;
+
+// An object used to configure GPU-surface textures.
+typedef struct {
+  // The size of this struct. Must be
+  // sizeof(FlutterDesktopGpuSurfaceTextureConfig).
+  size_t struct_size;
+  // The concrete surface type (e.g.
+  // |kFlutterDesktopGpuSurfaceTypeDxgiSharedHandle|)
+  FlutterDesktopGpuSurfaceType type;
+  // The callback used by the engine to obtain the surface descriptor.
+  FlutterDesktopGpuSurfaceTextureCallback callback;
+  // Opaque data that will get passed to the provided |callback|.
+  void* user_data;
+} FlutterDesktopGpuSurfaceTextureConfig;
+
+typedef struct {
+  FlutterDesktopTextureType type;
+  union {
+    FlutterDesktopPixelBufferTextureConfig pixel_buffer_config;
+    FlutterDesktopGpuSurfaceTextureConfig gpu_surface_config;
+  };
+} FlutterDesktopTextureInfo;
+
+// Registers a new texture with the Flutter engine and returns the texture ID.
+// This function can be called from any thread.
+FLUTTER_EXPORT int64_t FlutterDesktopTextureRegistrarRegisterExternalTexture(
+    FlutterDesktopTextureRegistrarRef texture_registrar,
+    const FlutterDesktopTextureInfo* info);
+
+// Asynchronously unregisters the texture identified by |texture_id| from the
+// Flutter engine.
+// An optional |callback| gets invoked upon completion.
+// This function can be called from any thread.
+FLUTTER_EXPORT void FlutterDesktopTextureRegistrarUnregisterExternalTexture(
+    FlutterDesktopTextureRegistrarRef texture_registrar,
+    int64_t texture_id,
+    void (*callback)(void* user_data),
+    void* user_data);
+
+// Marks that a new texture frame is available for a given |texture_id|.
+// Returns true on success or false if the specified texture doesn't exist.
+// This function can be called from any thread.
+FLUTTER_EXPORT bool
+FlutterDesktopTextureRegistrarMarkExternalTextureFrameAvailable(
+    FlutterDesktopTextureRegistrarRef texture_registrar,
+    int64_t texture_id);
+
+#if defined(__cplusplus)
+}  // extern "C"
+#endif
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_PUBLIC_FLUTTER_TEXTURE_REGISTRAR_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\flutter_windows.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_PUBLIC_FLUTTER_WINDOWS_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_PUBLIC_FLUTTER_WINDOWS_H_
+
+#include <dxgi.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <windows.h>
+
+#include "flutter_export.h"
+#include "flutter_messenger.h"
+#include "flutter_plugin_registrar.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+typedef void (*VoidCallback)(void* /* user data */);
+
+// Opaque reference to a Flutter view controller.
+struct FlutterDesktopViewController;
+typedef struct FlutterDesktopViewController* FlutterDesktopViewControllerRef;
+
+// Opaque reference to a Flutter window.
+struct FlutterDesktopView;
+typedef struct FlutterDesktopView* FlutterDesktopViewRef;
+
+// Opaque reference to a Flutter engine instance.
+struct FlutterDesktopEngine;
+typedef struct FlutterDesktopEngine* FlutterDesktopEngineRef;
+
+// The unique identifier for a view.
+typedef int64_t FlutterDesktopViewId;
+
+// Configures how the Flutter engine selects a GPU.
+typedef enum {
+  // No preference.
+  NoPreference,
+  // Prefer energy efficiency over performance, such as an integrated GPU.
+  // This falls back to a high performance GPU if no low power GPU is
+  // available.
+  LowPowerPreference,
+  // Prefer performance over energy efficiency, such as a discrete GPU or
+  // dedicated GPU.
+  // This falls back to a low power GPU if no high performance GPU is available.
+  HighPerformancePreference,
+} FlutterDesktopGpuPreference;
+
+// Configures the thread policy for running the UI isolate.
+typedef enum {
+  // Default value. Currently will run the UI isolate on separate thread,
+  // later will be changed to running the UI isolate on platform thread.
+  Default,
+  // Run the UI isolate on platform thread.
+  RunOnPlatformThread,
+  // Run the UI isolate on a separate thread.
+  RunOnSeparateThread,
+} FlutterDesktopUIThreadPolicy;
+
+// Properties for configuring a Flutter engine instance.
+typedef struct {
+  // The path to the flutter_assets folder for the application to be run.
+  // This can either be an absolute path or a path relative to the directory
+  // containing the executable.
+  const wchar_t* assets_path;
+
+  // The path to the icudtl.dat file for the version of Flutter you are using.
+  // This can either be an absolute path or a path relative to the directory
+  // containing the executable.
+  const wchar_t* icu_data_path;
+
+  // The path to the AOT library file for your application, if any.
+  // This can either be an absolute path or a path relative to the directory
+  // containing the executable. This can be nullptr for a non-AOT build, as
+  // it will be ignored in that case.
+  const wchar_t* aot_library_path;
+
+  // The name of the top-level Dart entrypoint function. If null or the empty
+  // string, 'main' is assumed. If a custom entrypoint is used, this parameter
+  // must specifiy the name of a top-level function in the same Dart library as
+  // the app's main() function. Custom entrypoint functions must be decorated
+  // with `@pragma('vm:entry-point')` to ensure the method is not tree-shaken
+  // by the Dart compiler.
+  const char* dart_entrypoint;
+
+  // Number of elements in the array passed in as dart_entrypoint_argv.
+  int dart_entrypoint_argc;
+
+  // Array of Dart entrypoint arguments. This is deep copied during the call
+  // to FlutterDesktopEngineCreate.
+  const char** dart_entrypoint_argv;
+
+  // GPU choice preference
+  FlutterDesktopGpuPreference gpu_preference;
+
+  // Policy for the thread that runs UI isolate.
+  FlutterDesktopUIThreadPolicy ui_thread_policy;
+} FlutterDesktopEngineProperties;
+
+// ========== View Controller ==========
+
+// Creates a view that hosts and displays the given engine instance.
+//
+// This takes ownership of |engine|, so FlutterDesktopEngineDestroy should no
+// longer be called on it, as it will be called internally when the view
+// controller is destroyed. If creating the view controller fails, the engine
+// will be destroyed immediately.
+//
+// If |engine| is not already running, the view controller will start running
+// it automatically before displaying the window.
+//
+// The caller owns the returned reference, and is responsible for calling
+// FlutterDesktopViewControllerDestroy. Returns a null pointer in the event of
+// an error.
+//
+// The Win32 implementation accepts width, height with view hookup explicitly
+// performed using the caller using HWND parenting.
+FLUTTER_EXPORT FlutterDesktopViewControllerRef
+FlutterDesktopViewControllerCreate(int width,
+                                   int height,
+                                   FlutterDesktopEngineRef engine);
+
+// Shuts down the engine instance associated with |controller|, and cleans up
+// associated state.
+//
+// |controller| is no longer valid after this call.
+FLUTTER_EXPORT void FlutterDesktopViewControllerDestroy(
+    FlutterDesktopViewControllerRef controller);
+
+// Returns the view controller's view ID.
+FLUTTER_EXPORT FlutterDesktopViewId FlutterDesktopViewControllerGetViewId(
+    FlutterDesktopViewControllerRef view_controller);
+
+// Returns the handle for the engine running in FlutterDesktopViewControllerRef.
+//
+// Its lifetime is the same as the |controller|'s.
+FLUTTER_EXPORT FlutterDesktopEngineRef FlutterDesktopViewControllerGetEngine(
+    FlutterDesktopViewControllerRef controller);
+
+// Returns the view managed by the given controller.
+FLUTTER_EXPORT FlutterDesktopViewRef
+FlutterDesktopViewControllerGetView(FlutterDesktopViewControllerRef controller);
+
+// Requests new frame from the engine and repaints the view.
+FLUTTER_EXPORT void FlutterDesktopViewControllerForceRedraw(
+    FlutterDesktopViewControllerRef controller);
+
+// Allows the Flutter engine and any interested plugins an opportunity to
+// handle the given message.
+//
+// If the WindowProc was handled and further handling should stop, this returns
+// true and |result| will be populated. |result| is not set if returning false.
+FLUTTER_EXPORT bool FlutterDesktopViewControllerHandleTopLevelWindowProc(
+    FlutterDesktopViewControllerRef controller,
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam,
+    LRESULT* result);
+
+// ========== Engine ==========
+
+// Creates a Flutter engine with the given properties.
+//
+// The caller owns the returned reference, and is responsible for calling
+// FlutterDesktopEngineDestroy. The lifetime of |engine_properties| is required
+// to extend only until the end of this call.
+FLUTTER_EXPORT FlutterDesktopEngineRef FlutterDesktopEngineCreate(
+    const FlutterDesktopEngineProperties* engine_properties);
+
+// Shuts down and destroys the given engine instance. Returns true if the
+// shutdown was successful, or if the engine was not running.
+//
+// |engine| is no longer valid after this call.
+FLUTTER_EXPORT bool FlutterDesktopEngineDestroy(FlutterDesktopEngineRef engine);
+
+// Starts running the given engine instance.
+//
+// The entry_point parameter is deprecated but preserved for
+// backward-compatibility. If desired, a custom Dart entrypoint function can be
+// set in the dart_entrypoint field of the FlutterDesktopEngineProperties
+// struct passed to FlutterDesktopEngineCreate.
+//
+// If specified, entry_point must be the name of a top-level function from the
+// same Dart library that contains the app's main() function, and must be
+// decorated with `@pragma(vm:entry-point)` to ensure the method is not
+// tree-shaken by the Dart compiler. If conflicting non-null values are passed
+// to this function and via the FlutterDesktopEngineProperties struct, the run
+// will fail.
+//
+// Returns false if running the engine failed.
+FLUTTER_EXPORT bool FlutterDesktopEngineRun(FlutterDesktopEngineRef engine,
+                                            const char* entry_point);
+
+// DEPRECATED: This is no longer necessary to call, Flutter will take care of
+// processing engine messages transparently through DispatchMessage.
+//
+// Processes any pending events in the Flutter engine, and returns the
+// number of nanoseconds until the next scheduled event (or max, if none).
+//
+// This should be called on every run of the application-level runloop, and
+// a wait for native events in the runloop should never be longer than the
+// last return value from this function.
+FLUTTER_EXPORT uint64_t
+FlutterDesktopEngineProcessMessages(FlutterDesktopEngineRef engine);
+
+FLUTTER_EXPORT void FlutterDesktopEngineReloadSystemFonts(
+    FlutterDesktopEngineRef engine);
+
+// Returns the plugin registrar handle for the plugin with the given name.
+//
+// The name must be unique across the application.
+FLUTTER_EXPORT FlutterDesktopPluginRegistrarRef
+FlutterDesktopEngineGetPluginRegistrar(FlutterDesktopEngineRef engine,
+                                       const char* plugin_name);
+
+// Returns the messenger associated with the engine.
+//
+// This does not provide an owning reference, so should *not* be balanced with a
+// call to |FlutterDesktopMessengerRelease|.
+//
+// Callers should use |FlutterDesktopMessengerAddRef| if the returned pointer
+// will potentially outlive 'engine', such as when passing it to another thread.
+FLUTTER_EXPORT FlutterDesktopMessengerRef
+FlutterDesktopEngineGetMessenger(FlutterDesktopEngineRef engine);
+
+// Returns the texture registrar associated with the engine.
+FLUTTER_EXPORT FlutterDesktopTextureRegistrarRef
+FlutterDesktopEngineGetTextureRegistrar(FlutterDesktopEngineRef engine);
+
+// Schedule a callback to be called after the next frame is drawn.
+//
+// This must be called from the platform thread. The callback is executed only
+// once on the platform thread.
+FLUTTER_EXPORT void FlutterDesktopEngineSetNextFrameCallback(
+    FlutterDesktopEngineRef engine,
+    VoidCallback callback,
+    void* user_data);
+
+// ========== View ==========
+
+// Returns the backing HWND for manipulation in host application.
+FLUTTER_EXPORT HWND FlutterDesktopViewGetHWND(FlutterDesktopViewRef view);
+
+// Returns the DXGI adapter used for rendering or nullptr in case of error.
+FLUTTER_EXPORT IDXGIAdapter* FlutterDesktopViewGetGraphicsAdapter(
+    FlutterDesktopViewRef view);
+
+// Called to pass an external window message to the engine for lifecycle
+// state updates. Non-Flutter windows must call this method in their WndProc
+// in order to be included in the logic for application lifecycle state
+// updates. Returns a result if the message should be consumed.
+FLUTTER_EXPORT bool FlutterDesktopEngineProcessExternalWindowMessage(
+    FlutterDesktopEngineRef engine,
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam,
+    LRESULT* result);
+
+// ========== Plugin Registrar (extensions) ==========
+// These are Windows-specific extensions to flutter_plugin_registrar.h
+
+// Function pointer type for top level WindowProc delegate registration.
+//
+// The user data will be whatever was passed to
+// FlutterDesktopRegisterTopLevelWindowProcHandler.
+//
+// Implementations should populate |result| and return true if the WindowProc
+// was handled and further handling should stop. |result| is ignored if the
+// function returns false.
+typedef bool (*FlutterDesktopWindowProcCallback)(HWND /* hwnd */,
+                                                 UINT /* uMsg */,
+                                                 WPARAM /*wParam*/,
+                                                 LPARAM /* lParam*/,
+                                                 void* /* user data */,
+                                                 LRESULT* result);
+
+// Returns the implicit view associated with this registrar's engine instance,
+// or null if there is no implicit view.
+//
+// See:
+// https://api.flutter.dev/flutter/dart-ui/PlatformDispatcher/implicitView.html
+//
+// DEPRECATED: Use |FlutterDesktopPluginRegistrarGetViewById| instead.
+FLUTTER_EXPORT FlutterDesktopViewRef FlutterDesktopPluginRegistrarGetView(
+    FlutterDesktopPluginRegistrarRef registrar);
+
+// Returns the view associated with the registrar's engine instance, or null if
+// the view does not exist.
+FLUTTER_EXPORT FlutterDesktopViewRef FlutterDesktopPluginRegistrarGetViewById(
+    FlutterDesktopPluginRegistrarRef registrar,
+    FlutterDesktopViewId view_id);
+
+FLUTTER_EXPORT void
+FlutterDesktopPluginRegistrarRegisterTopLevelWindowProcDelegate(
+    FlutterDesktopPluginRegistrarRef registrar,
+    FlutterDesktopWindowProcCallback delegate,
+    void* user_data);
+
+FLUTTER_EXPORT void
+FlutterDesktopPluginRegistrarUnregisterTopLevelWindowProcDelegate(
+    FlutterDesktopPluginRegistrarRef registrar,
+    FlutterDesktopWindowProcCallback delegate);
+
+// ========== Freestanding Utilities ==========
+
+// Gets the DPI for a given |hwnd|, depending on the supported APIs per
+// windows version and DPI awareness mode. If nullptr is passed, returns the DPI
+// of the primary monitor.
+//
+// This uses the same logic and fallback for older Windows versions that is used
+// internally by Flutter to determine the DPI to use for displaying Flutter
+// content, so should be used by any code (e.g., in plugins) that translates
+// between Windows and Dart sizes/offsets.
+FLUTTER_EXPORT UINT FlutterDesktopGetDpiForHWND(HWND hwnd);
+
+// Gets the DPI for a given |monitor|. If the API is not available, a default
+// DPI of 96 is returned.
+//
+// See FlutterDesktopGetDpiForHWND for more information.
+FLUTTER_EXPORT UINT FlutterDesktopGetDpiForMonitor(HMONITOR monitor);
+
+// Reopens stdout and stderr and resysncs the standard library output streams.
+// Should be called if output is being directed somewhere in the runner process
+// (e.g., after an AllocConsole call).
+FLUTTER_EXPORT void FlutterDesktopResyncOutputStreams();
+
+#if defined(__cplusplus)
+}  // extern "C"
+#endif
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_PUBLIC_FLUTTER_WINDOWS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\binary_messenger_impl.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BINARY_MESSENGER_IMPL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BINARY_MESSENGER_IMPL_H_
+
+#include <flutter_messenger.h>
+
+#include <map>
+#include <string>
+
+#include "include/flutter/binary_messenger.h"
+
+namespace flutter {
+
+// Wrapper around a FlutterDesktopMessengerRef that implements the
+// BinaryMessenger API.
+class BinaryMessengerImpl : public BinaryMessenger {
+ public:
+  explicit BinaryMessengerImpl(FlutterDesktopMessengerRef core_messenger);
+
+  virtual ~BinaryMessengerImpl();
+
+  // Prevent copying.
+  BinaryMessengerImpl(BinaryMessengerImpl const&) = delete;
+  BinaryMessengerImpl& operator=(BinaryMessengerImpl const&) = delete;
+
+  // |flutter::BinaryMessenger|
+  void Send(const std::string& channel,
+            const uint8_t* message,
+            size_t message_size,
+            BinaryReply reply) const override;
+
+  // |flutter::BinaryMessenger|
+  void SetMessageHandler(const std::string& channel,
+                         BinaryMessageHandler handler) override;
+
+ private:
+  // Handle for interacting with the C API.
+  FlutterDesktopMessengerRef messenger_;
+
+  // A map from channel names to the BinaryMessageHandler that should be called
+  // for incoming messages on that channel.
+  std::map<std::string, BinaryMessageHandler> handlers_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BINARY_MESSENGER_IMPL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\byte_buffer_streams.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BYTE_BUFFER_STREAMS_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BYTE_BUFFER_STREAMS_H_
+
+#include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <vector>
+
+#include "include/flutter/byte_streams.h"
+
+namespace flutter {
+
+// Implementation of ByteStreamReader base on a byte array.
+class ByteBufferStreamReader : public ByteStreamReader {
+ public:
+  // Createa a reader reading from |bytes|, which must have a length of |size|.
+  // |bytes| must remain valid for the lifetime of this object.
+  explicit ByteBufferStreamReader(const uint8_t* bytes, size_t size)
+      : bytes_(bytes), size_(size) {}
+
+  virtual ~ByteBufferStreamReader() = default;
+
+  // |ByteStreamReader|
+  uint8_t ReadByte() override {
+    if (location_ >= size_) {
+      std::cerr << "Invalid read in StandardCodecByteStreamReader" << std::endl;
+      return 0;
+    }
+    return bytes_[location_++];
+  }
+
+  // |ByteStreamReader|
+  void ReadBytes(uint8_t* buffer, size_t length) override {
+    if (location_ + length > size_) {
+      std::cerr << "Invalid read in StandardCodecByteStreamReader" << std::endl;
+      return;
+    }
+    std::memcpy(buffer, &bytes_[location_], length);
+    location_ += length;
+  }
+
+  // |ByteStreamReader|
+  void ReadAlignment(uint8_t alignment) override {
+    uint8_t mod = location_ % alignment;
+    if (mod) {
+      location_ += alignment - mod;
+    }
+  }
+
+ private:
+  // The buffer to read from.
+  const uint8_t* bytes_;
+  // The total size of the buffer.
+  size_t size_;
+  // The current read location.
+  size_t location_ = 0;
+};
+
+// Implementation of ByteStreamWriter based on a byte array.
+class ByteBufferStreamWriter : public ByteStreamWriter {
+ public:
+  // Creates a writer that writes into |buffer|.
+  // |buffer| must remain valid for the lifetime of this object.
+  explicit ByteBufferStreamWriter(std::vector<uint8_t>* buffer)
+      : bytes_(buffer) {
+    assert(buffer);
+  }
+
+  virtual ~ByteBufferStreamWriter() = default;
+
+  // |ByteStreamWriter|
+  void WriteByte(uint8_t byte) { bytes_->push_back(byte); }
+
+  // |ByteStreamWriter|
+  void WriteBytes(const uint8_t* bytes, size_t length) {
+    assert(length > 0);
+    bytes_->insert(bytes_->end(), bytes, bytes + length);
+  }
+
+  // |ByteStreamWriter|
+  void WriteAlignment(uint8_t alignment) {
+    uint8_t mod = bytes_->size() % alignment;
+    if (mod) {
+      for (int i = 0; i < alignment - mod; ++i) {
+        WriteByte(0);
+      }
+    }
+  }
+
+ private:
+  // The buffer to write to.
+  std::vector<uint8_t>* bytes_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_BYTE_BUFFER_STREAMS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\texture_registrar_impl.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_TEXTURE_REGISTRAR_IMPL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_TEXTURE_REGISTRAR_IMPL_H_
+
+#include "include/flutter/texture_registrar.h"
+
+namespace flutter {
+
+// Wrapper around a FlutterDesktopTextureRegistrarRef that implements the
+// TextureRegistrar API.
+class TextureRegistrarImpl : public TextureRegistrar {
+ public:
+  explicit TextureRegistrarImpl(
+      FlutterDesktopTextureRegistrarRef texture_registrar_ref);
+  virtual ~TextureRegistrarImpl();
+
+  // Prevent copying.
+  TextureRegistrarImpl(TextureRegistrarImpl const&) = delete;
+  TextureRegistrarImpl& operator=(TextureRegistrarImpl const&) = delete;
+
+  // |flutter::TextureRegistrar|
+  int64_t RegisterTexture(TextureVariant* texture) override;
+
+  // |flutter::TextureRegistrar|
+  bool MarkTextureFrameAvailable(int64_t texture_id) override;
+
+  // |flutter::TextureRegistrar|
+  void UnregisterTexture(int64_t texture_id,
+                         std::function<void()> callback) override;
+
+  // |flutter::TextureRegistrar|
+  bool UnregisterTexture(int64_t texture_id) override;
+
+ private:
+  // Handle for interacting with the C API.
+  FlutterDesktopTextureRegistrarRef texture_registrar_ref_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_TEXTURE_REGISTRAR_IMPL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\basic_message_channel.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BASIC_MESSAGE_CHANNEL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BASIC_MESSAGE_CHANNEL_H_
+
+#include <iostream>
+#include <string>
+#include <utility>
+
+#include "binary_messenger.h"
+#include "message_codec.h"
+
+namespace flutter {
+
+namespace internal {
+// Internal helper functions used by BasicMessageChannel and MethodChannel.
+
+// Adjusts the number of messages that will get buffered when sending messages
+// to channels that aren't fully set up yet. For example, the engine isn't
+// running yet or the channel's message handler isn't set up on the Dart side
+// yet.
+void ResizeChannel(BinaryMessenger* messenger, std::string name, int new_size);
+
+// Defines whether the channel should show warning messages when discarding
+// messages due to overflow.
+//
+// When |warns| is false, the channel is expected to overflow and warning
+// messages will not be shown.
+void SetChannelWarnsOnOverflow(BinaryMessenger* messenger,
+                               std::string name,
+                               bool warns);
+
+}  // namespace internal
+
+class EncodableValue;
+
+// A message reply callback.
+//
+// Used for submitting a reply back to a Flutter message sender.
+template <typename T>
+using MessageReply = std::function<void(const T& reply)>;
+
+// A handler for receiving a message from the Flutter engine.
+//
+// Implementations must asynchronously call reply exactly once with the reply
+// to the message.
+template <typename T>
+using MessageHandler =
+    std::function<void(const T& message, const MessageReply<T>& reply)>;
+
+// A channel for communicating with the Flutter engine by sending asynchronous
+// messages.
+template <typename T = EncodableValue>
+class BasicMessageChannel {
+ public:
+  // Creates an instance that sends and receives method calls on the channel
+  // named |name|, encoded with |codec| and dispatched via |messenger|.
+  BasicMessageChannel(BinaryMessenger* messenger,
+                      const std::string& name,
+                      const MessageCodec<T>* codec)
+      : messenger_(messenger), name_(name), codec_(codec) {}
+
+  ~BasicMessageChannel() = default;
+
+  // Prevent copying.
+  BasicMessageChannel(BasicMessageChannel const&) = delete;
+  BasicMessageChannel& operator=(BasicMessageChannel const&) = delete;
+
+  // Sends a message to the Flutter engine on this channel.
+  void Send(const T& message) {
+    std::unique_ptr<std::vector<uint8_t>> raw_message =
+        codec_->EncodeMessage(message);
+    messenger_->Send(name_, raw_message->data(), raw_message->size());
+  }
+
+  // Sends a message to the Flutter engine on this channel expecting a reply.
+  void Send(const T& message, BinaryReply reply) {
+    std::unique_ptr<std::vector<uint8_t>> raw_message =
+        codec_->EncodeMessage(message);
+    messenger_->Send(name_, raw_message->data(), raw_message->size(),
+                     std::move(reply));
+  }
+
+  // Registers a handler that should be called any time a message is
+  // received on this channel. A null handler will remove any previous handler.
+  //
+  // Note that the BasicMessageChannel does not own the handler, and will not
+  // unregister it on destruction, so the caller is responsible for
+  // unregistering explicitly if it should no longer be called.
+  void SetMessageHandler(const MessageHandler<T>& handler) const {
+    if (!handler) {
+      messenger_->SetMessageHandler(name_, nullptr);
+      return;
+    }
+    const auto* codec = codec_;
+    std::string channel_name = name_;
+    BinaryMessageHandler binary_handler = [handler, codec, channel_name](
+                                              const uint8_t* binary_message,
+                                              const size_t binary_message_size,
+                                              const BinaryReply& binary_reply) {
+      // Use this channel's codec to decode the message and build a reply
+      // handler.
+      std::unique_ptr<T> message =
+          codec->DecodeMessage(binary_message, binary_message_size);
+      if (!message) {
+        std::cerr << "Unable to decode message on channel " << channel_name
+                  << std::endl;
+        binary_reply(nullptr, 0);
+        return;
+      }
+
+      MessageReply<T> unencoded_reply = [binary_reply,
+                                         codec](const T& unencoded_response) {
+        auto binary_response = codec->EncodeMessage(unencoded_response);
+        binary_reply(binary_response->data(), binary_response->size());
+      };
+      handler(*message, std::move(unencoded_reply));
+    };
+    messenger_->SetMessageHandler(name_, std::move(binary_handler));
+  }
+
+  // Adjusts the number of messages that will get buffered when sending messages
+  // to channels that aren't fully set up yet. For example, the engine isn't
+  // running yet or the channel's message handler isn't set up on the Dart side
+  // yet.
+  void Resize(int new_size) {
+    internal::ResizeChannel(messenger_, name_, new_size);
+  }
+
+  // Defines whether the channel should show warning messages when discarding
+  // messages due to overflow.
+  //
+  // When |warns| is false, the channel is expected to overflow and warning
+  // messages will not be shown.
+  void SetWarnsOnOverflow(bool warns) {
+    internal::SetChannelWarnsOnOverflow(messenger_, name_, warns);
+  }
+
+ private:
+  BinaryMessenger* messenger_;
+  std::string name_;
+  const MessageCodec<T>* codec_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BASIC_MESSAGE_CHANNEL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\binary_messenger.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BINARY_MESSENGER_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BINARY_MESSENGER_H_
+
+#include <cstdint>
+#include <functional>
+#include <string>
+
+namespace flutter {
+
+// A binary message reply callback.
+//
+// Used for submitting a binary reply back to a Flutter message sender.
+typedef std::function<void(const uint8_t* reply, size_t reply_size)>
+    BinaryReply;
+
+// A message handler callback.
+//
+// Used for receiving messages from Flutter and providing an asynchronous reply.
+typedef std::function<
+    void(const uint8_t* message, size_t message_size, BinaryReply reply)>
+    BinaryMessageHandler;
+
+// A protocol for a class that handles communication of binary data on named
+// channels to and from the Flutter engine.
+class BinaryMessenger {
+ public:
+  virtual ~BinaryMessenger() = default;
+
+  // Sends a binary message to the Flutter engine on the specified channel.
+  //
+  // If |reply| is provided, it will be called back with the response from the
+  // engine.
+  virtual void Send(const std::string& channel,
+                    const uint8_t* message,
+                    size_t message_size,
+                    BinaryReply reply = nullptr) const = 0;
+
+  // Registers a message handler for incoming binary messages from the Flutter
+  // side on the specified channel.
+  //
+  // Replaces any existing handler. Provide a null handler to unregister the
+  // existing handler.
+  virtual void SetMessageHandler(const std::string& channel,
+                                 BinaryMessageHandler handler) = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BINARY_MESSENGER_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\byte_streams.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BYTE_STREAMS_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BYTE_STREAMS_H_
+
+// Interfaces for interacting with a stream of bytes, for use in codecs.
+
+namespace flutter {
+
+// An interface for a class that reads from a byte stream.
+class ByteStreamReader {
+ public:
+  explicit ByteStreamReader() = default;
+  virtual ~ByteStreamReader() = default;
+
+  // Reads and returns the next byte from the stream.
+  virtual uint8_t ReadByte() = 0;
+
+  // Reads the next |length| bytes from the stream into |buffer|. The caller
+  // is responsible for ensuring that |buffer| is large enough.
+  virtual void ReadBytes(uint8_t* buffer, size_t length) = 0;
+
+  // Advances the read cursor to the next multiple of |alignment| relative to
+  // the start of the stream, unless it is already aligned.
+  virtual void ReadAlignment(uint8_t alignment) = 0;
+
+  // Reads and returns the next 32-bit integer from the stream.
+  int32_t ReadInt32() {
+    int32_t value = 0;
+    ReadBytes(reinterpret_cast<uint8_t*>(&value), 4);
+    return value;
+  }
+
+  // Reads and returns the next 64-bit integer from the stream.
+  int64_t ReadInt64() {
+    int64_t value = 0;
+    ReadBytes(reinterpret_cast<uint8_t*>(&value), 8);
+    return value;
+  }
+
+  // Reads and returns the next 64-bit floating point number from the stream.
+  double ReadDouble() {
+    double value = 0;
+    ReadBytes(reinterpret_cast<uint8_t*>(&value), 8);
+    return value;
+  }
+};
+
+// An interface for a class that writes to a byte stream.
+class ByteStreamWriter {
+ public:
+  explicit ByteStreamWriter() = default;
+  virtual ~ByteStreamWriter() = default;
+
+  // Writes |byte| to the stream.
+  virtual void WriteByte(uint8_t byte) = 0;
+
+  // Writes the next |length| bytes from |bytes| to the stream
+  virtual void WriteBytes(const uint8_t* bytes, size_t length) = 0;
+
+  // Writes 0s until the next multiple of |alignment| relative to the start
+  // of the stream, unless the write positition is already aligned.
+  virtual void WriteAlignment(uint8_t alignment) = 0;
+
+  // Writes the given 32-bit int to the stream.
+  void WriteInt32(int32_t value) {
+    WriteBytes(reinterpret_cast<const uint8_t*>(&value), 4);
+  }
+
+  // Writes the given 64-bit int to the stream.
+  void WriteInt64(int64_t value) {
+    WriteBytes(reinterpret_cast<const uint8_t*>(&value), 8);
+  }
+
+  // Writes the given 36-bit double to the stream.
+  void WriteDouble(double value) {
+    WriteBytes(reinterpret_cast<const uint8_t*>(&value), 8);
+  }
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_BYTE_STREAMS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\dart_project.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_DART_PROJECT_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_DART_PROJECT_H_
+
+#include <string>
+#include <vector>
+
+namespace flutter {
+
+// Configures how the Flutter engine selects a GPU.
+enum class GpuPreference {
+  // No preference.
+  NoPreference,
+  // Prefer energy efficiency over performance, such as an integrated GPU.
+  // This falls back to a high performance GPU if no low power GPU is
+  // available.
+  LowPowerPreference,
+  // Prefer performance over energy efficiency, such as a discrete GPU or
+  // dedicated GPU.
+  // This falls back to a low power GPU if no high performance GPU is available.
+  HighPerformancePreference,
+};
+
+// Configures the thread policy for running the UI isolate.
+enum class UIThreadPolicy {
+  // Default value. Currently will run the UI isolate on separate thread,
+  // later will be changed to running the UI isolate on platform thread.
+  Default,
+  // Run the UI isolate on platform thread.
+  RunOnPlatformThread,
+  // Run the UI isolate on a separate thread.
+  RunOnSeparateThread,
+};
+
+// A set of Flutter and Dart assets used to initialize a Flutter engine.
+class DartProject {
+ public:
+  // Creates a DartProject from a series of absolute paths.
+  // The three paths are:
+  // - assets_path: Path to the assets directory as built by the Flutter tool.
+  // - icu_data_path: Path to the icudtl.dat file.
+  // - aot_library_path: Path to the AOT snapshot file.
+  //
+  // The paths may either be absolute or relative to the directory containing
+  // the running executable.
+  explicit DartProject(const std::wstring& assets_path,
+                       const std::wstring& icu_data_path,
+                       const std::wstring& aot_library_path) {
+    assets_path_ = assets_path;
+    icu_data_path_ = icu_data_path;
+    aot_library_path_ = aot_library_path;
+  }
+
+  // Creates a DartProject from a directory path. The directory should contain
+  // the following top-level items:
+  // - icudtl.dat (provided as a resource by the Flutter tool)
+  // - flutter_assets (as built by the Flutter tool)
+  // - app.so, for an AOT build (as built by the Flutter tool)
+  //
+  // The path can either be absolute, or relative to the directory containing
+  // the running executable.
+  explicit DartProject(const std::wstring& path) {
+    assets_path_ = path + L"\\flutter_assets";
+    icu_data_path_ = path + L"\\icudtl.dat";
+    aot_library_path_ = path + L"\\app.so";
+  }
+
+  ~DartProject() = default;
+
+  // Sets the Dart entrypoint to the specified value.
+  //
+  // If not set, the default entrypoint (main) is used. Custom Dart entrypoints
+  // must be decorated with `@pragma('vm:entry-point')`.
+  void set_dart_entrypoint(const std::string& entrypoint) {
+    if (entrypoint.empty()) {
+      return;
+    }
+    dart_entrypoint_ = entrypoint;
+  }
+
+  // Returns the Dart entrypoint.
+  const std::string& dart_entrypoint() const { return dart_entrypoint_; }
+
+  // Sets the command line arguments that should be passed to the Dart
+  // entrypoint.
+  void set_dart_entrypoint_arguments(std::vector<std::string> arguments) {
+    dart_entrypoint_arguments_ = std::move(arguments);
+  }
+
+  // Returns any command line arguments that should be passed to the Dart
+  // entrypoint.
+  const std::vector<std::string>& dart_entrypoint_arguments() const {
+    return dart_entrypoint_arguments_;
+  }
+
+  // Sets the GPU usage preference for flutter engine.
+  void set_gpu_preference(GpuPreference gpu_preference) {
+    gpu_preference_ = gpu_preference;
+  }
+
+  // Returns the project's GPU preference.
+  // Defaults to NoPreference.
+  GpuPreference gpu_preference() const { return gpu_preference_; }
+
+  // Sets the thread policy for UI isolate.
+  void set_ui_thread_policy(UIThreadPolicy policy) {
+    ui_thread_policy_ = policy;
+  }
+
+  // Returns the policy for UI isolate.
+  // Defaults to UIThreadPolicy::Default.
+  UIThreadPolicy ui_thread_policy() const { return ui_thread_policy_; }
+
+ private:
+  // Accessors for internals are private, so that they can be changed if more
+  // flexible options for project structures are needed later without it
+  // being a breaking change. Provide access to internal classes that need
+  // them.
+  friend class FlutterEngine;
+  friend class FlutterViewController;
+  friend class DartProjectTest;
+
+  const std::wstring& assets_path() const { return assets_path_; }
+  const std::wstring& icu_data_path() const { return icu_data_path_; }
+  const std::wstring& aot_library_path() const { return aot_library_path_; }
+
+  // The path to the assets directory.
+  std::wstring assets_path_;
+  // The path to the ICU data.
+  std::wstring icu_data_path_;
+  // The path to the AOT library. This will always return a path, but non-AOT
+  // builds will not be expected to actually have a library at that path.
+  std::wstring aot_library_path_;
+  // The Dart entrypoint to launch.
+  std::string dart_entrypoint_;
+  // The list of arguments to pass through to the Dart entrypoint.
+  std::vector<std::string> dart_entrypoint_arguments_;
+  // The preference for GPU to be used by flutter engine.
+  GpuPreference gpu_preference_ = GpuPreference::NoPreference;
+  // Thread policy for UI isolate.
+  UIThreadPolicy ui_thread_policy_ = UIThreadPolicy::Default;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_DART_PROJECT_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\encodable_value.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENCODABLE_VALUE_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENCODABLE_VALUE_H_
+
+#include <any>
+#include <cassert>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+// Unless overridden, attempt to detect the RTTI state from the compiler.
+#ifndef FLUTTER_ENABLE_RTTI
+#if defined(_MSC_VER)
+#ifdef _CPPRTTI
+#define FLUTTER_ENABLE_RTTI 1
+#endif
+#elif defined(__clang__)
+#if __has_feature(cxx_rtti)
+#define FLUTTER_ENABLE_RTTI 1
+#endif
+#elif defined(__GNUC__)
+#ifdef __GXX_RTTI
+#define FLUTTER_ENABLE_RTTI 1
+#endif
+#endif
+#endif  // #ifndef FLUTTER_ENABLE_RTTI
+
+namespace flutter {
+
+static_assert(sizeof(double) == 8, "EncodableValue requires a 64-bit double");
+
+// A container for arbitrary types in EncodableValue.
+//
+// This is used in conjunction with StandardCodecExtension to allow using other
+// types with a StandardMethodCodec/StandardMessageCodec. It is implicitly
+// convertible to EncodableValue, so constructing an EncodableValue from a
+// custom type can generally be written as:
+//   CustomEncodableValue(MyType(...))
+// rather than:
+//   EncodableValue(CustomEncodableValue(MyType(...)))
+//
+// For extracting received custom types, it is implicitly convertible to
+// std::any. For example:
+//   const MyType& my_type_value =
+//        std::any_cast<MyType>(std::get<CustomEncodableValue>(value));
+//
+// If RTTI is enabled, different extension types can be checked with type():
+//   if (custom_value->type() == typeid(SomeData)) { ... }
+// Clients that wish to disable RTTI would need to decide on another approach
+// for distinguishing types (e.g., in StandardCodecExtension::WriteValueOfType)
+// if multiple custom types are needed. For instance, wrapping all of the
+// extension types in an EncodableValue-style variant, and only ever storing
+// that variant in CustomEncodableValue.
+class CustomEncodableValue {
+ public:
+  explicit CustomEncodableValue(const std::any& value) : value_(value) {}
+  ~CustomEncodableValue() = default;
+
+  // Allow implicit conversion to std::any to allow direct use of any_cast.
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  operator std::any&() { return value_; }
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  operator const std::any&() const { return value_; }
+
+#if defined(FLUTTER_ENABLE_RTTI) && FLUTTER_ENABLE_RTTI
+  // Passthrough to std::any's type().
+  const std::type_info& type() const noexcept { return value_.type(); }
+#endif
+
+  // This operator exists only to provide a stable ordering for use as a
+  // std::map key, to satisfy the compiler requirements for EncodableValue.
+  // It does not attempt to provide useful ordering semantics, and using a
+  // custom value as a map key is not recommended.
+  bool operator<(const CustomEncodableValue& other) const {
+    return this < &other;
+  }
+  bool operator==(const CustomEncodableValue& other) const {
+    return this == &other;
+  }
+
+ private:
+  std::any value_;
+};
+
+class EncodableValue;
+
+// Convenience type aliases.
+using EncodableList = std::vector<EncodableValue>;
+using EncodableMap = std::map<EncodableValue, EncodableValue>;
+
+namespace internal {
+// The base class for EncodableValue. Do not use this directly; it exists only
+// for EncodableValue to inherit from.
+//
+// Do not change the order or indexes of the items here; see the comment on
+// EncodableValue
+using EncodableValueVariant = std::variant<std::monostate,
+                                           bool,
+                                           int32_t,
+                                           int64_t,
+                                           double,
+                                           std::string,
+                                           std::vector<uint8_t>,
+                                           std::vector<int32_t>,
+                                           std::vector<int64_t>,
+                                           std::vector<double>,
+                                           EncodableList,
+                                           EncodableMap,
+                                           CustomEncodableValue,
+                                           std::vector<float>>;
+}  // namespace internal
+
+// An object that can contain any value or collection type supported by
+// Flutter's standard method codec.
+//
+// For details, see:
+// https://api.flutter.dev/flutter/services/StandardMessageCodec-class.html
+//
+// As an example, the following Dart structure:
+//   {
+//     'flag': true,
+//     'name': 'Thing',
+//     'values': [1, 2.0, 4],
+//   }
+// would correspond to:
+//   EncodableValue(EncodableMap{
+//       {EncodableValue("flag"), EncodableValue(true)},
+//       {EncodableValue("name"), EncodableValue("Thing")},
+//       {EncodableValue("values"), EncodableValue(EncodableList{
+//                                      EncodableValue(1),
+//                                      EncodableValue(2.0),
+//                                      EncodableValue(4),
+//                                  })},
+//   })
+//
+// The primary API surface for this object is std::variant. For instance,
+// getting a string value from an EncodableValue, with type checking:
+//   if (std::holds_alternative<std::string>(value)) {
+//     std::string some_string = std::get<std::string>(value);
+//   }
+//
+// The order/indexes of the variant types is part of the API surface, and is
+// guaranteed not to change.
+//
+// The variant types are mapped with Dart types in following ways:
+// std::monostate       -> null
+// bool                 -> bool
+// int32_t              -> int
+// int64_t              -> int
+// double               -> double
+// std::string          -> String
+// std::vector<uint8_t> -> Uint8List
+// std::vector<int32_t> -> Int32List
+// std::vector<int64_t> -> Int64List
+// std::vector<float>   -> Float32List
+// std::vector<double>  -> Float64List
+// EncodableList        -> List
+// EncodableMap         -> Map
+class EncodableValue : public internal::EncodableValueVariant {
+ public:
+  // Rely on std::variant for most of the constructors/operators.
+  using super = internal::EncodableValueVariant;
+  using super::super;
+  using super::operator=;
+
+  explicit EncodableValue() = default;
+
+  // Avoid the C++17 pitfall of conversion from char* to bool. Should not be
+  // needed for C++20.
+  explicit EncodableValue(const char* string) : super(std::string(string)) {}
+  EncodableValue& operator=(const char* other) {
+    *this = std::string(other);
+    return *this;
+  }
+
+  // Allow implicit conversion from CustomEncodableValue; the only reason to
+  // make a CustomEncodableValue (which can only be constructed explicitly) is
+  // to use it with EncodableValue, so the risk of unintended conversions is
+  // minimal, and it avoids the need for the verbose:
+  //   EncodableValue(CustomEncodableValue(...)).
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  EncodableValue(const CustomEncodableValue& v) : super(v) {}
+
+  // Override the conversion constructors from std::variant to make them
+  // explicit, to avoid implicit conversion.
+  //
+  // While implicit conversion can be convenient in some cases, it can have very
+  // surprising effects. E.g., calling a function that takes an EncodableValue
+  // but accidentally passing an EncodableValue* would, instead of failing to
+  // compile, go through a pointer->bool->EncodableValue(bool) chain and
+  // silently call the function with a temp-constructed EncodableValue(true).
+  template <class T>
+  constexpr explicit EncodableValue(T&& t) noexcept : super(t) {}
+
+  // Returns true if the value is null. Convenience wrapper since unlike the
+  // other types, std::monostate uses aren't self-documenting.
+  bool IsNull() const { return std::holds_alternative<std::monostate>(*this); }
+
+  // Convenience method to simplify handling objects received from Flutter
+  // where the values may be larger than 32-bit, since they have the same type
+  // on the Dart side, but will be either 32-bit or 64-bit here depending on
+  // the value.
+  //
+  // Calling this method if the value doesn't contain either an int32_t or an
+  // int64_t will throw an exception.
+  int64_t LongValue() const {
+    if (std::holds_alternative<int32_t>(*this)) {
+      return std::get<int32_t>(*this);
+    }
+    return std::get<int64_t>(*this);
+  }
+
+  // Convenience method to simplify handling objects received from Flutter
+  // where the values may be larger than 32-bit, since they have the same type
+  // on the Dart side, but will be either 32-bit or 64-bit here depending on
+  // the value.
+  //
+  // Calling this method if the value doesn't contain either an int32_t or an
+  // int64_t will return std::nullopt.
+  std::optional<int64_t> TryGetLongValue() const {
+    if (std::holds_alternative<int32_t>(*this)) {
+      return std::get<int32_t>(*this);
+    }
+    if (std::holds_alternative<int64_t>(*this)) {
+      return std::get<int64_t>(*this);
+    }
+    return std::nullopt;
+  }
+
+// The C++ Standard Library implementations can get into issues with recursive
+// constraint satisfaction when (among other things) objects of this type (which
+// is an `std::variant` subclass) are put into containers like `std::vector`.
+//
+// A definition of `operator<` is provided to break that recursion. However, in
+// C++20 with the latest compilers (Clang compilers newer than 20 and the latest
+// GCC variants, see https://gcc.godbolt.org/z/KM6n6qane) requiring that that
+// the `std::three_way_comparable` constraint be satisfied requires the
+// provision of `operator<=>` to do the same thing.
+//
+// The code below makes this translation unit be safe to include from both C++17
+// and C++20 translation units while also using the newest compilers.
+//
+// The correctness of the compiler's gripes with this code and the subsequent
+// need for these workarounds is not fully understood or explored. If you run
+// into issues with this code again, the following breadcrumbs may prove
+// useful. If you cannot access some or all of these links, the compiler
+// explorer link above should serve a reduced test case to base an investigation
+// off of.
+//
+// * b/423885648#comment8
+// * b/423885648#comment19
+// * cl/542631351
+// * cl/542541552
+// * https://github.com/flutter/engine/pull/43091
+//
+#if __cplusplus >= 202002L
+  friend std::partial_ordering operator<=>(const EncodableValue& lhs,
+                                           const EncodableValue& rhs) {
+    auto& lv = static_cast<const super&>(lhs);
+    auto& rv = static_cast<const super&>(rhs);
+
+    if (lv < rv) {
+      return std::partial_ordering::less;
+    }
+
+    if (rv < lv) {
+      return std::partial_ordering::greater;
+    }
+
+    if (lv == rv) {
+      return std::partial_ordering::equivalent;
+    }
+
+    return std::partial_ordering::unordered;
+  }
+#else   //  __cplusplus >= 202002L
+  friend bool operator<(const EncodableValue& lhs, const EncodableValue& rhs) {
+    return static_cast<const super&>(lhs) < static_cast<const super&>(rhs);
+  }
+#endif  //  __cplusplus >= 202002L
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENCODABLE_VALUE_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\engine_method_result.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENGINE_METHOD_RESULT_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENGINE_METHOD_RESULT_H_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "binary_messenger.h"
+#include "method_codec.h"
+#include "method_result.h"
+
+namespace flutter {
+
+namespace internal {
+// Manages the one-time sending of response data. This is an internal helper
+// class for EngineMethodResult, separated out since the implementation doesn't
+// vary based on the template type.
+class ReplyManager {
+ public:
+  explicit ReplyManager(BinaryReply reply_handler_);
+  ~ReplyManager();
+
+  // Prevent copying.
+  ReplyManager(ReplyManager const&) = delete;
+  ReplyManager& operator=(ReplyManager const&) = delete;
+
+  // Sends the given response data (which must either be nullptr, which
+  // indicates an unhandled method, or a response serialized with |codec_|) to
+  // the engine.
+  void SendResponseData(const std::vector<uint8_t>* data);
+
+ private:
+  BinaryReply reply_handler_;
+};
+}  // namespace internal
+
+// Implemention of MethodResult that sends a response to the Flutter engine
+// exactly once, encoded using a given codec.
+template <typename T>
+class EngineMethodResult : public MethodResult<T> {
+ public:
+  // Creates a result object that will send results to |reply_handler|, encoded
+  // using |codec|. The |codec| pointer must remain valid for as long as this
+  // object exists.
+  EngineMethodResult(BinaryReply reply_handler, const MethodCodec<T>* codec)
+      : reply_manager_(
+            std::make_unique<internal::ReplyManager>(std::move(reply_handler))),
+        codec_(codec) {}
+
+  ~EngineMethodResult() = default;
+
+ protected:
+  // |flutter::MethodResult|
+  void SuccessInternal(const T* result) override {
+    std::unique_ptr<std::vector<uint8_t>> data =
+        codec_->EncodeSuccessEnvelope(result);
+    reply_manager_->SendResponseData(data.get());
+  }
+
+  // |flutter::MethodResult|
+  void ErrorInternal(const std::string& error_code,
+                     const std::string& error_message,
+                     const T* error_details) override {
+    std::unique_ptr<std::vector<uint8_t>> data =
+        codec_->EncodeErrorEnvelope(error_code, error_message, error_details);
+    reply_manager_->SendResponseData(data.get());
+  }
+
+  // |flutter::MethodResult|
+  void NotImplementedInternal() override {
+    reply_manager_->SendResponseData(nullptr);
+  }
+
+ private:
+  std::unique_ptr<internal::ReplyManager> reply_manager_;
+
+  const MethodCodec<T>* codec_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_ENGINE_METHOD_RESULT_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\event_channel.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_CHANNEL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_CHANNEL_H_
+
+#include <iostream>
+#include <memory>
+#include <string>
+
+#include "binary_messenger.h"
+#include "engine_method_result.h"
+#include "event_sink.h"
+#include "event_stream_handler.h"
+
+namespace flutter {
+
+class EncodableValue;
+
+// A named channel for communicating with the Flutter application using
+// asynchronous event streams. Incoming requests for event stream setup are
+// decoded from binary on receipt, and C++ responses and events are encoded into
+// binary before being transmitted back to Flutter. The MethodCodec used must be
+// compatible with the one used by the Flutter application. This can be achieved
+// by creating an EventChannel
+// ("https://api.flutter.dev/flutter/services/EventChannel-class.html")
+// counterpart of this channel on the Dart side.
+// The C++ type of stream configuration arguments, events, and error details are
+// templated, but only values supported by the specified MethodCodec can be
+// used.
+template <typename T = EncodableValue>
+class EventChannel {
+ public:
+  // Creates an instance that sends and receives event handler on the channel
+  // named |name|, encoded with |codec| and dispatched via |messenger|.
+  EventChannel(BinaryMessenger* messenger,
+               const std::string& name,
+               const MethodCodec<T>* codec)
+      : messenger_(messenger), name_(name), codec_(codec) {}
+  ~EventChannel() = default;
+
+  // Prevent copying.
+  EventChannel(EventChannel const&) = delete;
+  EventChannel& operator=(EventChannel const&) = delete;
+
+  // Registers a stream handler on this channel.
+  // If no handler has been registered, any incoming stream setup requests will
+  // be handled silently by providing an empty stream.
+  //
+  // Note that the EventChannel does not own the handler and will not
+  // unregister it on destruction. The caller is responsible for unregistering
+  // the handler if it should no longer be called.
+  void SetStreamHandler(std::unique_ptr<StreamHandler<T>> handler) {
+    if (!handler) {
+      messenger_->SetMessageHandler(name_, nullptr);
+      return;
+    }
+
+    // std::function requires a copyable lambda, so convert to a shared pointer.
+    // This is safe since only one copy of the shared_pointer will ever be
+    // accessed.
+    std::shared_ptr<StreamHandler<T>> shared_handler(handler.release());
+    const MethodCodec<T>* codec = codec_;
+    const std::string channel_name = name_;
+    const BinaryMessenger* messenger = messenger_;
+    BinaryMessageHandler binary_handler =
+        [shared_handler, codec, channel_name, messenger,
+         // Mutable state to track the handler's listening status.
+         is_listening = false](const uint8_t* message,
+                               const size_t message_size,
+                               const BinaryReply& reply) mutable {
+          constexpr char kOnListenMethod[] = "listen";
+          constexpr char kOnCancelMethod[] = "cancel";
+
+          std::unique_ptr<MethodCall<T>> method_call =
+              codec->DecodeMethodCall(message, message_size);
+          if (!method_call) {
+            std::cerr
+                << "Unable to construct method call from message on channel: "
+                << channel_name << std::endl;
+            reply(nullptr, 0);
+            return;
+          }
+
+          const std::string& method = method_call->method_name();
+          if (method.compare(kOnListenMethod) == 0) {
+            if (is_listening) {
+              std::unique_ptr<StreamHandlerError<T>> error =
+                  shared_handler->OnCancel(nullptr);
+              if (error) {
+                std::cerr << "Failed to cancel existing stream: "
+                          << (error->error_code) << ", "
+                          << (error->error_message) << ", "
+                          << (error->error_details);
+              }
+            }
+            is_listening = true;
+
+            std::unique_ptr<std::vector<uint8_t>> result;
+            auto sink = std::make_unique<EventSinkImplementation>(
+                messenger, channel_name, codec);
+            std::unique_ptr<StreamHandlerError<T>> error =
+                shared_handler->OnListen(method_call->arguments(),
+                                         std::move(sink));
+            if (error) {
+              result = codec->EncodeErrorEnvelope(error->error_code,
+                                                  error->error_message,
+                                                  error->error_details.get());
+            } else {
+              result = codec->EncodeSuccessEnvelope();
+            }
+            reply(result->data(), result->size());
+          } else if (method.compare(kOnCancelMethod) == 0) {
+            std::unique_ptr<std::vector<uint8_t>> result;
+            if (is_listening) {
+              std::unique_ptr<StreamHandlerError<T>> error =
+                  shared_handler->OnCancel(method_call->arguments());
+              if (error) {
+                result = codec->EncodeErrorEnvelope(error->error_code,
+                                                    error->error_message,
+                                                    error->error_details.get());
+              } else {
+                result = codec->EncodeSuccessEnvelope();
+              }
+              is_listening = false;
+            } else {
+              result = codec->EncodeErrorEnvelope(
+                  "error", "No active stream to cancel", nullptr);
+            }
+            reply(result->data(), result->size());
+          } else {
+            reply(nullptr, 0);
+          }
+        };
+    messenger_->SetMessageHandler(name_, std::move(binary_handler));
+  }
+
+ private:
+  class EventSinkImplementation : public EventSink<T> {
+   public:
+    EventSinkImplementation(const BinaryMessenger* messenger,
+                            const std::string& name,
+                            const MethodCodec<T>* codec)
+        : messenger_(messenger), name_(name), codec_(codec) {}
+    ~EventSinkImplementation() = default;
+
+    // Prevent copying.
+    EventSinkImplementation(EventSinkImplementation const&) = delete;
+    EventSinkImplementation& operator=(EventSinkImplementation const&) = delete;
+
+   private:
+    const BinaryMessenger* messenger_;
+    const std::string name_;
+    const MethodCodec<T>* codec_;
+
+   protected:
+    void SuccessInternal(const T* event = nullptr) override {
+      auto result = codec_->EncodeSuccessEnvelope(event);
+      messenger_->Send(name_, result->data(), result->size());
+    }
+
+    void ErrorInternal(const std::string& error_code,
+                       const std::string& error_message,
+                       const T* error_details) override {
+      auto result =
+          codec_->EncodeErrorEnvelope(error_code, error_message, error_details);
+      messenger_->Send(name_, result->data(), result->size());
+    }
+
+    void EndOfStreamInternal() override { messenger_->Send(name_, nullptr, 0); }
+  };
+
+  BinaryMessenger* messenger_;
+  const std::string name_;
+  const MethodCodec<T>* codec_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_CHANNEL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\event_sink.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_SINK_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_SINK_H_
+
+namespace flutter {
+
+class EncodableValue;
+
+// Event callback. Events to be sent to Flutter application
+// act as clients of this interface for sending events.
+template <typename T = EncodableValue>
+class EventSink {
+ public:
+  EventSink() = default;
+  virtual ~EventSink() = default;
+
+  // Prevent copying.
+  EventSink(EventSink const&) = delete;
+  EventSink& operator=(EventSink const&) = delete;
+
+  // Consumes a successful event
+  void Success(const T& event) { SuccessInternal(&event); }
+
+  // Consumes a successful event.
+  void Success() { SuccessInternal(nullptr); }
+
+  // Consumes an error event.
+  void Error(const std::string& error_code,
+             const std::string& error_message,
+             const T& error_details) {
+    ErrorInternal(error_code, error_message, &error_details);
+  }
+
+  // Consumes an error event.
+  void Error(const std::string& error_code,
+             const std::string& error_message = "") {
+    ErrorInternal(error_code, error_message, nullptr);
+  }
+
+  // Consumes end of stream. Ensuing calls to Success() or
+  // Error(), if any, are ignored.
+  void EndOfStream() { EndOfStreamInternal(); }
+
+ protected:
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void SuccessInternal(const T* event = nullptr) = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void ErrorInternal(const std::string& error_code,
+                             const std::string& error_message,
+                             const T* error_details) = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void EndOfStreamInternal() = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_SINK_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\event_stream_handler.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_H_
+
+#include <memory>
+#include <string>
+
+#include "event_sink.h"
+
+namespace flutter {
+
+class EncodableValue;
+
+template <typename T = EncodableValue>
+struct StreamHandlerError {
+  const std::string error_code;
+  const std::string error_message;
+  const std::unique_ptr<T> error_details;
+
+  StreamHandlerError(const std::string& error_code,
+                     const std::string& error_message,
+                     std::unique_ptr<T>&& error_details)
+      : error_code(error_code),
+        error_message(error_message),
+        error_details(std::move(error_details)) {}
+};
+
+// Handler for stream setup and teardown requests.
+// Implementations must be prepared to accept sequences of alternating calls to
+// OnListen() and OnCancel(). Implementations should ideally consume no
+// resources when the last such call is not OnListen(). In typical situations,
+// this means that the implementation should register itself with
+// platform-specific event sources OnListen() and deregister again OnCancel().
+template <typename T = EncodableValue>
+class StreamHandler {
+ public:
+  StreamHandler() = default;
+  virtual ~StreamHandler() = default;
+
+  // Prevent copying.
+  StreamHandler(StreamHandler const&) = delete;
+  StreamHandler& operator=(StreamHandler const&) = delete;
+
+  // Handles a request to set up an event stream. Returns nullptr on success,
+  // or an error on failure.
+  // |arguments| is stream configuration arguments and
+  // |events| is an EventSink for emitting events to the Flutter receiver.
+  std::unique_ptr<StreamHandlerError<T>> OnListen(
+      const T* arguments,
+      std::unique_ptr<EventSink<T>>&& events) {
+    return OnListenInternal(arguments, std::move(events));
+  }
+
+  // Handles a request to tear down the most recently created event stream.
+  // Returns nullptr on success, or an error on failure.
+  // |arguments| is stream configuration arguments.
+  std::unique_ptr<StreamHandlerError<T>> OnCancel(const T* arguments) {
+    return OnCancelInternal(arguments);
+  }
+
+ protected:
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<StreamHandlerError<T>> OnListenInternal(
+      const T* arguments,
+      std::unique_ptr<EventSink<T>>&& events) = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<StreamHandlerError<T>> OnCancelInternal(
+      const T* arguments) = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\event_stream_handler_functions.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_FUNCTIONS_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_FUNCTIONS_H_
+
+#include <memory>
+
+#include "event_sink.h"
+#include "event_stream_handler.h"
+
+namespace flutter {
+
+class EncodableValue;
+
+// Handler types for each of the StreamHandler setup and teardown
+// requests.
+template <typename T>
+using StreamHandlerListen =
+    std::function<std::unique_ptr<StreamHandlerError<T>>(
+        const T* arguments,
+        std::unique_ptr<EventSink<T>>&& events)>;
+
+template <typename T>
+using StreamHandlerCancel =
+    std::function<std::unique_ptr<StreamHandlerError<T>>(const T* arguments)>;
+
+// An implementation of StreamHandler that pass calls through to
+// provided function objects.
+template <typename T = EncodableValue>
+class StreamHandlerFunctions : public StreamHandler<T> {
+ public:
+  // Creates a handler object that calls the provided functions
+  // for the corresponding StreamHandler outcomes.
+  StreamHandlerFunctions(StreamHandlerListen<T> on_listen,
+                         StreamHandlerCancel<T> on_cancel)
+      : on_listen_(std::move(on_listen)), on_cancel_(std::move(on_cancel)) {}
+
+  virtual ~StreamHandlerFunctions() = default;
+
+  // Prevent copying.
+  StreamHandlerFunctions(StreamHandlerFunctions const&) = delete;
+  StreamHandlerFunctions& operator=(StreamHandlerFunctions const&) = delete;
+
+ protected:
+  // |flutter::StreamHandler|
+  std::unique_ptr<StreamHandlerError<T>> OnListenInternal(
+      const T* arguments,
+      std::unique_ptr<EventSink<T>>&& events) override {
+    if (on_listen_) {
+      return on_listen_(arguments, std::move(events));
+    }
+
+    auto error = std::make_unique<StreamHandlerError<T>>(
+        "error", "No OnListen handler set", nullptr);
+    return std::move(error);
+  }
+
+  // |flutter::StreamHandler|
+  std::unique_ptr<StreamHandlerError<T>> OnCancelInternal(
+      const T* arguments) override {
+    if (on_cancel_) {
+      return on_cancel_(arguments);
+    }
+
+    auto error = std::make_unique<StreamHandlerError<T>>(
+        "error", "No OnCancel handler set", nullptr);
+    return std::move(error);
+  }
+
+  StreamHandlerListen<T> on_listen_;
+  StreamHandlerCancel<T> on_cancel_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_EVENT_STREAM_HANDLER_FUNCTIONS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\flutter_engine.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_ENGINE_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_ENGINE_H_
+
+#include <flutter_windows.h>
+
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include "binary_messenger.h"
+#include "dart_project.h"
+#include "plugin_registrar.h"
+#include "plugin_registry.h"
+
+namespace flutter {
+
+// An instance of a Flutter engine.
+//
+// In the future, this will be the API surface used for all interactions with
+// the engine, rather than having them duplicated on FlutterViewController.
+// For now it is only used in the rare case where you need a headless Flutter
+// engine.
+class FlutterEngine : public PluginRegistry {
+ public:
+  // Creates a new engine for running the given project.
+  explicit FlutterEngine(const DartProject& project);
+
+  virtual ~FlutterEngine();
+
+  // Prevent copying.
+  FlutterEngine(FlutterEngine const&) = delete;
+  FlutterEngine& operator=(FlutterEngine const&) = delete;
+
+  // Starts running the engine at the entrypoint function specified in the
+  // DartProject used to configure the engine, or main() by default.
+  bool Run();
+
+  // Starts running the engine, with an optional entry point.
+  //
+  // If provided, entry_point must be the name of a top-level function from the
+  // same Dart library that contains the app's main() function, and must be
+  // decorated with `@pragma(vm:entry-point)` to ensure the method is not
+  // tree-shaken by the Dart compiler. If not provided, defaults to main().
+  bool Run(const char* entry_point);
+
+  // Terminates the running engine.
+  void ShutDown();
+
+  // Processes any pending events in the Flutter engine, and returns the
+  // nanosecond delay until the next scheduled event (or  max, if none).
+  //
+  // This should be called on every run of the application-level runloop, and
+  // a wait for native events in the runloop should never be longer than the
+  // last return value from this function.
+  std::chrono::nanoseconds ProcessMessages();
+
+  // Tells the engine that the system font list has changed. Should be called
+  // by clients when OS-level font changes happen (e.g., WM_FONTCHANGE in a
+  // Win32 application).
+  void ReloadSystemFonts();
+
+  // Tells the engine that the platform brightness value has changed. Should be
+  // called by clients when OS-level theme changes happen (e.g.,
+  // WM_DWMCOLORIZATIONCOLORCHANGED in a Win32 application).
+  void ReloadPlatformBrightness();
+
+  // flutter::PluginRegistry:
+  FlutterDesktopPluginRegistrarRef GetRegistrarForPlugin(
+      const std::string& plugin_name) override;
+
+  // Returns the messenger to use for creating channels to communicate with the
+  // Flutter engine.
+  //
+  // This pointer will remain valid for the lifetime of this instance.
+  BinaryMessenger* messenger() { return messenger_.get(); }
+
+  // Schedule a callback to be called after the next frame is drawn.
+  //
+  // This must be called from the platform thread. The callback is executed only
+  // once on the platform thread.
+  void SetNextFrameCallback(std::function<void()> callback);
+
+  // Called to pass an external window message to the engine for lifecycle
+  // state updates. Non-Flutter windows must call this method in their WndProc
+  // in order to be included in the logic for application lifecycle state
+  // updates. Returns a result if the message should be consumed.
+  std::optional<LRESULT> ProcessExternalWindowMessage(HWND hwnd,
+                                                      UINT message,
+                                                      WPARAM wparam,
+                                                      LPARAM lparam);
+
+ private:
+  // For access to the engine handle.
+  friend class FlutterViewController;
+
+  // Gives up ownership of |engine_|, but keeps a weak reference to it.
+  //
+  // This is intended to be used by FlutterViewController, since the underlying
+  // C API for view controllers takes over engine ownership.
+  FlutterDesktopEngineRef RelinquishEngine();
+
+  // Handle for interacting with the C API's engine reference.
+  FlutterDesktopEngineRef engine_ = nullptr;
+
+  // Messenger for communicating with the engine.
+  std::unique_ptr<BinaryMessenger> messenger_;
+
+  // Whether or not this wrapper owns |engine_|.
+  bool owns_engine_ = true;
+
+  // Whether |Run| has been called successfully.
+  //
+  // This is used to improve error messages. This can be false while the engine
+  // is running if the engine was started by creating a view.
+  bool run_succeeded_ = false;
+
+  // The callback to execute once the next frame is drawn.
+  std::function<void()> next_frame_callback_ = nullptr;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_ENGINE_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\flutter_view.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_H_
+
+#include <flutter_windows.h>
+
+namespace flutter {
+
+// The unique identifier for a view.
+typedef int64_t FlutterViewId;
+
+// A view displaying Flutter content.
+class FlutterView {
+ public:
+  explicit FlutterView(FlutterDesktopViewRef view) : view_(view) {}
+
+  // Destroys this reference to the view. The underlying view is not destroyed.
+  virtual ~FlutterView() = default;
+
+  // Prevent copying.
+  FlutterView(FlutterView const&) = delete;
+  FlutterView& operator=(FlutterView const&) = delete;
+
+  // Returns the backing HWND for the view.
+  HWND GetNativeWindow() { return FlutterDesktopViewGetHWND(view_); }
+
+  // Returns the DXGI adapter used for rendering or nullptr in case of error.
+  IDXGIAdapter* GetGraphicsAdapter() {
+    return FlutterDesktopViewGetGraphicsAdapter(view_);
+  }
+
+ private:
+  // Handle for interacting with the C API's view.
+  FlutterDesktopViewRef view_ = nullptr;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\flutter_view_controller.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_CONTROLLER_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_CONTROLLER_H_
+
+#include <flutter_windows.h>
+#include <windows.h>
+
+#include <memory>
+#include <optional>
+
+#include "dart_project.h"
+#include "flutter_engine.h"
+#include "flutter_view.h"
+
+namespace flutter {
+
+// A controller for a view displaying Flutter content.
+//
+// This is the primary wrapper class for the desktop C API.
+// If you use this class, you should not call any of the setup or teardown
+// methods in the C API directly, as this class will do that internally.
+class FlutterViewController {
+ public:
+  // Creates a FlutterView that can be parented into a Windows View hierarchy
+  // either using HWNDs.
+  //
+  // This also creates a new FlutterEngine.
+  //
+  // |dart_project| will be used to configure the engine backing this view.
+  FlutterViewController(int width, int height, const DartProject& project);
+
+  virtual ~FlutterViewController();
+
+  // Prevent copying.
+  FlutterViewController(FlutterViewController const&) = delete;
+  FlutterViewController& operator=(FlutterViewController const&) = delete;
+
+  // Returns the view controller's view ID.
+  FlutterViewId view_id() const;
+
+  // Returns the engine running Flutter content in this view.
+  FlutterEngine* engine() const { return engine_.get(); }
+
+  // Returns the view managed by this controller.
+  FlutterView* view() const { return view_.get(); }
+
+  // Requests new frame from the engine and repaints the view.
+  void ForceRedraw();
+
+  // Allows the Flutter engine and any interested plugins an opportunity to
+  // handle the given message.
+  //
+  // If a result is returned, then the message was handled in such a way that
+  // further handling should not be done.
+  std::optional<LRESULT> HandleTopLevelWindowProc(HWND hwnd,
+                                                  UINT message,
+                                                  WPARAM wparam,
+                                                  LPARAM lparam);
+
+ private:
+  // Handle for interacting with the C API's view controller, if any.
+  FlutterDesktopViewControllerRef controller_ = nullptr;
+
+  // The backing engine
+  std::shared_ptr<FlutterEngine> engine_;
+
+  // The owned FlutterView.
+  std::unique_ptr<FlutterView> view_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_FLUTTER_VIEW_CONTROLLER_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\message_codec.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_MESSAGE_CODEC_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_MESSAGE_CODEC_H_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace flutter {
+
+// Translates between a binary message and higher-level method call and
+// response/error objects.
+template <typename T>
+class MessageCodec {
+ public:
+  MessageCodec() = default;
+
+  virtual ~MessageCodec() = default;
+
+  // Prevent copying.
+  MessageCodec(MessageCodec<T> const&) = delete;
+  MessageCodec& operator=(MessageCodec<T> const&) = delete;
+
+  // Returns the message encoded in |binary_message|, or nullptr if it cannot be
+  // decoded by this codec.
+  std::unique_ptr<T> DecodeMessage(const uint8_t* binary_message,
+                                   const size_t message_size) const {
+    return std::move(DecodeMessageInternal(binary_message, message_size));
+  }
+
+  // Returns the message encoded in |binary_message|, or nullptr if it cannot be
+  // decoded by this codec.
+  std::unique_ptr<T> DecodeMessage(
+      const std::vector<uint8_t>& binary_message) const {
+    size_t size = binary_message.size();
+    const uint8_t* data = size > 0 ? &binary_message[0] : nullptr;
+    return std::move(DecodeMessageInternal(data, size));
+  }
+
+  // Returns a binary encoding of the given |message|, or nullptr if the
+  // message cannot be serialized by this codec.
+  std::unique_ptr<std::vector<uint8_t>> EncodeMessage(const T& message) const {
+    return std::move(EncodeMessageInternal(message));
+  }
+
+ protected:
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<T> DecodeMessageInternal(
+      const uint8_t* binary_message,
+      const size_t message_size) const = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<std::vector<uint8_t>> EncodeMessageInternal(
+      const T& message) const = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_MESSAGE_CODEC_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\method_call.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CALL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CALL_H_
+
+#include <memory>
+#include <string>
+
+namespace flutter {
+
+class EncodableValue;
+
+// An object encapsulating a method call from Flutter whose arguments are of
+// type T.
+template <typename T = EncodableValue>
+class MethodCall {
+ public:
+  // Creates a MethodCall with the given name and arguments.
+  MethodCall(const std::string& method_name, std::unique_ptr<T> arguments)
+      : method_name_(method_name), arguments_(std::move(arguments)) {}
+
+  virtual ~MethodCall() = default;
+
+  // Prevent copying.
+  MethodCall(MethodCall<T> const&) = delete;
+  MethodCall& operator=(MethodCall<T> const&) = delete;
+
+  // The name of the method being called.
+  const std::string& method_name() const { return method_name_; }
+
+  // The arguments to the method call, or NULL if there are none.
+  const T* arguments() const { return arguments_.get(); }
+
+ private:
+  std::string method_name_;
+  std::unique_ptr<T> arguments_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CALL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\method_channel.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CHANNEL_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CHANNEL_H_
+
+#include <iostream>
+#include <string>
+
+#include "basic_message_channel.h"
+#include "binary_messenger.h"
+#include "engine_method_result.h"
+#include "method_call.h"
+#include "method_codec.h"
+#include "method_result.h"
+
+namespace flutter {
+
+class EncodableValue;
+
+// A handler for receiving a method call from the Flutter engine.
+//
+// Implementations must asynchronously call exactly one of the methods on
+// |result| to indicate the result of the method call.
+template <typename T>
+using MethodCallHandler =
+    std::function<void(const MethodCall<T>& call,
+                       std::unique_ptr<MethodResult<T>> result)>;
+
+// A channel for communicating with the Flutter engine using invocation of
+// asynchronous methods.
+template <typename T = EncodableValue>
+class MethodChannel {
+ public:
+  // Creates an instance that sends and receives method calls on the channel
+  // named |name|, encoded with |codec| and dispatched via |messenger|.
+  MethodChannel(BinaryMessenger* messenger,
+                const std::string& name,
+                const MethodCodec<T>* codec)
+      : messenger_(messenger), name_(name), codec_(codec) {}
+
+  ~MethodChannel() = default;
+
+  // Prevent copying.
+  MethodChannel(MethodChannel const&) = delete;
+  MethodChannel& operator=(MethodChannel const&) = delete;
+
+  // Sends a message to the Flutter engine on this channel.
+  //
+  // If |result| is provided, one of its methods will be invoked with the
+  // response from the engine.
+  void InvokeMethod(const std::string& method,
+                    std::unique_ptr<T> arguments,
+                    std::unique_ptr<MethodResult<T>> result = nullptr) {
+    MethodCall<T> method_call(method, std::move(arguments));
+    std::unique_ptr<std::vector<uint8_t>> message =
+        codec_->EncodeMethodCall(method_call);
+    if (!result) {
+      messenger_->Send(name_, message->data(), message->size(), nullptr);
+      return;
+    }
+
+    // std::function requires a copyable lambda, so convert to a shared pointer.
+    // This is safe since only one copy of the shared_pointer will ever be
+    // accessed.
+    std::shared_ptr<MethodResult<T>> shared_result(result.release());
+    const auto* codec = codec_;
+    std::string channel_name = name_;
+    BinaryReply reply_handler = [shared_result, codec, channel_name](
+                                    const uint8_t* reply, size_t reply_size) {
+      if (reply_size == 0) {
+        shared_result->NotImplemented();
+        return;
+      }
+      // Use this channel's codec to decode and handle the
+      // reply.
+      bool decoded = codec->DecodeAndProcessResponseEnvelope(
+          reply, reply_size, shared_result.get());
+      if (!decoded) {
+        std::cerr << "Unable to decode reply to method "
+                     "invocation on channel "
+                  << channel_name << std::endl;
+        shared_result->NotImplemented();
+      }
+    };
+
+    messenger_->Send(name_, message->data(), message->size(),
+                     std::move(reply_handler));
+  }
+
+  // Registers a handler that should be called any time a method call is
+  // received on this channel. A null handler will remove any previous handler.
+  //
+  // The handler will be owned by the underlying BinaryMessageHandler.
+  // Destroying the MethodChannel will not unregister the handler, so
+  // the caller is responsible for unregistering explicitly if the handler
+  // stops being valid before the engine is destroyed.
+  void SetMethodCallHandler(const MethodCallHandler<T>& handler) const {
+    if (!handler) {
+      messenger_->SetMessageHandler(name_, nullptr);
+      return;
+    }
+    const auto* codec = codec_;
+    std::string channel_name = name_;
+    BinaryMessageHandler binary_handler = [handler, codec, channel_name](
+                                              const uint8_t* message,
+                                              size_t message_size,
+                                              BinaryReply reply) {
+      // Use this channel's codec to decode the call and build a result handler.
+      auto result =
+          std::make_unique<EngineMethodResult<T>>(std::move(reply), codec);
+      std::unique_ptr<MethodCall<T>> method_call =
+          codec->DecodeMethodCall(message, message_size);
+      if (!method_call) {
+        std::cerr << "Unable to construct method call from message on channel "
+                  << channel_name << std::endl;
+        result->NotImplemented();
+        return;
+      }
+      handler(*method_call, std::move(result));
+    };
+    messenger_->SetMessageHandler(name_, std::move(binary_handler));
+  }
+
+  // Adjusts the number of messages that will get buffered when sending messages
+  // to channels that aren't fully set up yet. For example, the engine isn't
+  // running yet or the channel's message handler isn't set up on the Dart side
+  // yet.
+  void Resize(int new_size) {
+    internal::ResizeChannel(messenger_, name_, new_size);
+  }
+
+  // Defines whether the channel should show warning messages when discarding
+  // messages due to overflow.
+  //
+  // When |warns| is false, the channel is expected to overflow and warning
+  // messages will not be shown.
+  void SetWarnsOnOverflow(bool warns) {
+    internal::SetChannelWarnsOnOverflow(messenger_, name_, warns);
+  }
+
+ private:
+  BinaryMessenger* messenger_;
+  std::string name_;
+  const MethodCodec<T>* codec_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CHANNEL_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\method_codec.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CODEC_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CODEC_H_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "method_call.h"
+#include "method_result.h"
+
+namespace flutter {
+
+// Translates between a binary message and higher-level method call and
+// response/error objects.
+template <typename T>
+class MethodCodec {
+ public:
+  MethodCodec() = default;
+
+  virtual ~MethodCodec() = default;
+
+  // Prevent copying.
+  MethodCodec(MethodCodec<T> const&) = delete;
+  MethodCodec& operator=(MethodCodec<T> const&) = delete;
+
+  // Returns the MethodCall encoded in |message|, or nullptr if it cannot be
+  // decoded.
+  std::unique_ptr<MethodCall<T>> DecodeMethodCall(const uint8_t* message,
+                                                  size_t message_size) const {
+    return std::move(DecodeMethodCallInternal(message, message_size));
+  }
+
+  // Returns the MethodCall encoded in |message|, or nullptr if it cannot be
+  // decoded.
+  std::unique_ptr<MethodCall<T>> DecodeMethodCall(
+      const std::vector<uint8_t>& message) const {
+    size_t size = message.size();
+    const uint8_t* data = size > 0 ? &message[0] : nullptr;
+    return std::move(DecodeMethodCallInternal(data, size));
+  }
+
+  // Returns a binary encoding of the given |method_call|, or nullptr if the
+  // method call cannot be serialized by this codec.
+  std::unique_ptr<std::vector<uint8_t>> EncodeMethodCall(
+      const MethodCall<T>& method_call) const {
+    return std::move(EncodeMethodCallInternal(method_call));
+  }
+
+  // Returns a binary encoding of |result|. |result| must be a type supported
+  // by the codec.
+  std::unique_ptr<std::vector<uint8_t>> EncodeSuccessEnvelope(
+      const T* result = nullptr) const {
+    return std::move(EncodeSuccessEnvelopeInternal(result));
+  }
+
+  // Returns a binary encoding of |error|. The |error_details| must be a type
+  // supported by the codec.
+  std::unique_ptr<std::vector<uint8_t>> EncodeErrorEnvelope(
+      const std::string& error_code,
+      const std::string& error_message = "",
+      const T* error_details = nullptr) const {
+    return std::move(
+        EncodeErrorEnvelopeInternal(error_code, error_message, error_details));
+  }
+
+  // Decodes the response envelope encoded in |response|, calling the
+  // appropriate method on |result|.
+  //
+  // Returns false if |response| cannot be decoded. In that case the caller is
+  // responsible for calling a |result| method.
+  bool DecodeAndProcessResponseEnvelope(const uint8_t* response,
+                                        size_t response_size,
+                                        MethodResult<T>* result) const {
+    return DecodeAndProcessResponseEnvelopeInternal(response, response_size,
+                                                    result);
+  }
+
+ protected:
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<MethodCall<T>> DecodeMethodCallInternal(
+      const uint8_t* message,
+      size_t message_size) const = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<std::vector<uint8_t>> EncodeMethodCallInternal(
+      const MethodCall<T>& method_call) const = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<std::vector<uint8_t>> EncodeSuccessEnvelopeInternal(
+      const T* result) const = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual std::unique_ptr<std::vector<uint8_t>> EncodeErrorEnvelopeInternal(
+      const std::string& error_code,
+      const std::string& error_message,
+      const T* error_details) const = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual bool DecodeAndProcessResponseEnvelopeInternal(
+      const uint8_t* response,
+      size_t response_size,
+      MethodResult<T>* result) const = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_CODEC_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\method_result.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_H_
+
+#include <string>
+
+namespace flutter {
+
+class EncodableValue;
+
+// Encapsulates a result returned from a MethodCall. Only one method should be
+// called on any given instance.
+template <typename T = EncodableValue>
+class MethodResult {
+ public:
+  MethodResult() = default;
+
+  virtual ~MethodResult() = default;
+
+  // Prevent copying.
+  MethodResult(MethodResult const&) = delete;
+  MethodResult& operator=(MethodResult const&) = delete;
+
+  // Sends a success response, indicating that the call completed successfully
+  // with the given result.
+  void Success(const T& result) { SuccessInternal(&result); }
+
+  // Sends a success response, indicating that the call completed successfully
+  // with no result.
+  void Success() { SuccessInternal(nullptr); }
+
+  // Sends an error response, indicating that the call was understood but
+  // handling failed in some way.
+  //
+  // error_code: A string error code describing the error.
+  // error_message: A user-readable error message.
+  // error_details: Arbitrary extra details about the error.
+  void Error(const std::string& error_code,
+             const std::string& error_message,
+             const T& error_details) {
+    ErrorInternal(error_code, error_message, &error_details);
+  }
+
+  // Sends an error response, indicating that the call was understood but
+  // handling failed in some way.
+  //
+  // error_code: A string error code describing the error.
+  // error_message: A user-readable error message (optional).
+  void Error(const std::string& error_code,
+             const std::string& error_message = "") {
+    ErrorInternal(error_code, error_message, nullptr);
+  }
+
+  // Sends a not-implemented response, indicating that the method either was not
+  // recognized, or has not been implemented.
+  void NotImplemented() { NotImplementedInternal(); }
+
+ protected:
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void SuccessInternal(const T* result) = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void ErrorInternal(const std::string& error_code,
+                             const std::string& error_message,
+                             const T* error_details) = 0;
+
+  // Implementation of the public interface, to be provided by subclasses.
+  virtual void NotImplementedInternal() = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\method_result_functions.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_FUNCTIONS_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_FUNCTIONS_H_
+
+#include <functional>
+#include <string>
+#include <utility>
+
+#include "method_result.h"
+
+namespace flutter {
+
+class EncodableValue;
+
+// Handler types for each of the MethodResult outcomes.
+template <typename T>
+using ResultHandlerSuccess = std::function<void(const T* result)>;
+template <typename T>
+using ResultHandlerError = std::function<void(const std::string& error_code,
+                                              const std::string& error_message,
+                                              const T* error_details)>;
+template <typename T>
+using ResultHandlerNotImplemented = std::function<void()>;
+
+// An implementation of MethodResult that pass calls through to provided
+// function objects, for ease of constructing one-off result handlers.
+template <typename T = EncodableValue>
+class MethodResultFunctions : public MethodResult<T> {
+ public:
+  // Creates a result object that calls the provided functions for the
+  // corresponding MethodResult outcomes.
+  MethodResultFunctions(ResultHandlerSuccess<T> on_success,
+                        ResultHandlerError<T> on_error,
+                        ResultHandlerNotImplemented<T> on_not_implemented)
+      : on_success_(std::move(on_success)),
+        on_error_(std::move(on_error)),
+        on_not_implemented_(std::move(on_not_implemented)) {}
+
+  virtual ~MethodResultFunctions() = default;
+
+  // Prevent copying.
+  MethodResultFunctions(MethodResultFunctions const&) = delete;
+  MethodResultFunctions& operator=(MethodResultFunctions const&) = delete;
+
+ protected:
+  // |flutter::MethodResult|
+  void SuccessInternal(const T* result) override {
+    if (on_success_) {
+      on_success_(result);
+    }
+  }
+
+  // |flutter::MethodResult|
+  void ErrorInternal(const std::string& error_code,
+                     const std::string& error_message,
+                     const T* error_details) override {
+    if (on_error_) {
+      on_error_(error_code, error_message, error_details);
+    }
+  }
+
+  // |flutter::MethodResult|
+  void NotImplementedInternal() override {
+    if (on_not_implemented_) {
+      on_not_implemented_();
+    }
+  }
+
+ private:
+  ResultHandlerSuccess<T> on_success_;
+  ResultHandlerError<T> on_error_;
+  ResultHandlerNotImplemented<T> on_not_implemented_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_METHOD_RESULT_FUNCTIONS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\plugin_registrar.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_H_
+
+#include <flutter_plugin_registrar.h>
+
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+
+#include "binary_messenger.h"
+#include "texture_registrar.h"
+
+namespace flutter {
+
+class Plugin;
+
+// A object managing the registration of a plugin for various events.
+//
+// Currently this class has very limited functionality, but is expected to
+// expand over time to more closely match the functionality of
+// the Flutter mobile plugin APIs' plugin registrars.
+class PluginRegistrar {
+ public:
+  // Creates a new PluginRegistrar. |core_registrar| and the messenger it
+  // provides must remain valid as long as this object exists.
+  explicit PluginRegistrar(FlutterDesktopPluginRegistrarRef core_registrar);
+
+  virtual ~PluginRegistrar();
+
+  // Prevent copying.
+  PluginRegistrar(PluginRegistrar const&) = delete;
+  PluginRegistrar& operator=(PluginRegistrar const&) = delete;
+
+  // Returns the messenger to use for creating channels to communicate with the
+  // Flutter engine.
+  //
+  // This pointer will remain valid for the lifetime of this instance.
+  BinaryMessenger* messenger() { return messenger_.get(); }
+
+  // Returns the texture registrar to use for the plugin to render a pixel
+  // buffer.
+  TextureRegistrar* texture_registrar() { return texture_registrar_.get(); }
+
+  // Takes ownership of |plugin|.
+  //
+  // Plugins are not required to call this method if they have other lifetime
+  // management, but this is a convenient place for plugins to be owned to
+  // ensure that they stay valid for any registered callbacks.
+  void AddPlugin(std::unique_ptr<Plugin> plugin);
+
+ protected:
+  FlutterDesktopPluginRegistrarRef registrar() const { return registrar_; }
+
+  // Destroys all owned plugins. Subclasses should call this at the beginning of
+  // their destructors to prevent the possibility of an owned plugin trying to
+  // access destroyed state during its own destruction.
+  void ClearPlugins();
+
+ private:
+  // Handle for interacting with the C API's registrar.
+  FlutterDesktopPluginRegistrarRef registrar_;
+
+  std::unique_ptr<BinaryMessenger> messenger_;
+
+  std::unique_ptr<TextureRegistrar> texture_registrar_;
+
+  // Plugins registered for ownership.
+  std::set<std::unique_ptr<Plugin>> plugins_;
+};
+
+// A plugin that can be registered for ownership by a PluginRegistrar.
+class Plugin {
+ public:
+  virtual ~Plugin() = default;
+};
+
+// A singleton to own PluginRegistrars. This is intended for use in plugins,
+// where there is no higher-level object to own a PluginRegistrar that can
+// own plugin instances and ensure that they live as long as the engine they
+// are registered with.
+class PluginRegistrarManager {
+ public:
+  static PluginRegistrarManager* GetInstance();
+
+  // Prevent copying.
+  PluginRegistrarManager(PluginRegistrarManager const&) = delete;
+  PluginRegistrarManager& operator=(PluginRegistrarManager const&) = delete;
+
+  // Returns a plugin registrar wrapper of type T, which must be a kind of
+  // PluginRegistrar, creating it if necessary. The returned registrar will
+  // live as long as the underlying FlutterDesktopPluginRegistrarRef, so
+  // can be used to own plugin instances.
+  //
+  // Calling this multiple times for the same registrar_ref with different
+  // template types results in undefined behavior.
+  template <class T>
+  T* GetRegistrar(FlutterDesktopPluginRegistrarRef registrar_ref) {
+    auto insert_result =
+        registrars_.emplace(registrar_ref, std::make_unique<T>(registrar_ref));
+    auto& registrar_pair = *(insert_result.first);
+    FlutterDesktopPluginRegistrarSetDestructionHandler(registrar_pair.first,
+                                                       OnRegistrarDestroyed);
+    return static_cast<T*>(registrar_pair.second.get());
+  }
+
+  // Destroys all registrar wrappers created by the manager.
+  //
+  // This is intended primarily for use in tests.
+  void Reset() { registrars_.clear(); }
+
+ private:
+  PluginRegistrarManager();
+
+  using WrapperMap = std::map<FlutterDesktopPluginRegistrarRef,
+                              std::unique_ptr<PluginRegistrar>>;
+
+  static void OnRegistrarDestroyed(FlutterDesktopPluginRegistrarRef registrar);
+
+  WrapperMap* registrars() { return &registrars_; }
+
+  WrapperMap registrars_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\plugin_registrar_windows.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_WINDOWS_H_
+#define FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_WINDOWS_H_
+
+#include <flutter_windows.h>
+#include <windows.h>
+
+#include <memory>
+#include <optional>
+
+#include "flutter_view.h"
+#include "plugin_registrar.h"
+
+namespace flutter {
+
+// A delegate callback for WindowProc delegation.
+//
+// Implementations should return a value only if they have handled the message
+// and want to stop all further handling.
+using WindowProcDelegate = std::function<std::optional<
+    LRESULT>(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)>;
+
+// An extension to PluginRegistrar providing access to Windows-specific
+// functionality.
+class PluginRegistrarWindows : public PluginRegistrar {
+ public:
+  // Creates a new PluginRegistrar. |core_registrar| and the messenger it
+  // provides must remain valid as long as this object exists.
+  explicit PluginRegistrarWindows(
+      FlutterDesktopPluginRegistrarRef core_registrar)
+      : PluginRegistrar(core_registrar) {
+    FlutterDesktopViewRef implicit_view =
+        FlutterDesktopPluginRegistrarGetView(core_registrar);
+    if (implicit_view) {
+      implicit_view_ = std::make_unique<FlutterView>(implicit_view);
+    }
+  }
+
+  virtual ~PluginRegistrarWindows() {
+    // Must be the first call.
+    ClearPlugins();
+    // Explicitly cleared to facilitate destruction order testing.
+    implicit_view_.reset();
+  }
+
+  // Prevent copying.
+  PluginRegistrarWindows(PluginRegistrarWindows const&) = delete;
+  PluginRegistrarWindows& operator=(PluginRegistrarWindows const&) = delete;
+
+  // Returns the implicit view, or nullptr if there is no implicit view.
+  //
+  // See:
+  // https://api.flutter.dev/flutter/dart-ui/PlatformDispatcher/implicitView.html
+  //
+  // DEPRECATED: Use |GetViewById| instead.
+  FlutterView* GetView() { return implicit_view_.get(); }
+
+  // Returns the view with the given ID, or nullptr if the view does not exist.
+  //
+  // Destroying the shared pointer destroys the reference to the view; it does
+  // not destroy the underlying view.
+  std::shared_ptr<FlutterView> GetViewById(FlutterViewId view_id) const {
+    FlutterDesktopViewRef view =
+        FlutterDesktopPluginRegistrarGetViewById(registrar(), view_id);
+    if (!view) {
+      return nullptr;
+    }
+
+    return std::make_shared<FlutterView>(view);
+  }
+
+  // Registers |delegate| to receive WindowProc callbacks for the top-level
+  // window containing this Flutter instance. Returns an ID that can be used to
+  // unregister the handler.
+  //
+  // Delegates are not guaranteed to be called:
+  // - The application may choose not to delegate WindowProc calls.
+  // - If multiple plugins are registered, the first one that returns a value
+  //   from the delegate message will "win", and others will not be called.
+  //   The order of delegate calls is not defined.
+  //
+  // Delegates should be implemented as narrowly as possible, only returning
+  // a value in cases where it's important that other delegates not run, to
+  // minimize the chances of conflicts between plugins.
+  int RegisterTopLevelWindowProcDelegate(WindowProcDelegate delegate) {
+    if (window_proc_delegates_.empty()) {
+      FlutterDesktopPluginRegistrarRegisterTopLevelWindowProcDelegate(
+          registrar(), PluginRegistrarWindows::OnTopLevelWindowProc, this);
+    }
+    int delegate_id = next_window_proc_delegate_id_++;
+    window_proc_delegates_.emplace(delegate_id, std::move(delegate));
+    return delegate_id;
+  }
+
+  // Unregisters a previously registered delegate.
+  void UnregisterTopLevelWindowProcDelegate(int proc_id) {
+    window_proc_delegates_.erase(proc_id);
+    if (window_proc_delegates_.empty()) {
+      FlutterDesktopPluginRegistrarUnregisterTopLevelWindowProcDelegate(
+          registrar(), PluginRegistrarWindows::OnTopLevelWindowProc);
+    }
+  }
+
+ private:
+  // A FlutterDesktopWindowProcCallback implementation that forwards back to
+  // a PluginRegistarWindows instance provided as |user_data|.
+  static bool OnTopLevelWindowProc(HWND hwnd,
+                                   UINT message,
+                                   WPARAM wparam,
+                                   LPARAM lparam,
+                                   void* user_data,
+                                   LRESULT* result) {
+    const auto* registrar = static_cast<PluginRegistrarWindows*>(user_data);
+    std::optional optional_result = registrar->CallTopLevelWindowProcDelegates(
+        hwnd, message, wparam, lparam);
+    if (optional_result) {
+      *result = *optional_result;
+    }
+    return optional_result.has_value();
+  }
+
+  std::optional<LRESULT> CallTopLevelWindowProcDelegates(HWND hwnd,
+                                                         UINT message,
+                                                         WPARAM wparam,
+                                                         LPARAM lparam) const {
+    std::optional<LRESULT> result;
+    for (const auto& pair : window_proc_delegates_) {
+      result = pair.second(hwnd, message, wparam, lparam);
+      // Stop as soon as any delegate indicates that it has handled the message.
+      if (result) {
+        break;
+      }
+    }
+    return result;
+  }
+
+  // The associated FlutterView, if any.
+  std::unique_ptr<FlutterView> implicit_view_;
+
+  // The next ID to return from RegisterWindowProcDelegate.
+  int next_window_proc_delegate_id_ = 1;
+
+  std::map<int, WindowProcDelegate> window_proc_delegates_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_WINDOWS_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRAR_WINDOWS_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\plugin_registry.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRY_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRY_H_
+
+#include <string>
+
+#include <flutter_plugin_registrar.h>
+
+namespace flutter {
+
+// Vends PluginRegistrars for named plugins.
+//
+// Plugins are identified by unique string keys, typically the name of the
+// plugin's main class.
+class PluginRegistry {
+ public:
+  PluginRegistry() = default;
+  virtual ~PluginRegistry() = default;
+
+  // Prevent copying.
+  PluginRegistry(PluginRegistry const&) = delete;
+  PluginRegistry& operator=(PluginRegistry const&) = delete;
+
+  // Returns the FlutterDesktopPluginRegistrarRef to register a plugin with the
+  // given name.
+  //
+  // The name must be unique across the application.
+  virtual FlutterDesktopPluginRegistrarRef GetRegistrarForPlugin(
+      const std::string& plugin_name) = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_PLUGIN_REGISTRY_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\standard_codec_serializer.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_CODEC_SERIALIZER_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_CODEC_SERIALIZER_H_
+
+#include "byte_streams.h"
+#include "encodable_value.h"
+
+namespace flutter {
+
+// Encapsulates the logic for encoding/decoding EncodableValues to/from the
+// standard codec binary representation.
+//
+// This can be subclassed to extend the standard codec with support for new
+// types.
+class StandardCodecSerializer {
+ public:
+  virtual ~StandardCodecSerializer();
+
+  // Returns the shared serializer instance.
+  static const StandardCodecSerializer& GetInstance();
+
+  // Prevent copying.
+  StandardCodecSerializer(StandardCodecSerializer const&) = delete;
+  StandardCodecSerializer& operator=(StandardCodecSerializer const&) = delete;
+
+  // Reads and returns the next value from |stream|.
+  EncodableValue ReadValue(ByteStreamReader* stream) const;
+
+  // Writes the encoding of |value| to |stream|, including the initial type
+  // discrimination byte.
+  //
+  // Can be overridden by a subclass to extend the codec.
+  virtual void WriteValue(const EncodableValue& value,
+                          ByteStreamWriter* stream) const;
+
+ protected:
+  // Codecs require long-lived serializers, so clients should always use
+  // GetInstance().
+  StandardCodecSerializer();
+
+  // Reads and returns the next value from |stream|, whose discrimination byte
+  // was |type|.
+  //
+  // The discrimination byte will already have been read from the stream when
+  // this is called.
+  //
+  // Can be overridden by a subclass to extend the codec.
+  virtual EncodableValue ReadValueOfType(uint8_t type,
+                                         ByteStreamReader* stream) const;
+
+  // Reads the variable-length size from the current position in |stream|.
+  size_t ReadSize(ByteStreamReader* stream) const;
+
+  // Writes the variable-length size encoding to |stream|.
+  void WriteSize(size_t size, ByteStreamWriter* stream) const;
+
+ private:
+  // Reads a fixed-type list whose values are of type T from the current
+  // position in |stream|, and returns it as the corresponding EncodableValue.
+  // |T| must correspond to one of the supported list value types of
+  // EncodableValue.
+  template <typename T>
+  EncodableValue ReadVector(ByteStreamReader* stream) const;
+
+  // Writes |vector| to |stream| as a fixed-type list. |T| must correspond to
+  // one of the supported list value types of EncodableValue.
+  template <typename T>
+  void WriteVector(const std::vector<T> vector, ByteStreamWriter* stream) const;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_CODEC_SERIALIZER_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\standard_message_codec.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_MESSAGE_CODEC_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_MESSAGE_CODEC_H_
+
+#include <memory>
+
+#include "encodable_value.h"
+#include "message_codec.h"
+#include "standard_codec_serializer.h"
+
+namespace flutter {
+
+// A binary message encoding/decoding mechanism for communications to/from the
+// Flutter engine via message channels.
+class StandardMessageCodec : public MessageCodec<EncodableValue> {
+ public:
+  // Returns an instance of the codec, optionally using a custom serializer to
+  // add support for more types.
+  //
+  // If provided, |serializer| must be long-lived. If no serializer is provided,
+  // the default will be used.
+  //
+  // The instance returned for a given |serializer| will be shared, and
+  // any instance returned from this will be long-lived, and can be safely
+  // passed to, e.g., channel constructors.
+  static const StandardMessageCodec& GetInstance(
+      const StandardCodecSerializer* serializer = nullptr);
+
+  ~StandardMessageCodec();
+
+  // Prevent copying.
+  StandardMessageCodec(StandardMessageCodec const&) = delete;
+  StandardMessageCodec& operator=(StandardMessageCodec const&) = delete;
+
+ protected:
+  // |flutter::MessageCodec|
+  std::unique_ptr<EncodableValue> DecodeMessageInternal(
+      const uint8_t* binary_message,
+      const size_t message_size) const override;
+
+  // |flutter::MessageCodec|
+  std::unique_ptr<std::vector<uint8_t>> EncodeMessageInternal(
+      const EncodableValue& message) const override;
+
+ private:
+  // Instances should be obtained via GetInstance.
+  explicit StandardMessageCodec(const StandardCodecSerializer* serializer);
+
+  const StandardCodecSerializer* serializer_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_MESSAGE_CODEC_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\standard_method_codec.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_METHOD_CODEC_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_METHOD_CODEC_H_
+
+#include <memory>
+
+#include "encodable_value.h"
+#include "method_call.h"
+#include "method_codec.h"
+#include "standard_codec_serializer.h"
+
+namespace flutter {
+
+// An implementation of MethodCodec that uses a binary serialization.
+class StandardMethodCodec : public MethodCodec<EncodableValue> {
+ public:
+  // Returns an instance of the codec, optionally using a custom serializer to
+  // add support for more types.
+  //
+  // If provided, |serializer| must be long-lived. If no serializer is provided,
+  // the default will be used.
+  //
+  // The instance returned for a given |extension| will be shared, and
+  // any instance returned from this will be long-lived, and can be safely
+  // passed to, e.g., channel constructors.
+  static const StandardMethodCodec& GetInstance(
+      const StandardCodecSerializer* serializer = nullptr);
+
+  ~StandardMethodCodec();
+
+  // Prevent copying.
+  StandardMethodCodec(StandardMethodCodec const&) = delete;
+  StandardMethodCodec& operator=(StandardMethodCodec const&) = delete;
+
+ protected:
+  // |flutter::MethodCodec|
+  std::unique_ptr<MethodCall<EncodableValue>> DecodeMethodCallInternal(
+      const uint8_t* message,
+      size_t message_size) const override;
+
+  // |flutter::MethodCodec|
+  std::unique_ptr<std::vector<uint8_t>> EncodeMethodCallInternal(
+      const MethodCall<EncodableValue>& method_call) const override;
+
+  // |flutter::MethodCodec|
+  std::unique_ptr<std::vector<uint8_t>> EncodeSuccessEnvelopeInternal(
+      const EncodableValue* result) const override;
+
+  // |flutter::MethodCodec|
+  std::unique_ptr<std::vector<uint8_t>> EncodeErrorEnvelopeInternal(
+      const std::string& error_code,
+      const std::string& error_message,
+      const EncodableValue* error_details) const override;
+
+  // |flutter::MethodCodec|
+  bool DecodeAndProcessResponseEnvelopeInternal(
+      const uint8_t* response,
+      size_t response_size,
+      MethodResult<EncodableValue>* result) const override;
+
+ private:
+  // Instances should be obtained via GetInstance.
+  explicit StandardMethodCodec(const StandardCodecSerializer* serializer);
+
+  const StandardCodecSerializer* serializer_;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_STANDARD_METHOD_CODEC_H_
+
+
+
+================================================================================
+FILE: windows\flutter\ephemeral\cpp_client_wrapper\include\flutter\texture_registrar.h
+================================================================================
+
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_TEXTURE_REGISTRAR_H_
+#define FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_TEXTURE_REGISTRAR_H_
+
+#include <flutter_texture_registrar.h>
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <utility>
+#include <variant>
+
+namespace flutter {
+
+// A pixel buffer texture.
+class PixelBufferTexture {
+ public:
+  // A callback used for retrieving pixel buffers.
+  typedef std::function<const FlutterDesktopPixelBuffer*(size_t width,
+                                                         size_t height)>
+      CopyBufferCallback;
+
+  // Creates a pixel buffer texture that uses the provided |copy_buffer_cb| to
+  // retrieve the buffer.
+  // As the callback is usually invoked from the render thread, the callee must
+  // take care of proper synchronization. It also needs to be ensured that the
+  // returned buffer isn't released prior to unregistering this texture.
+  explicit PixelBufferTexture(CopyBufferCallback copy_buffer_callback)
+      : copy_buffer_callback_(std::move(copy_buffer_callback)) {}
+
+  // Returns the callback-provided FlutterDesktopPixelBuffer that contains the
+  // actual pixel data. The intended surface size is specified by |width| and
+  // |height|.
+  const FlutterDesktopPixelBuffer* CopyPixelBuffer(size_t width,
+                                                   size_t height) const {
+    return copy_buffer_callback_(width, height);
+  }
+
+ private:
+  const CopyBufferCallback copy_buffer_callback_;
+};
+
+// A GPU surface-based texture.
+class GpuSurfaceTexture {
+ public:
+  // A callback used for retrieving surface descriptors.
+  typedef std::function<
+      const FlutterDesktopGpuSurfaceDescriptor*(size_t width, size_t height)>
+      ObtainDescriptorCallback;
+
+  GpuSurfaceTexture(FlutterDesktopGpuSurfaceType surface_type,
+                    ObtainDescriptorCallback obtain_descriptor_callback)
+      : surface_type_(surface_type),
+        obtain_descriptor_callback_(std::move(obtain_descriptor_callback)) {}
+
+  // Returns the callback-provided FlutterDesktopGpuSurfaceDescriptor that
+  // contains the surface handle. The intended surface size is specified by
+  // |width| and |height|.
+  const FlutterDesktopGpuSurfaceDescriptor* ObtainDescriptor(
+      size_t width,
+      size_t height) const {
+    return obtain_descriptor_callback_(width, height);
+  }
+
+  // Gets the surface type.
+  FlutterDesktopGpuSurfaceType surface_type() const { return surface_type_; }
+
+ private:
+  const FlutterDesktopGpuSurfaceType surface_type_;
+  const ObtainDescriptorCallback obtain_descriptor_callback_;
+};
+
+// The available texture variants.
+// Only PixelBufferTexture is currently implemented.
+// Other variants are expected to be added in the future.
+typedef std::variant<PixelBufferTexture, GpuSurfaceTexture> TextureVariant;
+
+// An object keeping track of external textures.
+//
+// Thread safety:
+// It's safe to call the member methods from any thread.
+class TextureRegistrar {
+ public:
+  virtual ~TextureRegistrar() = default;
+
+  // Registers a |texture| object and returns the ID for that texture.
+  virtual int64_t RegisterTexture(TextureVariant* texture) = 0;
+
+  // Notifies the flutter engine that the texture object corresponding
+  // to |texure_id| needs to render a new frame.
+  //
+  // For PixelBufferTextures, this will effectively make the engine invoke
+  // the callback that was provided upon creating the texture.
+  virtual bool MarkTextureFrameAvailable(int64_t texture_id) = 0;
+
+  // Asynchronously unregisters an existing texture object.
+  // Upon completion, the optional |callback| gets invoked.
+  virtual void UnregisterTexture(int64_t texture_id,
+                                 std::function<void()> callback) = 0;
+
+  // Unregisters an existing texture object.
+  // DEPRECATED: Use UnregisterTexture(texture_id, optional_callback) instead.
+  virtual bool UnregisterTexture(int64_t texture_id) = 0;
+};
+
+}  // namespace flutter
+
+#endif  // FLUTTER_SHELL_PLATFORM_COMMON_CLIENT_WRAPPER_INCLUDE_FLUTTER_TEXTURE_REGISTRAR_H_
 
 
 

@@ -1,17 +1,26 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:chess/chess.dart'
+    as chess_lib; // ⚠️ Aggiunto per calcolare il SAN nel background
 
 class LiveBookMove {
-  final String move;
+  final String move; // La mossa UCI (es. e2e4)
+  final String san; // La mossa SAN (es. e4) - ⚠️ NUOVA VARIABILE
   final String description;
-  LiveBookMove({required this.move, required this.description});
+
+  LiveBookMove({
+    required this.move,
+    required this.san,
+    required this.description,
+  });
 }
 
 class LiveBookResult {
   final List<LiveBookMove> moves;
   final String openingName;
   final String engineComment;
+
   LiveBookResult({
     required this.moves,
     this.openingName = "",
@@ -67,16 +76,46 @@ class LiveBookScanner {
             return 0.0;
           }
 
-          for (int i = 0; i < moves.length; i++) {
-            String uci = moves[i]['uci'];
-            double winrate = parseSafeDouble(moves[i]['winrate']);
+          // Ordiniamo le mosse per winrate decrescente
+          moves.sort(
+            (a, b) => parseSafeDouble(
+              b['winrate'],
+            ).compareTo(parseSafeDouble(a['winrate'])),
+          );
+
+          // =========================================================================
+          // ⚠️ IL FIX ANTI-FREEZE: LIMITIAMO A 15 MOSSE!
+          // ChessDB restituisce centinaia di mosse. Processarle tutte uccide la CPU.
+          // =========================================================================
+          final topMoves = moves.take(15).toList();
+
+          // Inizializziamo una scacchiera temporanea per calcolare i SAN
+          final tempChess = chess_lib.Chess.fromFEN(fen);
+
+          for (int i = 0; i < topMoves.length; i++) {
+            String uci = topMoves[i]['uci'];
+            double winrate = parseSafeDouble(topMoves[i]['winrate']);
+
+            // ⚠️ CALCOLO SAN VELOCE IN BACKGROUND (SOLO SULLE 15 MIGLIORI)
+            String san = uci;
+            try {
+              var m = tempChess.move(uci);
+              if (m != false && m != null) {
+                san = (m as dynamic).san ?? uci;
+                tempChess
+                    .undo(); // Torniamo subito indietro per la prossima mossa
+              }
+            } catch (_) {}
+
             if (i == 0) {
               bestWp = winrate;
-              bestSan = uci;
+              bestSan = san;
             }
+
             results.add(
               LiveBookMove(
                 move: uci,
+                san: san,
                 description: "${winrate.toStringAsFixed(2)}%",
               ),
             );
@@ -84,6 +123,7 @@ class LiveBookScanner {
         }
       }
 
+      // Scraping Ottimizzato (Niente regex pesanti, solo string indexOf per evitare blocchi!)
       try {
         final webUrl =
             "https://www.chessdb.cn/queryc_en/?${fen.replaceAll(' ', '_')}";
@@ -96,24 +136,31 @@ class LiveBookScanner {
               },
             )
             .timeout(const Duration(seconds: 4));
+
         if (webResp.statusCode == 200) {
-          final match = RegExp(
-            r"""var\s+suggest_note\s*=\s*(["'])(.*?)(?<!\\)\1\s*;""",
-            dotAll: true,
-          ).firstMatch(webResp.body);
-          if (match != null) {
-            aiComment = _stripHtml(match.group(2) ?? "");
-            aiComment = aiComment.replaceAll(r"\'", "'").replaceAll(r'\"', '"');
+          int start = webResp.body.indexOf('var suggest_note="');
+          if (start == -1) start = webResp.body.indexOf("var suggest_note='");
+
+          if (start != -1) {
+            int end = webResp.body.indexOf(";", start);
+            if (end != -1) {
+              String raw = webResp.body.substring(start + 18, end - 1);
+              aiComment = _stripHtml(
+                raw,
+              ).replaceAll(r"\'", "'").replaceAll(r'\"', '"');
+            }
           }
         }
       } catch (e) {
         debugPrint("Scrape ChessDB failed: $e");
       }
 
+      // Se non c'è il commento AI online, generiamo quello discorsivo in Inglese
       if (aiComment.isEmpty && results.isNotEmpty) {
         bool isWhiteTurn = fen.split(' ')[1] == 'w';
         String side = isWhiteTurn ? "White's" : "Black's";
         String oppSide = isWhiteTurn ? "Black" : "White";
+
         aiComment = "From $side view the position is ";
         if (bestWp >= 60.0) {
           aiComment +=
@@ -135,7 +182,7 @@ class LiveBookScanner {
 
       if (results.isEmpty) {
         results.add(
-          LiveBookMove(move: "-", description: "Nessuna Teoria NNUE"),
+          LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria NNUE"),
         );
       }
 
@@ -146,7 +193,7 @@ class LiveBookScanner {
       );
     } catch (e) {
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Errore")],
+        moves: [LiveBookMove(move: "-", san: "-", description: "Errore")],
         engineComment: "Errore connessione: $e",
       );
     }
@@ -174,17 +221,23 @@ class LiveBookScanner {
 
       if (response.statusCode == 401) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "...", description: "Token Scaduto")],
+          moves: [
+            LiveBookMove(move: "...", san: "...", description: "Token Scaduto"),
+          ],
         );
       }
       if (response.statusCode == 429) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "...", description: "Lichess Busy")],
+          moves: [
+            LiveBookMove(move: "...", san: "...", description: "Lichess Busy"),
+          ],
         );
       }
       if (response.statusCode == 404) {
         return LiveBookResult(
-          moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
+          moves: [
+            LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria"),
+          ],
         );
       }
 
@@ -200,10 +253,15 @@ class LiveBookScanner {
         }
 
         String wikiExtract = "";
+
+        // ⚠️ ANTI-FREEZE WIKIBOOKS: La teoria non supera quasi mai la 12a mossa.
         if (moveHistory.isNotEmpty) {
+          final maxPlies = moveHistory.length > 24 ? 24 : moveHistory.length;
+
           List<String> pathsToTry = [];
           String currentPath = "Chess_Opening_Theory";
-          for (int i = 0; i < moveHistory.length; i++) {
+
+          for (int i = 0; i < maxPlies; i++) {
             int turn = (i ~/ 2) + 1;
             String cleanMove = moveHistory[i].replaceAll(RegExp(r'[+#?!]'), '');
             if (i % 2 == 0) {
@@ -213,13 +271,18 @@ class LiveBookScanner {
             }
             pathsToTry.add(currentPath);
           }
-          for (String path in pathsToTry.reversed) {
+
+          // Controlliamo SOLO le ultime 6 diramazioni per non intasare le chiamate HTTP
+          final pathsToCheck = pathsToTry.reversed.take(6).toList();
+
+          for (String path in pathsToCheck) {
             final wbUrl =
                 "https://en.wikibooks.org/w/api.php?action=query&prop=extracts&format=json&titles=${Uri.encodeComponent(path)}";
             try {
               final wbResp = await http
                   .get(Uri.parse(wbUrl))
-                  .timeout(const Duration(seconds: 3));
+                  .timeout(const Duration(seconds: 2));
+
               if (wbResp.statusCode == 200) {
                 final wbData = json.decode(wbResp.body);
                 final pages =
@@ -231,7 +294,7 @@ class LiveBookScanner {
                       page['extract'].toString().isNotEmpty) {
                     wikiExtract = _stripHtml(page['extract']);
                     openingTitle += " (Fonte: Wikibooks - $path)";
-                    break;
+                    break; // Trovato, usciamo dal ciclo!
                   }
                 }
               }
@@ -245,6 +308,7 @@ class LiveBookScanner {
         if (moves != null && moves.isNotEmpty) {
           bool isWhiteTurn = fen.split(' ')[1] == 'w';
           List<Map<String, dynamic>> processedMoves = [];
+
           int globalTot = 0;
           for (var move in moves) {
             globalTot +=
@@ -268,17 +332,27 @@ class LiveBookScanner {
                 ? ((w + d / 2.0) / total) * 100.0
                 : ((b + d / 2.0) / total) * 100.0;
             double pEff = (wpPura * 0.70) + (freqPct * 0.30);
-            processedMoves.add({'uci': move['uci'], 'pEff': pEff});
+
+            // ⚠️ MIRACOLO LICHESS: Ci passa il SAN direttamente dal JSON!
+            processedMoves.add({
+              'uci': move['uci'],
+              'san': move['san'] ?? move['uci'],
+              'pEff': pEff,
+            });
           }
 
+          // Ordiniamo e limitiamo anche Lichess per estrema sicurezza (massimo 15 mosse logiche)
           processedMoves.sort(
             (a, b) => (b['pEff'] as double).compareTo(a['pEff'] as double),
           );
 
-          for (var pm in processedMoves) {
+          final topLichessMoves = processedMoves.take(15).toList();
+
+          for (var pm in topLichessMoves) {
             results.add(
               LiveBookMove(
                 move: pm['uci'] as String,
+                san: pm['san'] as String,
                 description: "${(pm['pEff'] as double).toStringAsFixed(1)}%",
               ),
             );
@@ -286,7 +360,11 @@ class LiveBookScanner {
 
           if (results.isEmpty) {
             results.add(
-              LiveBookMove(move: "-", description: "Nessuna Teoria Lichess"),
+              LiveBookMove(
+                move: "-",
+                san: "-",
+                description: "Nessuna Teoria Lichess",
+              ),
             );
           }
 
@@ -297,18 +375,22 @@ class LiveBookScanner {
           );
         } else {
           return LiveBookResult(
-            moves: [LiveBookMove(move: "-", description: "Nessuna Teoria")],
+            moves: [
+              LiveBookMove(move: "-", san: "-", description: "Nessuna Teoria"),
+            ],
             openingName: openingTitle,
             engineComment: wikiExtract,
           );
         }
       }
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Errore API")],
+        moves: [LiveBookMove(move: "-", san: "-", description: "Errore API")],
       );
     } catch (e) {
       return LiveBookResult(
-        moves: [LiveBookMove(move: "-", description: "Nessuna connessione")],
+        moves: [
+          LiveBookMove(move: "-", san: "-", description: "Nessuna connessione"),
+        ],
       );
     }
   }
