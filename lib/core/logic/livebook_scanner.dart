@@ -100,7 +100,7 @@ class LiveBookScanner {
             String san = uci;
             try {
               var m = tempChess.move(uci);
-              if (m != false && m != null) {
+              if (m != false) {
                 san = (m as dynamic).san ?? uci;
                 tempChess
                     .undo(); // Torniamo subito indietro per la prossima mossa

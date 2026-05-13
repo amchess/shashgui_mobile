@@ -8,6 +8,7 @@ class EngineState {
   final EngineStats stats;
   final ShashinZone zone;
   final List<String> outputLines;
+  final String threatMoveUci; // ⚠️ NUOVO: Memorizza la mossa della minaccia
 
   EngineState({
     this.isRunning = false,
@@ -15,6 +16,7 @@ class EngineState {
     this.stats = const EngineStats(),
     required this.zone,
     this.outputLines = const [],
+    this.threatMoveUci = "", // ⚠️ Default vuoto per la minaccia
   });
 
   // Il copyWith è fondamentale in Riverpod per aggiornare solo un pezzo dello stato
@@ -24,6 +26,7 @@ class EngineState {
     EngineStats? stats,
     ShashinZone? zone,
     List<String>? outputLines,
+    String? threatMoveUci, // ⚠️ Aggiunto al copyWith
   }) {
     return EngineState(
       isRunning: isRunning ?? this.isRunning,
@@ -31,6 +34,7 @@ class EngineState {
       stats: stats ?? this.stats,
       zone: zone ?? this.zone,
       outputLines: outputLines ?? this.outputLines,
+      threatMoveUci: threatMoveUci ?? this.threatMoveUci, // ⚠️ Assegnazione
     );
   }
 }

@@ -30,19 +30,17 @@ class EngineManager {
     final String enginePath = p.join(libDir, 'lib$engineName.so');
 
     final docDir = await getApplicationDocumentsDirectory();
+
     for (String nnue in nnueFiles) {
       final file = File(p.join(docDir.path, nnue));
-      final byteData = await rootBundle.load('assets/engine/$nnue');
 
+      // ⚠️ IL FIX ANTI-ANR: Controlliamo SOLO se il file esiste!
+      // Nessun caricamento massivo in RAM se la rete è già installata.
       bool needsExtraction = !await file.exists();
-      if (!needsExtraction) {
-        final size = await file.length();
-        if (size != byteData.lengthInBytes) {
-          needsExtraction = true;
-        }
-      }
 
       if (needsExtraction) {
+        debugPrint("Estrazione rete neurale: $nnue...");
+        final byteData = await rootBundle.load('assets/engine/$nnue');
         await compute(_writeNnueFile, {
           'path': file.path,
           'bytes': byteData.buffer.asUint8List(
@@ -63,7 +61,6 @@ class EngineManager {
       _isDead = true;
     });
 
-    // ⚠️ LA MAGIA ANTI-FREEZE: Consumiamo il canale degli errori per evitare blocchi del buffer OS
     _process!.stderr.listen((_) {});
 
     _outputController = StreamController<String>.broadcast();
@@ -99,8 +96,11 @@ class EngineManager {
     sendCommand('isready');
 
     await readyCompleter.future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => debugPrint('⚠️ Timeout readyok'),
+      const Duration(seconds: 15),
+      onTimeout: () {
+        debugPrint('⚠️ Timeout readyok: il motore non risponde.');
+        throw TimeoutException('Il motore non ha risposto entro i limiti.');
+      },
     );
   }
 
@@ -118,9 +118,6 @@ class EngineManager {
     _isDead = true;
 
     if (processToKill != null) {
-      // ⚠️ LA SOLUZIONE DEFINITIVA AL FREEZE ⚠️
-      // 1. Nessun invio della parola 'quit'.
-      // 2. Isoliamo l'uccisione del processo in un task asincrono invisibile al Main Thread.
       Future.microtask(() {
         try {
           processToKill.kill();

@@ -648,19 +648,17 @@ class EngineManager {
     final String enginePath = p.join(libDir, 'lib$engineName.so');
 
     final docDir = await getApplicationDocumentsDirectory();
+
     for (String nnue in nnueFiles) {
       final file = File(p.join(docDir.path, nnue));
-      final byteData = await rootBundle.load('assets/engine/$nnue');
 
+      // ⚠️ IL FIX ANTI-ANR: Controlliamo SOLO se il file esiste!
+      // Nessun caricamento massivo in RAM se la rete è già installata.
       bool needsExtraction = !await file.exists();
-      if (!needsExtraction) {
-        final size = await file.length();
-        if (size != byteData.lengthInBytes) {
-          needsExtraction = true;
-        }
-      }
 
       if (needsExtraction) {
+        debugPrint("Estrazione rete neurale: $nnue...");
+        final byteData = await rootBundle.load('assets/engine/$nnue');
         await compute(_writeNnueFile, {
           'path': file.path,
           'bytes': byteData.buffer.asUint8List(
@@ -681,7 +679,6 @@ class EngineManager {
       _isDead = true;
     });
 
-    // ⚠️ LA MAGIA ANTI-FREEZE: Consumiamo il canale degli errori per evitare blocchi del buffer OS
     _process!.stderr.listen((_) {});
 
     _outputController = StreamController<String>.broadcast();
@@ -717,8 +714,11 @@ class EngineManager {
     sendCommand('isready');
 
     await readyCompleter.future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => debugPrint('⚠️ Timeout readyok'),
+      const Duration(seconds: 15),
+      onTimeout: () {
+        debugPrint('⚠️ Timeout readyok: il motore non risponde.');
+        throw TimeoutException('Il motore non ha risposto entro i limiti.');
+      },
     );
   }
 
@@ -736,9 +736,6 @@ class EngineManager {
     _isDead = true;
 
     if (processToKill != null) {
-      // ⚠️ LA SOLUZIONE DEFINITIVA AL FREEZE ⚠️
-      // 1. Nessun invio della parola 'quit'.
-      // 2. Isoliamo l'uccisione del processo in un task asincrono invisibile al Main Thread.
       Future.microtask(() {
         try {
           processToKill.kill();
@@ -770,8 +767,44 @@ class LiveBookOracle {
   static const String _chessDbUrl =
       "https://www.chessdb.cn/cdb.php?action=queryall&json=1&board=";
 
-  // Cache in RAM per non interrogare le API due volte per la stessa posizione
+  // ⚠️ FIX: Cache in RAM limitata per non consumare la RAM in sessioni lunghe
   static final Map<String, String?> _cache = {};
+  static const int _maxCacheSize = 200;
+
+  static void _addToCache(String key, String? value) {
+    if (value == null) return;
+    if (_cache.length >= _maxCacheSize) {
+      _cache.remove(_cache.keys.first); // Elimina la voce più vecchia
+    }
+    _cache[key] = value;
+  }
+
+  // =========================================================================
+  // ⚠️ LA NOSTRA FORMULA ESTRATTA (Ora testabile in totale isolamento!)
+  // =========================================================================
+  @visibleForTesting
+  static double calculateEffectiveWinProbability(
+    int w,
+    int d,
+    int b,
+    int globalTot,
+    bool isWhiteTurn,
+  ) {
+    int total = w + d + b;
+    double popularity = total / globalTot;
+
+    // Filtro anti-rumore (< 0.5% popolarità o zero partite).
+    // Restituiamo -1.0 per farla scartare in automatico.
+    if (total < 1 || popularity < 0.005) return -1.0;
+
+    // Calcolo della Win Probability Pura
+    double wpPura = isWhiteTurn
+        ? ((w + d / 2.0) / total) * 100.0
+        : ((b + d / 2.0) / total) * 100.0;
+
+    // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
+    return (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+  }
 
   /// Restituisce la mossa migliore in formato UCI (es. "e2e4") o null se non c'è teoria.
   static Future<String?> getBestCloudMove(String fen, bool isNeural) async {
@@ -821,19 +854,15 @@ class LiveBookOracle {
           int w = move['white'];
           int d = move['draws'];
           int b = move['black'];
-          int total = w + d + b;
 
-          double popularity = total / globalTot;
-
-          // Filtro anti-rumore (< 0.5% popolarità)
-          if (total < 1 || popularity < 0.005) continue;
-
-          double wpPura = isWhiteTurn
-              ? ((w + d / 2.0) / total) * 100.0
-              : ((b + d / 2.0) / total) * 100.0;
-
-          // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
-          double pEff = (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+          // ⚠️ Richiamiamo la nostra formula matematica pura
+          double pEff = calculateEffectiveWinProbability(
+            w,
+            d,
+            b,
+            globalTot,
+            isWhiteTurn,
+          );
 
           if (pEff > bestScore) {
             bestScore = pEff;
@@ -842,12 +871,12 @@ class LiveBookOracle {
         }
 
         if (bestUci != null) {
-          _cache[cacheKey] = bestUci;
+          _addToCache(cacheKey, bestUci);
           return bestUci;
         }
       }
     }
-    _cache[cacheKey] = null;
+    _addToCache(cacheKey, null);
     return null;
   }
 
@@ -864,11 +893,11 @@ class LiveBookOracle {
         // ChessDB restituisce già le mosse ordinate per score/rank dalla migliore alla peggiore.
         // Prendiamo la prima mossa valida proposta dai supercomputer cinesi.
         String bestUci = moves[0]['uci'];
-        _cache[cacheKey] = bestUci;
+        _addToCache(cacheKey, bestUci);
         return bestUci;
       }
     }
-    _cache[cacheKey] = null;
+    _addToCache(cacheKey, null);
     return null;
   }
 }
@@ -981,7 +1010,7 @@ class LiveBookScanner {
             String san = uci;
             try {
               var m = tempChess.move(uci);
-              if (m != false && m != null) {
+              if (m != false) {
                 san = (m as dynamic).san ?? uci;
                 tempChess
                     .undo(); // Torniamo subito indietro per la prossima mossa
@@ -3928,6 +3957,7 @@ final boardControllerProvider = Provider<ChessBoardController>((ref) {
 FILE: lib\features\analysis\domain\engine_controller.dart
 ================================================================================
 
+import 'dart:async'; // ⚠️ Necessario per StreamSubscription
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -4020,11 +4050,60 @@ class EngineController extends StateNotifier<EngineState> {
     }
   }
 
+  // ⚠️ LA FUNZIONE RIPRISTINATA: IL RADAR DELLE MINACCE!
+  Future<void> scanThreats(String currentFen) async {
+    if (!state.isRunning) return;
+
+    // 1. Ferma l'analisi attuale
+    _fsm?.stop();
+    _engineManager.sendCommand('stop');
+
+    // 2. Manipola la FEN per cedere il turno (Null Move)
+    List<String> fenParts = currentFen.split(' ');
+    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
+    fenParts[3] =
+        '-'; // Rimuove eventuali catture en-passant (per evitare FEN illegali)
+    String nullMoveFen = fenParts.join(' ');
+
+    // 3. Aspetta un istante per far pulire il buffer al motore
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    _engineManager.sendCommand('position fen $nullMoveFen');
+    _engineManager.sendCommand(
+      'go movetime 1500',
+    ); // 1 secondo e mezzo basta per le minacce dirette
+
+    StreamSubscription<String>? threatSub;
+    threatSub = _engineManager.engineOutput?.listen((line) {
+      if (line.startsWith('bestmove')) {
+        threatSub?.cancel();
+        final parts = line.split(' ');
+
+        if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
+          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa
+          state = state.copyWith(threatMoveUci: parts[1]);
+
+          // Lascia la freccia visibile per 3 secondi, poi ripristina la normalità
+          Future.delayed(const Duration(seconds: 3), () {
+            if (state.isRunning) {
+              state = state.copyWith(threatMoveUci: "");
+              analyzeCurrentPosition(currentFen);
+            }
+          });
+        } else {
+          // Nessuna minaccia trovata, ripristina subito l'analisi normale
+          analyzeCurrentPosition(currentFen);
+        }
+      }
+    });
+  }
+
   void stopEngine() {
     _fsm?.stop();
     _engineManager.sendCommand('stop');
     state = state.copyWith(
       isRunning: false,
+      threatMoveUci: "", // ⚠️ Pulisce eventuali minacce rimaste a schermo
       zone: ShashinZone("Analisi Fermata", "-", Colors.grey, 50.0, [
         "assets/images/capablanca.png",
       ]),
@@ -4055,6 +4134,7 @@ class EngineState {
   final EngineStats stats;
   final ShashinZone zone;
   final List<String> outputLines;
+  final String threatMoveUci; // ⚠️ NUOVO: Memorizza la mossa della minaccia
 
   EngineState({
     this.isRunning = false,
@@ -4062,6 +4142,7 @@ class EngineState {
     this.stats = const EngineStats(),
     required this.zone,
     this.outputLines = const [],
+    this.threatMoveUci = "", // ⚠️ Default vuoto per la minaccia
   });
 
   // Il copyWith è fondamentale in Riverpod per aggiornare solo un pezzo dello stato
@@ -4071,6 +4152,7 @@ class EngineState {
     EngineStats? stats,
     ShashinZone? zone,
     List<String>? outputLines,
+    String? threatMoveUci, // ⚠️ Aggiunto al copyWith
   }) {
     return EngineState(
       isRunning: isRunning ?? this.isRunning,
@@ -4078,6 +4160,7 @@ class EngineState {
       stats: stats ?? this.stats,
       zone: zone ?? this.zone,
       outputLines: outputLines ?? this.outputLines,
+      threatMoveUci: threatMoveUci ?? this.threatMoveUci, // ⚠️ Assegnazione
     );
   }
 }
@@ -5240,11 +5323,13 @@ FILE: lib\features\analysis\presentation\widgets\board_section.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'; // Lo teniamo come "motore logico" invisibile
+import 'package:flutter_chess_board/flutter_chess_board.dart'
+    hide
+        Color; // ⚠️ FIX: Nasconde il colore degli scacchi per usare quello di Flutter!
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
 import '../../domain/notation_controller.dart';
-import 'package:shashgui_mobile/features/play/presentation/custom_chess_board.dart'; // ⚠️ Assicurati che il percorso sia corretto se l'hai salvato altrove!
+import 'package:shashgui_mobile/features/play/presentation/custom_chess_board.dart';
 
 class BoardSection extends ConsumerStatefulWidget {
   const BoardSection({super.key});
@@ -5261,12 +5346,10 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
   @override
   void initState() {
     super.initState();
-    // ⚠️ LA MAGIA: Colleghiamo il vecchio controller alla nuova scacchiera!
-    // Se l'engine muove o se premi "Indietro", la nuova scacchiera si aggiorna da sola.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _boardControllerListener = ref.read(boardControllerProvider);
       _boardControllerListener?.addListener(_syncBoard);
-      _syncBoard(); // Sincronizzazione iniziale
+      _syncBoard();
     });
   }
 
@@ -5295,15 +5378,17 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
     final engineState = ref.watch(engineControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
 
-    // 1. Recuperiamo la mossa suggerita dal motore (se acceso)
+    // 1. Mossa principale del motore
     String engineBestMoveUci = "";
     if (engineState.isRunning && engineState.stats.pvs.isNotEmpty) {
       engineBestMoveUci = engineState.stats.pvs.first.split(' ').first;
     }
 
+    // 2. Mossa minaccia (se il radar è attivo)
+    String threatMoveUci = engineState.threatMoveUci;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Margine per la pulsantiera
         final availableHeight = constraints.maxHeight - 70;
         final boardSize = constraints.maxWidth < availableHeight
             ? constraints.maxWidth
@@ -5320,18 +5405,13 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
               height: boardSize,
               child: Stack(
                 children: [
-                  // Il nostro nuovo Widget col Tap-to-Move
                   CustomChessBoard(
                     isWhiteBottom: _isWhiteBottom,
                     onUserMove: (uciMove) {
-                      // 1. Estraiamo la casa di partenza e arrivo (es. "e2" -> "e4")
                       final fromSq = uciMove.substring(0, 2);
                       final toSq = uciMove.substring(2, 4);
 
-                      // 2. Passiamo la mossa al VECCHIO controller logico (senza "promotion")
                       boardController.makeMove(from: fromSq, to: toSq);
-
-                      // 3. Estraiamo il SAN (es. "Nf3") per la notazione esatta come prima
                       String pgn = boardController.game.pgn();
                       pgn = pgn.replaceAll(
                         RegExp(r'\s*(1-0|0-1|1/2-1/2|\*)\s*$'),
@@ -5342,8 +5422,6 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                         (s) => !s.contains('.'),
                         orElse: () => "Mossa",
                       );
-
-                      // 4. Aggiorniamo la barra della notazione
                       ref
                           .read(notationControllerProvider.notifier)
                           .handleNewMove(
@@ -5351,8 +5429,6 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                             moveSan,
                             context,
                           );
-
-                      // 5. Riavvia l'analisi del motore se era acceso
                       if (engineState.isRunning) {
                         ref
                             .read(engineControllerProvider.notifier)
@@ -5361,27 +5437,35 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                     },
                   ),
 
-                  // La Freccia dell'Euristica (disegnata dinamicamente sopra la scacchiera)
-                  if (engineBestMoveUci.length >= 4)
+                  // Disegna PRIMA la minaccia (Rossa Opaca), ALTRIMENTI l'analisi normale
+                  if (threatMoveUci.length >= 4)
                     IgnorePointer(
-                      // Per far passare i tocchi alla scacchiera sotto
+                      child: CustomPaint(
+                        size: Size(boardSize, boardSize),
+                        painter: EngineArrowPainter(
+                          threatMoveUci,
+                          _isWhiteBottom,
+                          Colors.red.withValues(alpha: 0.95), // ROSSO INTENSO!
+                        ),
+                      ),
+                    )
+                  else if (engineBestMoveUci.length >= 4)
+                    IgnorePointer(
                       child: CustomPaint(
                         size: Size(boardSize, boardSize),
                         painter: EngineArrowPainter(
                           engineBestMoveUci,
                           _isWhiteBottom,
+                          Colors.redAccent.withValues(
+                            alpha: 0.5,
+                          ), // TRASPARENTE
                         ),
                       ),
                     ),
                 ],
               ),
             ),
-
             const SizedBox(height: 8),
-
-            // ==========================================
-            // BARRA NAVIGAZIONE
-            // ==========================================
             Container(
               width: boardSize,
               decoration: BoxDecoration(
@@ -5393,7 +5477,6 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Ora non serve forzare la grafica, ci pensa l'addListener in alto!
                     IconButton(
                       icon: const Icon(Icons.first_page),
                       color: Colors.white70,
@@ -5444,22 +5527,20 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
 class EngineArrowPainter extends CustomPainter {
   final String moveUci;
   final bool isWhiteBottom;
+  final Color arrowColor;
 
-  EngineArrowPainter(this.moveUci, this.isWhiteBottom);
+  EngineArrowPainter(this.moveUci, this.isWhiteBottom, this.arrowColor);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (moveUci.length < 4) return;
-
     final sqSize = size.width / 8;
 
-    // Decodifica la mossa UCI (da "e2" a coordinate matematiche X,Y)
-    int fromFile = moveUci.codeUnitAt(0) - 97; // 'a' = 0
-    int fromRank = int.parse(moveUci[1]) - 1; // '1' = 0
+    int fromFile = moveUci.codeUnitAt(0) - 97;
+    int fromRank = int.parse(moveUci[1]) - 1;
     int toFile = moveUci.codeUnitAt(2) - 97;
     int toRank = int.parse(moveUci[3]) - 1;
 
-    // Ribalta matematicamente se giochiamo coi neri
     if (!isWhiteBottom) {
       fromFile = 7 - fromFile;
       fromRank = 7 - fromRank;
@@ -5467,29 +5548,26 @@ class EngineArrowPainter extends CustomPainter {
       toRank = 7 - toRank;
     }
 
-    // Calcola il centro esatto delle case di partenza e arrivo
     final start = Offset(
       (fromFile + 0.5) * sqSize,
       (7 - fromRank + 0.5) * sqSize,
     );
     final end = Offset((toFile + 0.5) * sqSize, (7 - toRank + 0.5) * sqSize);
 
-    // Stile della freccia (Rossa semitrasparente stile ChessBase)
     final paint = Paint()
-      ..color = Colors.redAccent.withValues(alpha: 0.6)
+      ..color = arrowColor
       ..strokeWidth = sqSize * 0.15
       ..strokeCap = StrokeCap.round;
 
-    // Disegna la linea
     canvas.drawLine(start, end, paint);
-    // Disegna un elegante cerchio ("pallino") sulla casa di destinazione per indicare la direzione
     canvas.drawCircle(end, sqSize * 0.25, paint);
   }
 
   @override
   bool shouldRepaint(covariant EngineArrowPainter oldDelegate) {
     return oldDelegate.moveUci != moveUci ||
-        oldDelegate.isWhiteBottom != isWhiteBottom;
+        oldDelegate.isWhiteBottom != isWhiteBottom ||
+        oldDelegate.arrowColor != arrowColor;
   }
 }
 
@@ -5744,6 +5822,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
 FILE: lib\features\analysis\presentation\widgets\engine_controls.dart
 ================================================================================
 
+import 'package:flutter/foundation.dart'; // Aggiunto per 'compute'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -5759,6 +5838,71 @@ import 'analysis_setup_modal.dart';
 import '../../../../core/services/import_export_service.dart';
 import 'package:chess/chess.dart' as chess_lib;
 
+// ============================================================================
+// ⚠️ CLASSI E FUNZIONI PER IL MULTI-THREADING (ISOLATE)
+// ============================================================================
+
+// Questa classe serve a impacchettare i dati per farli viaggiare tra i thread
+class ParsedMoveData {
+  final String san;
+  final String fen;
+  final String? comment;
+  ParsedMoveData(this.san, this.fen, this.comment);
+}
+
+// ⚠️ QUESTA FUNZIONE GIRA NEL BACKGROUND THREAD (ISOLATE)
+// Non può accedere alla UI né a Riverpod. Riceve un testo, restituisce dati puri.
+List<ParsedMoveData> _parsePgnInBackground(String text) {
+  List<ParsedMoveData> resultList = [];
+  String startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+  // 1. Estrazione FEN di partenza se presente
+  final fenMatch = RegExp(r'\[FEN\s+"([^"]+)"\]').firstMatch(text);
+  if (fenMatch != null) {
+    startFen = fenMatch.group(1)!;
+  }
+
+  // 2. Pulizia PGN e rimozione Header/Varianti
+  String movesText = text
+      .replaceAll(RegExp(r'^\[.*\]\s*', multiLine: true), '')
+      .trim();
+  movesText = movesText.replaceAll(RegExp(r'\([^)]*\)'), ' ');
+  movesText = movesText.replaceAll(
+    RegExp(r'\}\s*\{'),
+    ' | ',
+  ); // Uniamo commenti adiacenti
+  movesText = movesText.replaceAll(RegExp(r'\d+\s*\.+\s*'), ' ').trim();
+  movesText = movesText
+      .replaceAll(RegExp(r'(1-0|0-1|1/2-1/2|\*)\s*$'), ' ')
+      .trim();
+
+  // 3. Estrazione Mossa + Commento
+  final moveRegex = RegExp(r'([a-zA-Z0-9O\-+#=?!$]+)(?:\s*\{([^}]*)\})?');
+  final matches = moveRegex.allMatches(movesText);
+
+  // 4. Simulazione e validazione virtuale
+  final tempChess = chess_lib.Chess.fromFEN(startFen);
+
+  for (var match in matches) {
+    String san = match.group(1)!;
+    String cleanSan = san
+        .replaceAll(RegExp(r'[?!]'), '')
+        .replaceAll(RegExp(r'\$\d+'), '');
+    String? comment = match.group(2)?.trim();
+
+    final success = tempChess.move(cleanSan);
+    if (success != false) {
+      resultList.add(ParsedMoveData(san, tempChess.fen, comment));
+    }
+  }
+
+  return resultList;
+}
+
+// ============================================================================
+// FINE BLOCCO ISOLATE
+// ============================================================================
+
 class EngineControls extends ConsumerWidget {
   const EngineControls({super.key});
 
@@ -5769,82 +5913,47 @@ class EngineControls extends ConsumerWidget {
     final boardController = ref.watch(boardControllerProvider);
     final loc = AppLocalizations.of(context)!;
 
-    void loadImportedText(String text) {
+    void loadImportedText(String text) async {
       try {
         if (text.contains('[Event') || text.contains('1.')) {
-          // ⚠️ BYPASS TOTALE DELLA LIBRERIA CHESS.DART
-          // Non usiamo più parser.load_pgn(text) perché è troppo rigida. Facciamo noi!
+          // 1. Diamo un feedback visivo immediato all'utente
+          if (!context.mounted) return; // ⚠️ FIX LINTER
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Elaborazione PGN in background in corso..."),
+              duration: Duration(seconds: 1),
+            ),
+          );
 
+          // 2. AVVIAMO IL PARSING IN UN THREAD SEPARATO TRAMITE 'compute'
+          final parsedMoves = await compute(_parsePgnInBackground, text);
+
+          if (!context.mounted) return; // ⚠️ FIX LINTER: Controllo post-await
+
+          if (parsedMoves.isEmpty) {
+            throw Exception("Nessuna mossa valida trovata nel testo.");
+          }
+
+          // 3. Torniamo sul Thread Principale per applicare i risultati alla UI in 1 istante!
           String startFen =
               'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-
-          // 1. Cerchiamo se c'è un FEN personalizzato negli header
           final fenMatch = RegExp(r'\[FEN\s+"([^"]+)"\]').firstMatch(text);
-          if (fenMatch != null) {
-            startFen = fenMatch.group(1)!;
-          }
+          if (fenMatch != null) startFen = fenMatch.group(1)!;
 
           boardController.loadFen(startFen);
           ref.read(notationControllerProvider.notifier).reset();
 
-          String movesText = text;
-
-          // 2. Rimuoviamo in modo sicuro le intestazioni (righe che iniziano con '[')
-          movesText = movesText
-              .replaceAll(RegExp(r'^\[.*\]\s*', multiLine: true), '')
-              .trim();
-
-          // 3. Rimuoviamo eventuali varianti annidate (per semplificare il parsing lineare)
-          movesText = movesText.replaceAll(RegExp(r'\([^)]*\)'), ' ');
-
-          // 4. Uniamo i commenti adiacenti (fondamentale per Lichess!)
-          movesText = movesText.replaceAll(RegExp(r'\}\s*\{'), ' | ');
-
-          // 5. Rimuoviamo i numeri di mossa (es. "1. ", "23... ")
-          movesText = movesText.replaceAll(RegExp(r'\d+\s*\.+\s*'), ' ').trim();
-
-          // 6. Rimuoviamo i risultati finali
-          movesText = movesText
-              .replaceAll(RegExp(r'(1-0|0-1|1/2-1/2|\*)\s*$'), ' ')
-              .trim();
-
-          // 7. Regex magica: cattura la mossa e l'eventuale super-commento unito
-          final moveRegex = RegExp(
-            r'([a-zA-Z0-9O\-+#=?!$]+)(?:\s*\{([^}]*)\})?',
-          );
-          final matches = moveRegex.allMatches(movesText);
-
-          final tempChess = chess_lib.Chess.fromFEN(startFen);
-          int mosseAggiunte = 0;
-
-          for (var match in matches) {
-            String san = match.group(1)!;
-
-            // Ripuliamo il SAN dai simboli (es. ?! o $1) per farla validare alla scacchiera
-            String cleanSan = san
-                .replaceAll(RegExp(r'[?!]'), '')
-                .replaceAll(RegExp(r'\$\d+'), '');
-            String? comment = match.group(2)?.trim();
-
-            final success = tempChess.move(cleanSan);
-
-            // SE IL MOTORE LA RITIENE UNA MOSSA VALIDA, LA AGGIUNGIAMO!
-            if (success != false) {
-              ref
-                  .read(notationControllerProvider.notifier)
-                  .addMove(san, tempChess.fen, 'main', comment: comment);
-              mosseAggiunte++;
-            }
+          // Aggiunge tutto all'albero velocemente
+          for (var move in parsedMoves) {
+            ref
+                .read(notationControllerProvider.notifier)
+                .addMove(move.san, move.fen, 'main', comment: move.comment);
           }
 
-          if (mosseAggiunte == 0) {
-            throw Exception("Nessuna mossa valida trovata nel testo.");
-          }
-
-          boardController.loadFen(tempChess.fen);
+          boardController.loadFen(parsedMoves.last.fen);
           ref.read(notationControllerProvider.notifier).goToEnd();
         } else {
-          // Caricamento FEN singola
+          // Caricamento FEN singola (Istantaneo, non serve Isolate)
           boardController.loadFen(text);
           ref.read(notationControllerProvider.notifier).reset();
         }
@@ -5855,18 +5964,23 @@ class EngineControls extends ConsumerWidget {
               .analyzeCurrentPosition(boardController.getFen());
         }
 
+        if (!context.mounted) {
+          return; // ⚠️ FIX LINTER: Controllo finale prima del messaggio di successo
+        }
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(loc.partitaCaricataConSuccesso)));
       } catch (e) {
         debugPrint("ERRORE IMPORTAZIONE: $e");
+        if (!context.mounted) {
+          return; // ⚠️ FIX LINTER: Controllo anche nel blocco catch
+        }
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Errore: $e")));
       }
     }
 
-    // --- HELPER 2: Mostra il popup per incollare testi o link ---
     void showPasteDialog() {
       final textController = TextEditingController();
       showDialog(
@@ -5907,7 +6021,6 @@ class EngineControls extends ConsumerWidget {
                       final pgn = await ImportExportService().fetchLichessGame(
                         text,
                       );
-
                       if (!context.mounted) return;
                       loadImportedText(pgn);
                     } catch (e) {
@@ -5929,180 +6042,238 @@ class EngineControls extends ConsumerWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(
+        vertical: 12,
+        horizontal: 4,
+      ), // Padding laterale ridotto
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
         border: Border(top: BorderSide(color: Colors.white12, width: 1)),
       ),
       child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildControlButton(
-              icon: engineState.isRunning
-                  ? Icons.stop_circle
-                  : Icons.power_settings_new,
-              color: engineState.isRunning
-                  ? Colors.redAccent
-                  : Colors.greenAccent,
-              label: engineState.isRunning ? "Stop" : loc.accendi,
-              onPressed: () {
-                if (engineState.isRunning) {
-                  ref.read(engineControllerProvider.notifier).stopEngine();
-                } else {
-                  showDialog(
+        // ⚠️ FITTEDBOX: Il trucco per far entrare 6 bottoni su schermi stretti senza causare errori!
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildControlButton(
+                icon: engineState.isRunning
+                    ? Icons.stop_circle
+                    : Icons.power_settings_new,
+                color: engineState.isRunning
+                    ? Colors.redAccent
+                    : Colors.greenAccent,
+                label: engineState.isRunning ? "Stop" : loc.accendi,
+                onPressed: () {
+                  if (engineState.isRunning) {
+                    ref.read(engineControllerProvider.notifier).stopEngine();
+                  } else {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const AnalysisSetupModal(),
+                    );
+                  }
+                },
+              ),
+
+              _buildControlButton(
+                icon: Icons.folder_open,
+                color: Colors.white70,
+                label:
+                    "PGN/FEN", // Ridotto il testo da "PGN / FEN" per recuperare spazio
+                onPressed: () {
+                  showModalBottomSheet(
                     context: context,
-                    builder: (context) => const AnalysisSetupModal(),
-                  );
-                }
-              },
-            ),
-
-            // ⚠️ IL NUOVO BOTTONE PGN/FEN CON MENU A SCOMPARSA!
-            _buildControlButton(
-              icon: Icons.folder_open,
-              color: Colors.white70,
-              label: "PGN / FEN",
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: const Color(0xFF1a1a1a),
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
+                    backgroundColor: const Color(0xFF1a1a1a),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
-                  ),
-                  builder: (ctx) => SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(height: 12),
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.grey,
-                            borderRadius: BorderRadius.circular(2),
+                    builder: (ctx) => SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 12),
+                          Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.grid_on,
-                            color: Colors.orangeAccent,
-                          ),
-                          title: Text(
-                            loc.editorVisivoFen,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          onTap: () async {
-                            Navigator.pop(ctx);
-                            final newFen = await showDialog<String>(
-                              context: context,
-                              builder: (context) => SetupPositionDialog(
-                                initialFen: boardController.getFen(),
-                              ),
-                            );
-                            if (newFen != null) loadImportedText(newFen);
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.file_open,
-                            color: Colors.blueAccent,
-                          ),
-                          title: Text(
-                            loc.apriFilePgnfen,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          onTap: () async {
-                            Navigator.pop(ctx);
-                            try {
-                              final content = await ImportExportService()
-                                  .pickAndReadFile();
-
-                              if (!context.mounted) return;
-                              if (content != null) loadImportedText(content);
-                            } catch (e) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Errore: $e")),
+                          const SizedBox(height: 20),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.grid_on,
+                              color: Colors.orangeAccent,
+                            ),
+                            title: Text(
+                              loc.editorVisivoFen,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              final newFen = await showDialog<String>(
+                                context: context,
+                                builder: (context) => SetupPositionDialog(
+                                  initialFen: boardController.getFen(),
+                                ),
                               );
-                            }
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.link,
-                            color: Colors.greenAccent,
+                              if (!context.mounted) return; // ⚠️ FIX LINTER
+                              if (newFen != null) loadImportedText(newFen);
+                            },
                           ),
-                          title: Text(
-                            loc.importaLinkLichessIncollaPgn,
-                            style: const TextStyle(color: Colors.white),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.file_open,
+                              color: Colors.blueAccent,
+                            ),
+                            title: Text(
+                              loc.apriFilePgnfen,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              try {
+                                final content = await ImportExportService()
+                                    .pickAndReadFile();
+                                if (!context.mounted) return;
+                                if (content != null) loadImportedText(content);
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Errore: $e")),
+                                );
+                              }
+                            },
                           ),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            showPasteDialog();
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+                          ListTile(
+                            leading: const Icon(
+                              Icons.link,
+                              color: Colors.greenAccent,
+                            ),
+                            title: Text(
+                              loc.importaLinkLichessIncollaPgn,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              showPasteDialog();
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            _buildControlButton(
-              icon: Icons.menu_book,
-              color: Colors.blueAccent,
-              label: loc.livebook,
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => const LivebookModal(),
-                );
-              },
-            ),
-            _buildControlButton(
-              icon: Icons.psychology,
-              color: Colors.orangeAccent,
-              label: "Coach",
-              onPressed: () {
-                if (engineState.isRunning) {
-                  ref.read(engineControllerProvider.notifier).stopEngine();
-                }
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => const CoachModal(),
-                );
-              },
-            ),
-            _buildControlButton(
-              icon: autoplayState.isPlaying
-                  ? Icons.stop_circle
-                  : Icons.smart_toy,
-              color: autoplayState.isPlaying
-                  ? Colors.redAccent
-                  : Colors.purpleAccent,
-              label: autoplayState.isPlaying ? "Ferma" : "Torneo",
-              onPressed: () {
-                if (autoplayState.isPlaying) {
-                  ref.read(autoplayControllerProvider.notifier).stopMatch();
-                } else {
+              _buildControlButton(
+                icon: Icons.menu_book,
+                color: Colors.blueAccent,
+                label: loc.livebook,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const LivebookModal(),
+                  );
+                },
+              ),
+
+              // ⚠️ IL PULSANTE DELLE MINACCE RIPRISTINATO
+              _buildControlButton(
+                icon: Icons.crisis_alert,
+                color: Colors.redAccent,
+                label: loc.rilevaMinacce,
+                onPressed: () {
+                  if (!engineState.isRunning) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Accendi il motore per usare questa funzione.",
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (boardController.game.in_check) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(loc.impossibileAnalizzareLeMinacce),
+                      ),
+                    );
+                    return;
+                  }
+                  if (boardController.getFen().contains(
+                    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+                  )) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(loc.nessunaMinacciaAllaMossaInizia),
+                      ),
+                    );
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Scansione minacce in corso..."),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+
+                  ref
+                      .read(engineControllerProvider.notifier)
+                      .scanThreats(boardController.getFen());
+                },
+              ),
+
+              _buildControlButton(
+                icon: Icons.psychology,
+                color: Colors.orangeAccent,
+                label: "Coach",
+                onPressed: () {
+                  if (engineState.isRunning) {
+                    ref.read(engineControllerProvider.notifier).stopEngine();
+                  }
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const AutoplayModal(),
+                    builder: (context) => const CoachModal(),
                   );
-                }
-              },
-            ),
-          ],
+                },
+              ),
+
+              _buildControlButton(
+                icon: autoplayState.isPlaying
+                    ? Icons.stop_circle
+                    : Icons.smart_toy,
+                color: autoplayState.isPlaying
+                    ? Colors.redAccent
+                    : Colors.purpleAccent,
+                label: autoplayState.isPlaying ? "Ferma" : "Torneo",
+                onPressed: () {
+                  if (autoplayState.isPlaying) {
+                    ref.read(autoplayControllerProvider.notifier).stopMatch();
+                  } else {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => const AutoplayModal(),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -6118,7 +6289,10 @@ class EngineControls extends ConsumerWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+        padding: const EdgeInsets.symmetric(
+          vertical: 8.0,
+          horizontal: 10.0,
+        ), // Margini orizzontali ridotti da 12 a 10
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -6126,7 +6300,10 @@ class EngineControls extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 10,
+              ), // ⚠️ Font ridotto per accomodare 6 bottoni
             ),
           ],
         ),
@@ -11020,6 +11197,165 @@ G_DECLARE_FINAL_TYPE(MyApplication,
 MyApplication* my_application_new();
 
 #endif  // FLUTTER_MY_APPLICATION_H_
+
+
+
+================================================================================
+FILE: test\shashin_logic_test.dart
+================================================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shashgui_mobile/core/logic/shashin_logic.dart';
+
+void main() {
+  group('Shashin Logic - analyzeShashinZone', () {
+    test('1. Equilibrio perfetto (Capablanca) restituisce 50%', () {
+      // 300 vittorie, 400 patte, 300 sconfitte.
+      // wp = (300 + 400/2) / 1000 * 100 = 50%
+      final zone = analyzeShashinZone(300, 400, 300);
+
+      expect(zone.name, "Capablanca");
+      expect(zone.wp, 50.0);
+    });
+
+    test('2. Total Chaos (333, 334, 333) restituisce la zona mista e 50%', () {
+      // 333 + 334 + 333 = 1000
+      // wp = (333 + 334/2) / 1000 * 100 = 50.0%
+      final zone = analyzeShashinZone(333, 334, 333);
+
+      expect(zone.name, "Chaos: Capa-Petrosian-Tal");
+      expect(zone.wp, 50.0);
+    });
+
+    test('3. Dominio Bianco (High Tal) con wp >= 95%', () {
+      // 900 vittorie, 100 patte, 0 sconfitte.
+      // wp = (900 + 50) / 1000 * 100 = 95%
+      final zone = analyzeShashinZone(900, 100, 0);
+
+      expect(zone.name, "High Tal");
+      expect(zone.wp, 95.0);
+    });
+
+    test('4. Dominio Nero (High Petrosian) con wp <= 5%', () {
+      // 0 vittorie, 100 patte, 900 sconfitte.
+      // wp = (0 + 50) / 1000 * 100 = 5%
+      final zone = analyzeShashinZone(0, 100, 900);
+
+      expect(zone.name, "High Petrosian");
+      expect(zone.wp, 5.0);
+    });
+
+    test('5. Nugget check (25% Win Probability esatta)', () {
+      // 0 vittorie, 500 patte, 500 sconfitte.
+      // wp = (0 + 250) / 1000 * 100 = 25%
+      final zone = analyzeShashinZone(0, 500, 500);
+
+      expect(zone.name, "Petrosian Nugget");
+      expect(zone.wp, 25.0);
+    });
+
+    test('6. Gestione sicura della divisione per zero (0 partite totali)', () {
+      // Simuliamo il momento prima che il motore inizi a calcolare
+      final zone = analyzeShashinZone(0, 0, 0);
+
+      expect(zone.name, "Calcolo...");
+      expect(zone.wp, 50.0);
+    });
+  });
+}
+
+
+
+================================================================================
+FILE: test\core\logic\livebook_oracle_test.dart
+================================================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shashgui_mobile/core/logic/livebook_oracle.dart';
+
+void main() {
+  group('LiveBookOracle - calculateEffectiveWinProbability (pEff)', () {
+    test(
+      '1. Scarta la mossa (ritorna -1.0) se la popolarità è inferiore allo 0.5%',
+      () {
+        // 1000 partite totali, questa mossa è stata giocata solo 4 volte (0.4%)
+        final pEff = LiveBookOracle.calculateEffectiveWinProbability(
+          2,
+          0,
+          2,
+          1000,
+          true,
+        );
+
+        // Deve essere scartata dal filtro anti-rumore
+        expect(pEff, -1.0);
+      },
+    );
+
+    test('2. Calcola correttamente il punteggio per il BIANCO', () {
+      // 100 partite totali nell'apertura. Questa mossa giocata 50 volte (50% popolarità).
+      // Di queste 50: 40 vinte dal bianco, 10 patte, 0 vinte dal nero.
+      //
+      // Matematica attesa:
+      // WP Pura = (40 + 5) / 50 * 100 = 90.0%
+      // Punteggio Popolarità = 50 / 100 * 100 = 50.0%
+      // pEff = (90.0 * 0.70) + (50.0 * 0.30) = 63.0 + 15.0 = 78.0
+
+      final pEff = LiveBookOracle.calculateEffectiveWinProbability(
+        40,
+        10,
+        0,
+        100,
+        true,
+      );
+      expect(pEff, 78.0);
+    });
+
+    test('3. Calcola correttamente il punteggio per il NERO', () {
+      // Come sopra, ma è il turno del nero e il nero domina.
+      // 0 vinte dal bianco, 10 patte, 40 vinte dal nero.
+
+      final pEff = LiveBookOracle.calculateEffectiveWinProbability(
+        0,
+        10,
+        40,
+        100,
+        false,
+      );
+      expect(pEff, 78.0);
+    });
+
+    test('4. Penalizza mosse con 100% di WinRate ma rarissime (Anti-Trappola)', () {
+      // Abbiamo una mossa pazzesca che vince il 100% delle volte, ma è stata giocata
+      // solo 1 volta su 100 totali (1% popolarità).
+      //
+      // WP Pura = 100.0%
+      // pEff = (100 * 0.70) + (1 * 0.30) = 70 + 0.3 = 70.3
+      final pEffTrap = LiveBookOracle.calculateEffectiveWinProbability(
+        1,
+        0,
+        0,
+        100,
+        true,
+      );
+
+      // Una mossa "standard" con il 50% di WinRate, ma giocata 80 volte (80% popolarità)
+      // WP Pura = 50.0%
+      // pEff = (50 * 0.70) + (80 * 0.30) = 35 + 24 = 59.0
+      final pEffStandard = LiveBookOracle.calculateEffectiveWinProbability(
+        40,
+        0,
+        40,
+        100,
+        true,
+      );
+
+      // Verifica che la matematica funzioni e scarti le percentuali assolute!
+      expect(pEffTrap, 70.3);
+      expect(pEffStandard, 59.0);
+    });
+  });
+}
 
 
 

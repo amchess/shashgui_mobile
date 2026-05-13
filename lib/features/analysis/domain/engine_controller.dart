@@ -1,3 +1,4 @@
+import 'dart:async'; // ⚠️ Necessario per StreamSubscription
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -90,11 +91,60 @@ class EngineController extends StateNotifier<EngineState> {
     }
   }
 
+  // ⚠️ LA FUNZIONE RIPRISTINATA: IL RADAR DELLE MINACCE!
+  Future<void> scanThreats(String currentFen) async {
+    if (!state.isRunning) return;
+
+    // 1. Ferma l'analisi attuale
+    _fsm?.stop();
+    _engineManager.sendCommand('stop');
+
+    // 2. Manipola la FEN per cedere il turno (Null Move)
+    List<String> fenParts = currentFen.split(' ');
+    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
+    fenParts[3] =
+        '-'; // Rimuove eventuali catture en-passant (per evitare FEN illegali)
+    String nullMoveFen = fenParts.join(' ');
+
+    // 3. Aspetta un istante per far pulire il buffer al motore
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    _engineManager.sendCommand('position fen $nullMoveFen');
+    _engineManager.sendCommand(
+      'go movetime 1500',
+    ); // 1 secondo e mezzo basta per le minacce dirette
+
+    StreamSubscription<String>? threatSub;
+    threatSub = _engineManager.engineOutput?.listen((line) {
+      if (line.startsWith('bestmove')) {
+        threatSub?.cancel();
+        final parts = line.split(' ');
+
+        if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
+          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa
+          state = state.copyWith(threatMoveUci: parts[1]);
+
+          // Lascia la freccia visibile per 3 secondi, poi ripristina la normalità
+          Future.delayed(const Duration(seconds: 3), () {
+            if (state.isRunning) {
+              state = state.copyWith(threatMoveUci: "");
+              analyzeCurrentPosition(currentFen);
+            }
+          });
+        } else {
+          // Nessuna minaccia trovata, ripristina subito l'analisi normale
+          analyzeCurrentPosition(currentFen);
+        }
+      }
+    });
+  }
+
   void stopEngine() {
     _fsm?.stop();
     _engineManager.sendCommand('stop');
     state = state.copyWith(
       isRunning: false,
+      threatMoveUci: "", // ⚠️ Pulisce eventuali minacce rimaste a schermo
       zone: ShashinZone("Analisi Fermata", "-", Colors.grey, 50.0, [
         "assets/images/capablanca.png",
       ]),

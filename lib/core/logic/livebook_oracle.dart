@@ -7,8 +7,44 @@ class LiveBookOracle {
   static const String _chessDbUrl =
       "https://www.chessdb.cn/cdb.php?action=queryall&json=1&board=";
 
-  // Cache in RAM per non interrogare le API due volte per la stessa posizione
+  // ⚠️ FIX: Cache in RAM limitata per non consumare la RAM in sessioni lunghe
   static final Map<String, String?> _cache = {};
+  static const int _maxCacheSize = 200;
+
+  static void _addToCache(String key, String? value) {
+    if (value == null) return;
+    if (_cache.length >= _maxCacheSize) {
+      _cache.remove(_cache.keys.first); // Elimina la voce più vecchia
+    }
+    _cache[key] = value;
+  }
+
+  // =========================================================================
+  // ⚠️ LA NOSTRA FORMULA ESTRATTA (Ora testabile in totale isolamento!)
+  // =========================================================================
+  @visibleForTesting
+  static double calculateEffectiveWinProbability(
+    int w,
+    int d,
+    int b,
+    int globalTot,
+    bool isWhiteTurn,
+  ) {
+    int total = w + d + b;
+    double popularity = total / globalTot;
+
+    // Filtro anti-rumore (< 0.5% popolarità o zero partite).
+    // Restituiamo -1.0 per farla scartare in automatico.
+    if (total < 1 || popularity < 0.005) return -1.0;
+
+    // Calcolo della Win Probability Pura
+    double wpPura = isWhiteTurn
+        ? ((w + d / 2.0) / total) * 100.0
+        : ((b + d / 2.0) / total) * 100.0;
+
+    // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
+    return (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+  }
 
   /// Restituisce la mossa migliore in formato UCI (es. "e2e4") o null se non c'è teoria.
   static Future<String?> getBestCloudMove(String fen, bool isNeural) async {
@@ -58,19 +94,15 @@ class LiveBookOracle {
           int w = move['white'];
           int d = move['draws'];
           int b = move['black'];
-          int total = w + d + b;
 
-          double popularity = total / globalTot;
-
-          // Filtro anti-rumore (< 0.5% popolarità)
-          if (total < 1 || popularity < 0.005) continue;
-
-          double wpPura = isWhiteTurn
-              ? ((w + d / 2.0) / total) * 100.0
-              : ((b + d / 2.0) / total) * 100.0;
-
-          // LA VERA WIN PROBABILITY: 70% WP + 30% Frequenza
-          double pEff = (wpPura * 0.70) + (popularity * 100.0 * 0.30);
+          // ⚠️ Richiamiamo la nostra formula matematica pura
+          double pEff = calculateEffectiveWinProbability(
+            w,
+            d,
+            b,
+            globalTot,
+            isWhiteTurn,
+          );
 
           if (pEff > bestScore) {
             bestScore = pEff;
@@ -79,12 +111,12 @@ class LiveBookOracle {
         }
 
         if (bestUci != null) {
-          _cache[cacheKey] = bestUci;
+          _addToCache(cacheKey, bestUci);
           return bestUci;
         }
       }
     }
-    _cache[cacheKey] = null;
+    _addToCache(cacheKey, null);
     return null;
   }
 
@@ -101,11 +133,11 @@ class LiveBookOracle {
         // ChessDB restituisce già le mosse ordinate per score/rank dalla migliore alla peggiore.
         // Prendiamo la prima mossa valida proposta dai supercomputer cinesi.
         String bestUci = moves[0]['uci'];
-        _cache[cacheKey] = bestUci;
+        _addToCache(cacheKey, bestUci);
         return bestUci;
       }
     }
-    _cache[cacheKey] = null;
+    _addToCache(cacheKey, null);
     return null;
   }
 }
