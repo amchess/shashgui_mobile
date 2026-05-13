@@ -108,7 +108,26 @@ class EngineManager {
     if (_process != null && !_isDead) {
       try {
         _process!.stdin.writeln(command);
-      } catch (_) {}
+      } catch (e) {
+        // ⚠️ FIX PRIORITÀ 3: Gestione dell'errore (Broken Pipe)
+        debugPrint(
+          "🛑 ERRORE FATALE IPC: Impossibile comunicare col motore ($e)",
+        );
+
+        // 1. Dichiariamo il motore morto per evitare ulteriori invii a vuoto
+        _isDead = true;
+
+        // 2. Sfruttiamo lo stream esistente per "ingannare" l'architettura.
+        // Inviando una stringa di errore nello stream di output, la Macchina a Stati (FSM)
+        // e gli Orchestratori lo leggeranno e lo stamperanno automaticamente
+        // nei Log dell'interfaccia utente (UI)!
+        _outputController?.add(
+          "ERRORE DI SISTEMA: Connessione col motore interrotta inaspettatamente.",
+        );
+
+        // 3. Forziamo la pulizia
+        dispose();
+      }
     }
   }
 

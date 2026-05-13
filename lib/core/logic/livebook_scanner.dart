@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math'; // ⚠️ FIX: SPOSTATO QUI IN CIMA!
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:chess/chess.dart'
@@ -393,5 +394,62 @@ class LiveBookScanner {
         ],
       );
     }
+  }
+}
+
+// =========================================================================
+// ⚠️ HELPER PUBBLICO PER L'ORACOLO (Testabile in isolamento con injection)
+// =========================================================================
+class OracleRoulette {
+  @visibleForTesting
+  static String? spin(List<LiveBookMove> moves, {double? testRandomVal}) {
+    if (moves.isEmpty ||
+        moves.first.move == "-" ||
+        moves.first.move.contains(".")) {
+      return null;
+    }
+
+    List<Map<String, dynamic>> parsedMoves = [];
+    for (var m in moves) {
+      parsedMoves.add({
+        'uci': m.move,
+        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
+      });
+    }
+
+    if (parsedMoves.isEmpty) return null;
+
+    double topScore = parsedMoves.first['wp'];
+
+    // Se la posizione è disperata (<40%), giochiamo sempre e solo la migliore
+    if (topScore < 40.0) return parsedMoves.first['uci'];
+
+    // Prendiamo solo l'elite (Top 3 mosse con almeno 45% di WP)
+    List<Map<String, dynamic>> eliteMoves = parsedMoves
+        .take(3)
+        .where((m) => m['wp'] >= 45.0)
+        .toList();
+
+    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    // Assegnazione pesi esponenziali (es. 9, 3, 1)
+    List<double> weights = [];
+    double totalWeight = 0.0;
+    for (int i = 0; i < eliteMoves.length; i++) {
+      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
+      weights.add(weight);
+      totalWeight += weight;
+    }
+
+    // ⚠️ INJECTION: Se siamo nei test usiamo il valore fisso, altrimenti Random!
+    double randomFraction = testRandomVal ?? Random().nextDouble();
+    double randomVal = randomFraction * totalWeight;
+
+    double current = 0.0;
+    for (int i = 0; i < eliteMoves.length; i++) {
+      current += weights[i];
+      if (randomVal <= current) return eliteMoves[i]['uci'];
+    }
+    return eliteMoves.first['uci'];
   }
 }

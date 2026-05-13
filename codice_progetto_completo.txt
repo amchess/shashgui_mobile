@@ -726,7 +726,26 @@ class EngineManager {
     if (_process != null && !_isDead) {
       try {
         _process!.stdin.writeln(command);
-      } catch (_) {}
+      } catch (e) {
+        // ⚠️ FIX PRIORITÀ 3: Gestione dell'errore (Broken Pipe)
+        debugPrint(
+          "🛑 ERRORE FATALE IPC: Impossibile comunicare col motore ($e)",
+        );
+
+        // 1. Dichiariamo il motore morto per evitare ulteriori invii a vuoto
+        _isDead = true;
+
+        // 2. Sfruttiamo lo stream esistente per "ingannare" l'architettura.
+        // Inviando una stringa di errore nello stream di output, la Macchina a Stati (FSM)
+        // e gli Orchestratori lo leggeranno e lo stamperanno automaticamente
+        // nei Log dell'interfaccia utente (UI)!
+        _outputController?.add(
+          "ERRORE DI SISTEMA: Connessione col motore interrotta inaspettatamente.",
+        );
+
+        // 3. Forziamo la pulizia
+        dispose();
+      }
     }
   }
 
@@ -909,6 +928,7 @@ FILE: lib\core\logic\livebook_scanner.dart
 ================================================================================
 
 import 'dart:convert';
+import 'dart:math'; // ⚠️ FIX: SPOSTATO QUI IN CIMA!
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:chess/chess.dart'
@@ -1306,6 +1326,63 @@ class LiveBookScanner {
   }
 }
 
+// =========================================================================
+// ⚠️ HELPER PUBBLICO PER L'ORACOLO (Testabile in isolamento con injection)
+// =========================================================================
+class OracleRoulette {
+  @visibleForTesting
+  static String? spin(List<LiveBookMove> moves, {double? testRandomVal}) {
+    if (moves.isEmpty ||
+        moves.first.move == "-" ||
+        moves.first.move.contains(".")) {
+      return null;
+    }
+
+    List<Map<String, dynamic>> parsedMoves = [];
+    for (var m in moves) {
+      parsedMoves.add({
+        'uci': m.move,
+        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
+      });
+    }
+
+    if (parsedMoves.isEmpty) return null;
+
+    double topScore = parsedMoves.first['wp'];
+
+    // Se la posizione è disperata (<40%), giochiamo sempre e solo la migliore
+    if (topScore < 40.0) return parsedMoves.first['uci'];
+
+    // Prendiamo solo l'elite (Top 3 mosse con almeno 45% di WP)
+    List<Map<String, dynamic>> eliteMoves = parsedMoves
+        .take(3)
+        .where((m) => m['wp'] >= 45.0)
+        .toList();
+
+    if (eliteMoves.isEmpty) return parsedMoves.first['uci'];
+
+    // Assegnazione pesi esponenziali (es. 9, 3, 1)
+    List<double> weights = [];
+    double totalWeight = 0.0;
+    for (int i = 0; i < eliteMoves.length; i++) {
+      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
+      weights.add(weight);
+      totalWeight += weight;
+    }
+
+    // ⚠️ INJECTION: Se siamo nei test usiamo il valore fisso, altrimenti Random!
+    double randomFraction = testRandomVal ?? Random().nextDouble();
+    double randomVal = randomFraction * totalWeight;
+
+    double current = 0.0;
+    for (int i = 0; i < eliteMoves.length; i++) {
+      current += weights[i];
+      if (randomVal <= current) return eliteMoves[i]['uci'];
+    }
+    return eliteMoves.first['uci'];
+  }
+}
+
 
 
 ================================================================================
@@ -1491,6 +1568,32 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
   }
 
   return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
+}
+
+// =========================================================================
+// ⚠️ HELPER PUBBLICI PER L'ASSEGNAZIONE DEI NAG (Testabili in isolamento)
+// =========================================================================
+
+/// Converte la Win Probability (0-100) nell'indice della scala termodinamica (0-12)
+int getZoneIndex(double wp) {
+  if (wp <= 5) return 0;
+  if (wp <= 10) return 1;
+  if (wp <= 15) return 2;
+  if (wp <= 20) return 3;
+  if (wp <= 24) return 4;
+  if (wp <= 49) return 5;
+  if (wp <= 50) return 6;
+  if (wp <= 75) return 7;
+  if (wp <= 79) return 8;
+  if (wp <= 84) return 9;
+  if (wp <= 89) return 10;
+  if (wp <= 94) return 11;
+  return 12;
+}
+
+/// Calcola di quante zone termodinamiche scende la mossa dell'Allievo rispetto al Maestro
+int calculateZoneDrop(double studentWp, double masterWp) {
+  return getZoneIndex(masterWp) - getZoneIndex(studentWp);
 }
 
 
@@ -2441,22 +2544,6 @@ class CrossedEvalOrchestrator {
     return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
   }
 
-  int _getZoneIndex(double wp) {
-    if (wp <= 5) return 0;
-    if (wp <= 10) return 1;
-    if (wp <= 15) return 2;
-    if (wp <= 20) return 3;
-    if (wp <= 24) return 4;
-    if (wp <= 49) return 5;
-    if (wp <= 50) return 6;
-    if (wp <= 75) return 7;
-    if (wp <= 79) return 8;
-    if (wp <= 84) return 9;
-    if (wp <= 89) return 10;
-    if (wp <= 94) return 11;
-    return 12;
-  }
-
   void _finishAndReport() {
     currentState = CrossedState.idle;
     StringBuffer report = StringBuffer();
@@ -2521,9 +2608,9 @@ class CrossedEvalOrchestrator {
     } else {
       double sWp = studentZone?.wp ?? 50.0;
       double mWp = masterZone?.wp ?? 50.0;
-      int sIndex = _getZoneIndex(sWp);
-      int mIndex = _getZoneIndex(mWp);
-      int zoneDrop = mIndex - sIndex;
+
+      // ⚠️ FIX: Usiamo la funzione importata anziché la copia locale!
+      int zoneDrop = calculateZoneDrop(sWp, mWp);
 
       if (zoneDrop >= 3) {
         report.writeln(loc.nagBlunderTitle);
@@ -2557,9 +2644,11 @@ class CrossedEvalOrchestrator {
       String worstBase = isWhiteToMove
           ? (worstPieceWhite ?? "")
           : (worstPieceBlack ?? "");
+
       if (worstBase.isNotEmpty) {
         report.writeln("");
         report.writeln(loc.reportTitleAdvVision);
+
         if (worstBase != worstPieceNnue) {
           report.writeln(
             "${loc.advVisionFixed1} $worstBase ${loc.advVisionFixed2} $worstPieceNnue.",
@@ -11353,6 +11442,58 @@ void main() {
       // Verifica che la matematica funzioni e scarti le percentuali assolute!
       expect(pEffTrap, 70.3);
       expect(pEffStandard, 59.0);
+    });
+  });
+}
+
+
+
+================================================================================
+FILE: test\core\logic\nag_logic_test.dart
+================================================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shashgui_mobile/core/logic/shashin_logic.dart';
+
+void main() {
+  group('NAG Logic - Assegnazione Zone e Cadute Termodinamiche', () {
+    test('1. Verifica l\'indice delle Zone di confine', () {
+      expect(getZoneIndex(4.9), 0); // High Petrosian
+      expect(getZoneIndex(24.0), 4); // Low Petrosian
+      expect(getZoneIndex(50.0), 6); // Capablanca Perfetto
+      expect(getZoneIndex(76.0), 8); // Low Tal
+      expect(getZoneIndex(95.0), 12); // High Tal estremo
+    });
+
+    test('2. Nessuna caduta (0 drop) = Mossa Eccellente/Interessante', () {
+      // Allievo trova una mossa che tiene la partita in Capablanca (50%)
+      // Maestro trova una mossa leggermente migliore ma sempre in Capablanca (50%)
+      int drop = calculateZoneDrop(50.0, 50.0);
+      expect(drop, 0); // Nessun NAG negativo
+    });
+
+    test('3. Imprecisione (?! = 1 drop)', () {
+      // Allievo gioca da "Capablanca" (50.0)
+      // Maestro trova una linea da "Chaos Tal" (51.0)
+      int drop = calculateZoneDrop(50.0, 51.0);
+      expect(drop, 1);
+    });
+
+    test('4. Errore (? = 2 drop)', () {
+      // Allievo cade in "Low Petrosian" (24.0)
+      // Il potenziale del Maestro era "Capablanca" (50.0)
+      int drop = calculateZoneDrop(24.0, 50.0);
+      expect(drop, 2);
+    });
+
+    test('5. Blunder Assoluto (?? >= 3 drop)', () {
+      // Allievo regala la donna: "Middle Petrosian" (15.0)
+      // Maestro sa come vincere: "Middle Tal" (85.0)
+      int drop = calculateZoneDrop(15.0, 85.0);
+      expect(
+        drop,
+        8,
+      ); // 10 - 2 = 8 (Molto maggiore di 3, è un Blunder catastrofico!)
     });
   });
 }

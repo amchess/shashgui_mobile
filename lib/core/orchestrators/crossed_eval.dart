@@ -403,22 +403,6 @@ class CrossedEvalOrchestrator {
     return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
   }
 
-  int _getZoneIndex(double wp) {
-    if (wp <= 5) return 0;
-    if (wp <= 10) return 1;
-    if (wp <= 15) return 2;
-    if (wp <= 20) return 3;
-    if (wp <= 24) return 4;
-    if (wp <= 49) return 5;
-    if (wp <= 50) return 6;
-    if (wp <= 75) return 7;
-    if (wp <= 79) return 8;
-    if (wp <= 84) return 9;
-    if (wp <= 89) return 10;
-    if (wp <= 94) return 11;
-    return 12;
-  }
-
   void _finishAndReport() {
     currentState = CrossedState.idle;
     StringBuffer report = StringBuffer();
@@ -483,9 +467,9 @@ class CrossedEvalOrchestrator {
     } else {
       double sWp = studentZone?.wp ?? 50.0;
       double mWp = masterZone?.wp ?? 50.0;
-      int sIndex = _getZoneIndex(sWp);
-      int mIndex = _getZoneIndex(mWp);
-      int zoneDrop = mIndex - sIndex;
+
+      // ⚠️ FIX: Usiamo la funzione importata anziché la copia locale!
+      int zoneDrop = calculateZoneDrop(sWp, mWp);
 
       if (zoneDrop >= 3) {
         report.writeln(loc.nagBlunderTitle);
@@ -519,9 +503,11 @@ class CrossedEvalOrchestrator {
       String worstBase = isWhiteToMove
           ? (worstPieceWhite ?? "")
           : (worstPieceBlack ?? "");
+
       if (worstBase.isNotEmpty) {
         report.writeln("");
         report.writeln(loc.reportTitleAdvVision);
+
         if (worstBase != worstPieceNnue) {
           report.writeln(
             "${loc.advVisionFixed1} $worstBase ${loc.advVisionFixed2} $worstPieceNnue.",

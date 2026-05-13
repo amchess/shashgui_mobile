@@ -178,3 +178,29 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
 
   return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
 }
+
+// =========================================================================
+// ⚠️ HELPER PUBBLICI PER L'ASSEGNAZIONE DEI NAG (Testabili in isolamento)
+// =========================================================================
+
+/// Converte la Win Probability (0-100) nell'indice della scala termodinamica (0-12)
+int getZoneIndex(double wp) {
+  if (wp <= 5) return 0;
+  if (wp <= 10) return 1;
+  if (wp <= 15) return 2;
+  if (wp <= 20) return 3;
+  if (wp <= 24) return 4;
+  if (wp <= 49) return 5;
+  if (wp <= 50) return 6;
+  if (wp <= 75) return 7;
+  if (wp <= 79) return 8;
+  if (wp <= 84) return 9;
+  if (wp <= 89) return 10;
+  if (wp <= 94) return 11;
+  return 12;
+}
+
+/// Calcola di quante zone termodinamiche scende la mossa dell'Allievo rispetto al Maestro
+int calculateZoneDrop(double studentWp, double masterWp) {
+  return getZoneIndex(masterWp) - getZoneIndex(studentWp);
+}
