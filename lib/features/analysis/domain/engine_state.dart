@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart'; // ⚠️ Aggiunto per poter usare i Color
 import '../../../core/orchestrators/shashin_fsm.dart';
 import '../../../core/logic/shashin_logic.dart';
 
@@ -8,7 +9,11 @@ class EngineState {
   final EngineStats stats;
   final ShashinZone zone;
   final List<String> outputLines;
-  final String threatMoveUci; // ⚠️ NUOVO: Memorizza la mossa della minaccia
+  final String threatMoveUci;
+
+  // ⚠️ CAMPI PER LE MINACCE RAFFINATE XAI
+  final int? threatDrop;
+  final Color? threatColor;
 
   EngineState({
     this.isRunning = false,
@@ -16,7 +21,9 @@ class EngineState {
     this.stats = const EngineStats(),
     required this.zone,
     this.outputLines = const [],
-    this.threatMoveUci = "", // ⚠️ Default vuoto per la minaccia
+    this.threatMoveUci = "",
+    this.threatDrop,
+    this.threatColor,
   });
 
   // Il copyWith è fondamentale in Riverpod per aggiornare solo un pezzo dello stato
@@ -26,7 +33,9 @@ class EngineState {
     EngineStats? stats,
     ShashinZone? zone,
     List<String>? outputLines,
-    String? threatMoveUci, // ⚠️ Aggiunto al copyWith
+    String? threatMoveUci,
+    int? threatDrop,
+    Color? threatColor,
   }) {
     return EngineState(
       isRunning: isRunning ?? this.isRunning,
@@ -34,7 +43,9 @@ class EngineState {
       stats: stats ?? this.stats,
       zone: zone ?? this.zone,
       outputLines: outputLines ?? this.outputLines,
-      threatMoveUci: threatMoveUci ?? this.threatMoveUci, // ⚠️ Assegnazione
+      threatMoveUci: threatMoveUci ?? this.threatMoveUci,
+      threatDrop: threatDrop ?? this.threatDrop,
+      threatColor: threatColor ?? this.threatColor,
     );
   }
 }

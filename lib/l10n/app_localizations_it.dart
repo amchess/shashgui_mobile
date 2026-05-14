@@ -653,4 +653,12 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get featureSqlDesc =>
       'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.';
+
+  @override
+  String get shashinIdea => '💡 Semplice Idea (Nessun calo termodinamico)';
+
+  @override
+  String shashinThreat(int drop) {
+    return '🔥 MINACCIA! (Rischio: crollo di $drop zone)';
+  }
 }

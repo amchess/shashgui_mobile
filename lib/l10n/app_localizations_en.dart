@@ -650,4 +650,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get featureSqlDesc =>
       'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
+
+  @override
+  String get shashinIdea => '💡 Simple Idea (No thermodynamic drop)';
+
+  @override
+  String shashinThreat(int drop) {
+    return '🔥 THREAT! (Risk: drop of $drop zones)';
+  }
 }

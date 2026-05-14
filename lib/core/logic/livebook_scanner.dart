@@ -1,3 +1,4 @@
+import 'livebook_oracle.dart';
 import 'dart:convert';
 import 'dart:math'; // ⚠️ FIX: SPOSTATO QUI IN CIMA!
 import 'package:http/http.dart' as http;
@@ -324,17 +325,19 @@ class LiveBookScanner {
             int w = move['white'] ?? 0;
             int d = move['draws'] ?? 0;
             int b = move['black'] ?? 0;
-            int total = w + d + b;
-            double freqPct = (total / globalTot) * 100.0;
 
-            if (total < 1 || (total / globalTot) < 0.005) continue;
+            // ⚠️ FIX: Usiamo la formula matematica pura e centralizzata dell'Oracolo!
+            double pEff = LiveBookOracle.calculateEffectiveWinProbability(
+              w,
+              d,
+              b,
+              globalTot,
+              isWhiteTurn,
+            );
 
-            double wpPura = isWhiteTurn
-                ? ((w + d / 2.0) / total) * 100.0
-                : ((b + d / 2.0) / total) * 100.0;
-            double pEff = (wpPura * 0.70) + (freqPct * 0.30);
+            // Il filtro anti-rumore dell'Oracolo restituisce -1.0 se la mossa è irrilevante
+            if (pEff < 0) continue;
 
-            // ⚠️ MIRACOLO LICHESS: Ci passa il SAN direttamente dal JSON!
             processedMoves.add({
               'uci': move['uci'],
               'san': move['san'] ?? move['uci'],

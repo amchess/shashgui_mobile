@@ -1291,6 +1291,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.'**
   String get featureSqlDesc;
+
+  /// Messaggio mostrato quando la Null Move rileva un'idea senza calo termodinamico
+  ///
+  /// In it, this message translates to:
+  /// **'💡 Semplice Idea (Nessun calo termodinamico)'**
+  String get shashinIdea;
+
+  /// Messaggio mostrato quando la Null Move rileva una minaccia letale
+  ///
+  /// In it, this message translates to:
+  /// **'🔥 MINACCIA! (Rischio: crollo di {drop} zone)'**
+  String shashinThreat(int drop);
 }
 
 class _AppLocalizationsDelegate

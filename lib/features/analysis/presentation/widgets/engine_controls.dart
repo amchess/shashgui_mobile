@@ -13,6 +13,7 @@ import '../../domain/autoplay_controller.dart';
 import 'analysis_setup_modal.dart';
 import '../../../../core/services/import_export_service.dart';
 import 'package:chess/chess.dart' as chess_lib;
+import '../../domain/engine_state.dart';
 
 // ============================================================================
 // ⚠️ CLASSI E FUNZIONI PER IL MULTI-THREADING (ISOLATE)
@@ -88,7 +89,31 @@ class EngineControls extends ConsumerWidget {
     final autoplayState = ref.watch(autoplayControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
     final loc = AppLocalizations.of(context)!;
+    ref.listen<EngineState>(engineControllerProvider, (previous, next) {
+      if (next.threatMoveUci.isNotEmpty &&
+          previous?.threatMoveUci != next.threatMoveUci) {
+        final int drop = next.threatDrop ?? 0;
+        final bool isLethal = drop >= 1;
 
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isLethal ? loc.shashinThreat(drop) : loc.shashinIdea,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            backgroundColor: isLethal
+                ? Colors.red.shade800
+                : Colors.amber.shade800,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
     void loadImportedText(String text) async {
       try {
         if (text.contains('[Event') || text.contains('1.')) {

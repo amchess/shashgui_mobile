@@ -22,7 +22,6 @@ class LiveBookOracle {
   // =========================================================================
   // ⚠️ LA NOSTRA FORMULA ESTRATTA (Ora testabile in totale isolamento!)
   // =========================================================================
-  @visibleForTesting
   static double calculateEffectiveWinProbability(
     int w,
     int d,

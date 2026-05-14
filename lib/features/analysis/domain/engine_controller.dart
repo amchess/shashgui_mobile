@@ -91,7 +91,6 @@ class EngineController extends StateNotifier<EngineState> {
     }
   }
 
-  // ⚠️ LA FUNZIONE RIPRISTINATA: IL RADAR DELLE MINACCE!
   Future<void> scanThreats(String currentFen) async {
     if (!state.isRunning) return;
 
@@ -102,37 +101,56 @@ class EngineController extends StateNotifier<EngineState> {
     // 2. Manipola la FEN per cedere il turno (Null Move)
     List<String> fenParts = currentFen.split(' ');
     fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
-    fenParts[3] =
-        '-'; // Rimuove eventuali catture en-passant (per evitare FEN illegali)
+    fenParts[3] = '-'; // Rimuove catture en-passant
     String nullMoveFen = fenParts.join(' ');
 
-    // 3. Aspetta un istante per far pulire il buffer al motore
+    // 3. Aspetta un istante per far pulire il buffer
     await Future.delayed(const Duration(milliseconds: 100));
-
     _engineManager.sendCommand('position fen $nullMoveFen');
-    _engineManager.sendCommand(
-      'go movetime 1500',
-    ); // 1 secondo e mezzo basta per le minacce dirette
+    _engineManager.sendCommand('go movetime 1500');
+
+    int? calcoloThreatDrop; // Variabile temporanea per immagazzinare il calo
 
     StreamSubscription<String>? threatSub;
     threatSub = _engineManager.engineOutput?.listen((line) {
+      // NUOVO: Ascoltiamo la valutazione della posizione durante la mossa nulla
+      final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
+      if (wdlMatch != null) {
+        int w = int.parse(wdlMatch.group(1)!);
+        int d = int.parse(wdlMatch.group(2)!);
+        int l = int.parse(wdlMatch.group(3)!);
+
+        // Questa è la valutazione dal punto di vista dell'avversario
+        ShashinZone opponentZone = analyzeShashinZone(w, d, l);
+
+        // La nostra WP aggiornata è speculare a quella dell'avversario
+        double ourNewWp = 100.0 - opponentZone.wp;
+
+        // Calcoliamo di quante zone cadiamo rispetto a state.zone.wp attuale
+        calcoloThreatDrop = calculateZoneDrop(ourNewWp, state.zone.wp);
+      }
+
+      // QUANDO IL MOTORE SPUTA LA MINACCIA
       if (line.startsWith('bestmove')) {
         threatSub?.cancel();
         final parts = line.split(' ');
 
         if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
-          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa
-          state = state.copyWith(threatMoveUci: parts[1]);
+          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa e il calo
+          state = state.copyWith(
+            threatMoveUci: parts[1],
+            threatDrop: calcoloThreatDrop ?? 0, // <-- SALVIAMO IL CALO QUI!
+          );
 
           // Lascia la freccia visibile per 3 secondi, poi ripristina la normalità
           Future.delayed(const Duration(seconds: 3), () {
             if (state.isRunning) {
-              state = state.copyWith(threatMoveUci: "");
+              state = state.copyWith(threatMoveUci: "", threatDrop: 0);
               analyzeCurrentPosition(currentFen);
             }
           });
         } else {
-          // Nessuna minaccia trovata, ripristina subito l'analisi normale
+          // Nessuna minaccia trovata
           analyzeCurrentPosition(currentFen);
         }
       }
