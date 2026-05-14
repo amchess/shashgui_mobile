@@ -449,20 +449,20 @@
   "@featureSqlDesc": {
     "description": "SQL feature description"
   },
-  "shashinIdea": "💡 Simple Idea (No thermodynamic drop)",
+  "shashinIdea": "💡 Simple strategic Idea",
   "@shashinIdea": {
-    "description": "Message shown when the Null Move detects an idea without a thermodynamic drop"
+    "description": "Message for a move that maintains the thermodynamic zone"
   },
-  
-  "shashinThreat": "🔥 THREAT! (Risk: drop of {drop} zones)",
-  "@shashinThreat": {
-    "description": "Message shown when the Null Move detects a lethal threat",
-    "placeholders": {
-      "drop": {
-        "type": "int",
-        "example": "2",
-        "description": "The number of thermodynamic zones lost"
-      }
-    }
+  "threatMild": "⚠️ Mild Threat",
+  "@threatMild": {
+    "description": "Message for 1 zone drop"
+  },
+  "threatModerate": "🔥 Moderate Threat",
+  "@threatModerate": {
+    "description": "Message for 2 zones drop"
+  },
+  "threatSevere": "💀 SEVERE THREAT!",
+  "@threatSevere": {
+    "description": "Message for 3 or more zones drop"
   }
 }

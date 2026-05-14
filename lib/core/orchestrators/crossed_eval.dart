@@ -131,7 +131,6 @@ class CrossedEvalOrchestrator {
       final match = RegExp(
         "($targetColor) pieces \\(worst to best static activity\\):\\s*([A-Z]?)([a-h][1-8])\\((-?\\d+)\\)\\s*<-- Worst unit",
       ).firstMatch(line);
-
       if (match != null) {
         String pieceChar = match.group(2)!;
         String sq = match.group(3)!;
@@ -156,7 +155,11 @@ class CrossedEvalOrchestrator {
         }
       }
 
-      if (line.startsWith("*** Note: Static activity")) {
+      // ⚠️ FIX: Il marker finale infallibile per ShashChess!
+      if (line.startsWith(
+            "*** Note: Static activity analysis based on current piece placement ***",
+          ) ||
+          line.contains("Final Static Activity Evaluation")) {
         currentState = CrossedState.masterThinking;
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
@@ -232,10 +235,8 @@ class CrossedEvalOrchestrator {
             "${translatePiece(makBlackMatch.group(1)!)} in ${makBlackMatch.group(2)!}";
       }
 
-      // Fine della traccia 'eval'
-      if (line.startsWith("Best move:") ||
-          line.contains("Final static evaluation") ||
-          line.startsWith("*** Note:")) {
+      // ⚠️ FIX: Il marker finale infallibile per Alexander!
+      if (line.startsWith("Best move:")) {
         currentState = CrossedState.baseEval;
         onLog(loc.logCalcThermodynamicZone);
         engineManager.sendCommand('go movetime $baseTimeMs');
@@ -318,14 +319,17 @@ class CrossedEvalOrchestrator {
     }
   }
 
-  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) ARRICCHITO
+  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) COMPLETAMENTE BILINGUE
   String _generateStaticAnalysisText() {
     StringBuffer txt = StringBuffer();
+    bool isIt = loc.localeName == 'it'; // Rileva la lingua corrente
 
     // 1. TIPO DI CENTRO
     if (centerType != null && centerType!.isNotEmpty) {
       txt.write(
-        "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. ",
+        isIt
+            ? "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. "
+            : "The central structure dictates the plan: we have a **$centerType**. ",
       );
     }
 
@@ -333,71 +337,83 @@ class CrossedEvalOrchestrator {
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
       if (diff == 0) {
-        txt.write(
-          "Lo spazio controllato è in **perfetto equilibrio** ($spaceWhite a $spaceBlack). ",
-        );
+        txt.write("${loc.evalSpaceBalanced} ($spaceWhite - $spaceBlack). ");
       } else if (diff >= 4) {
-        txt.write("Il Bianco gode di un netto dominio territoriale. ");
+        txt.write("${loc.evalWhiteDominate} ");
       } else if (diff >= 1) {
-        txt.write("Il Bianco possiede un lieve vantaggio di spazio. ");
+        txt.write("${loc.evalWhiteSlightEdge} ");
       } else if (diff <= -4) {
-        txt.write(
-          "Il Nero ha asfissiato i pezzi bianchi con un forte vantaggio spaziale. ",
-        );
+        txt.write("${loc.evalBlackDominate} ");
       } else {
-        txt.write(
-          "Il Nero detiene un leggero controllo territoriale superiore. ",
-        );
+        txt.write("${loc.evalBlackSlightEdge} ");
       }
     }
 
-    // 3. BARICENTRO ED ESPANSIONE (Chi sta spingendo di più?)
+    // 3. BARICENTRO ED ESPANSIONE
     if (deltaExpansion != null) {
       if (deltaExpansion!.abs() < 0.2) {
-        txt.write("Il baricentro dei due schieramenti è simmetrico. ");
+        txt.write(
+          isIt
+              ? "Il baricentro dei due schieramenti è simmetrico. "
+              : "The center of gravity is symmetrical. ",
+        );
       } else if (deltaExpansion! > 0.5) {
         txt.write(
-          "Il Bianco è molto più espanso, tenendo i pezzi in ranghi avanzati. ",
+          isIt
+              ? "Il Bianco è molto più espanso, tenendo i pezzi avanzati. "
+              : "White is much more expanded. ",
         );
       } else if (deltaExpansion! < -0.5) {
         txt.write(
-          "Il Nero ha un fattore di espansione superiore e sta spingendo le linee. ",
+          isIt
+              ? "Il Nero ha un fattore di espansione superiore. "
+              : "Black has a higher expansion factor. ",
         );
       }
     }
 
-    // 4. DENSITÀ E COORDINAZIONE (Principio di Shashin sui pezzi a corto raggio)
+    // 4. DENSITÀ E COORDINAZIONE
     if (deltaK != null) {
       if (deltaK!.abs() <= 0.02) {
         txt.write(
-          "La densità di imballaggio (coordinazione dei pezzi a corto raggio) è bilanciata. ",
+          isIt
+              ? "La densità di imballaggio (coordinazione a corto raggio) è bilanciata. "
+              : "The packing density is perfectly balanced. ",
         );
       } else if (deltaK! > 0.05) {
         txt.write(
-          "Il Bianco ha pezzi a corto raggio (Cavalli/Pedoni) meglio raggruppati. ",
+          isIt
+              ? "Il Bianco ha pezzi a corto raggio meglio raggruppati. "
+              : "White has better grouped short-range pieces. ",
         );
       } else if (deltaK! < -0.05) {
-        txt.write("Il Nero ha una struttura più densa e compatta. ");
+        txt.write(
+          isIt
+              ? "Il Nero ha una struttura più densa e compatta. "
+              : "Black has a more compact structure. ",
+        );
       }
     }
 
-    // 5. VANTAGGI MATERIALI STATICI (Coppia degli Alfieri)
+    // 5. VANTAGGI MATERIALI STATICI
     if (hasBishopPairWhite && !hasBishopPairBlack) {
       txt.write(
-        "\nIl Bianco possiede il vantaggio a lungo termine della **coppia degli alfieri**. ",
+        isIt
+            ? "\nIl Bianco possiede il vantaggio della **coppia degli alfieri**. "
+            : "\nWhite holds the long-term advantage of the **bishop pair**. ",
       );
     } else if (hasBishopPairBlack && !hasBishopPairWhite) {
       txt.write(
-        "\nIl Nero detiene la **coppia degli alfieri**, un fattore chiave in posizioni aperte. ",
+        isIt
+            ? "\nIl Nero detiene la **coppia degli alfieri**. "
+            : "\nBlack holds the **bishop pair**, a key factor in open games. ",
       );
     }
 
-    // 6. PRINCIPIO DI MAKOGONOV (Il pezzo peggiore)
+    // 6. PRINCIPIO DI MAKOGONOV
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
     if (worst != null) {
-      txt.write(
-        "\nInfine, per il principio di Makogonov, l'unità che richiede l'urgenza maggiore di essere riattivata è **$worst**.",
-      );
+      txt.write("\n${loc.evalMakogonovWorst} **$worst**.");
     }
 
     return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
@@ -427,7 +443,7 @@ class CrossedEvalOrchestrator {
     }
     report.writeln("");
 
-    // 2. ANALISI PRE-MOSSA (Ora potentissima!)
+    // 2. ANALISI PRE-MOSSA
     report.writeln(loc.reportTitleStatic);
     report.writeln(
       "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",

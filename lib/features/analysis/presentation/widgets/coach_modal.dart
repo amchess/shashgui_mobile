@@ -47,9 +47,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Future<void> _startCoach() async {
     setState(() {
       _isRunning = true;
-      _logs.add("Avvio motore base (Alexander)...");
+      // ⚠️ Traduzione al volo basata sul contesto
+      _logs.add(
+        AppLocalizations.of(context)!.localeName == 'it'
+            ? "Avvio motore base (Alexander)..."
+            : "Starting base engine (Alexander)...",
+      );
     });
-
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;

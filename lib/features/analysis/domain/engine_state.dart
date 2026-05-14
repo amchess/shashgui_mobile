@@ -14,6 +14,8 @@ class EngineState {
   // ⚠️ CAMPI PER LE MINACCE RAFFINATE XAI
   final int? threatDrop;
   final Color? threatColor;
+  final int
+  currentBaseTimeMs; // ⚠️ NUOVO CAMPO: Tempo base per la coerenza del radar
 
   EngineState({
     this.isRunning = false,
@@ -24,6 +26,7 @@ class EngineState {
     this.threatMoveUci = "",
     this.threatDrop,
     this.threatColor,
+    this.currentBaseTimeMs = 1500, // ⚠️ Valore di default
   });
 
   // Il copyWith è fondamentale in Riverpod per aggiornare solo un pezzo dello stato
@@ -36,6 +39,7 @@ class EngineState {
     String? threatMoveUci,
     int? threatDrop,
     Color? threatColor,
+    int? currentBaseTimeMs, // ⚠️ AGGIUNTO
   }) {
     return EngineState(
       isRunning: isRunning ?? this.isRunning,
@@ -46,6 +50,8 @@ class EngineState {
       threatMoveUci: threatMoveUci ?? this.threatMoveUci,
       threatDrop: threatDrop ?? this.threatDrop,
       threatColor: threatColor ?? this.threatColor,
+      currentBaseTimeMs:
+          currentBaseTimeMs ?? this.currentBaseTimeMs, // ⚠️ AGGIUNTO
     );
   }
 }

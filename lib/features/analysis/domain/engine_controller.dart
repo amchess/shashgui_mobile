@@ -30,7 +30,13 @@ class EngineController extends StateNotifier<EngineState> {
     int baseTimeMs = 1500,
     String engineName = 'shashchess',
   }) async {
-    state = state.copyWith(isRunning: true, selectedEngine: engineName);
+    // ⚠️ Salva il tempo scelto dall'utente nello stato per usi futuri (es. Radar)
+    state = state.copyWith(
+      isRunning: true,
+      selectedEngine: engineName,
+      currentBaseTimeMs: baseTimeMs,
+    );
+
     try {
       // 1. Inizializza il motore se non esiste o se è cambiato
       if (_engineManager.engineOutput == null ||
@@ -91,67 +97,84 @@ class EngineController extends StateNotifier<EngineState> {
     }
   }
 
+  // ⚠️ NUOVO METODO: Per resettare il radar manualmente tramite il pulsante Toggle
+  void clearThreat() {
+    state = state.copyWith(threatMoveUci: "", threatDrop: 0);
+  }
+
   Future<void> scanThreats(String currentFen) async {
     if (!state.isRunning) return;
 
-    // 1. Ferma l'analisi attuale
     _fsm?.stop();
     _engineManager.sendCommand('stop');
 
-    // 2. Manipola la FEN per cedere il turno (Null Move)
+    // ====================================================================
+    // ⚠️ IL FIX DEFINITIVO: CONGELIAMO LA WP DELLA NOSTRA POSIZIONE!
+    // Siccome l'FSM continua ad ascoltare in background e a sporcare
+    // lo state.zone con i calcoli della mossa nulla, salviamo il dato qui.
+    // ====================================================================
+    final double frozenOurWp = state.zone.wp;
+
     List<String> fenParts = currentFen.split(' ');
-    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
-    fenParts[3] = '-'; // Rimuove catture en-passant
+    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w';
+    fenParts[3] = '-';
     String nullMoveFen = fenParts.join(' ');
 
-    // 3. Aspetta un istante per far pulire il buffer
+    _engineManager.sendCommand('setoption name ShashinMode value Normal');
+    _engineManager.sendCommand('setoption name UCI_LimitStrength value false');
+
     await Future.delayed(const Duration(milliseconds: 100));
     _engineManager.sendCommand('position fen $nullMoveFen');
-    _engineManager.sendCommand('go movetime 1500');
 
-    int? calcoloThreatDrop; // Variabile temporanea per immagazzinare il calo
+    // ⚠️ COERENZA TEMPORALE: Usiamo il tempo dell'analisi salvato nello stato
+    _engineManager.sendCommand('go movetime ${state.currentBaseTimeMs}');
+
+    int? calcoloThreatDrop;
 
     StreamSubscription<String>? threatSub;
     threatSub = _engineManager.engineOutput?.listen((line) {
-      // NUOVO: Ascoltiamo la valutazione della posizione durante la mossa nulla
-      final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
-      if (wdlMatch != null) {
-        int w = int.parse(wdlMatch.group(1)!);
-        int d = int.parse(wdlMatch.group(2)!);
-        int l = int.parse(wdlMatch.group(3)!);
+      if (line.contains("wdl") && line.contains("multipv 1")) {
+        final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
 
-        // Questa è la valutazione dal punto di vista dell'avversario
-        ShashinZone opponentZone = analyzeShashinZone(w, d, l);
+        if (wdlMatch != null) {
+          int w = int.parse(wdlMatch.group(1)!);
+          int d = int.parse(wdlMatch.group(2)!);
+          int l = int.parse(wdlMatch.group(3)!);
 
-        // La nostra WP aggiornata è speculare a quella dell'avversario
-        double ourNewWp = 100.0 - opponentZone.wp;
+          ShashinZone opponentNewZone = analyzeShashinZone(w, d, l);
 
-        // Calcoliamo di quante zone cadiamo rispetto a state.zone.wp attuale
-        calcoloThreatDrop = calculateZoneDrop(ourNewWp, state.zone.wp);
+          // ⚠️ USIAMO LA VARIABILE CONGELATA, IGNORIAMO LO STATO GLOBALE!
+          double opponentCurrentWp = 100.0 - frozenOurWp;
+
+          int currentZoneIndex = getZoneIndex(opponentCurrentWp);
+          int newZoneIndex = getZoneIndex(opponentNewZone.wp);
+
+          int jump = newZoneIndex - currentZoneIndex;
+
+          // NOTA: Se preferisci che i micro-scatti di 1 singola zona in apertura
+          // siano sempre considerati "Semplici Idee", cambia `jump > 0` con `jump > 1`.
+          calcoloThreatDrop = jump > 0 ? jump : 0;
+        }
       }
 
-      // QUANDO IL MOTORE SPUTA LA MINACCIA
       if (line.startsWith('bestmove')) {
         threatSub?.cancel();
         final parts = line.split(' ');
 
         if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
-          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa e il calo
           state = state.copyWith(
             threatMoveUci: parts[1],
-            threatDrop: calcoloThreatDrop ?? 0, // <-- SALVIAMO IL CALO QUI!
+            threatDrop: calcoloThreatDrop ?? 0,
           );
-
-          // Lascia la freccia visibile per 3 secondi, poi ripristina la normalità
-          Future.delayed(const Duration(seconds: 3), () {
-            if (state.isRunning) {
-              state = state.copyWith(threatMoveUci: "", threatDrop: 0);
-              analyzeCurrentPosition(currentFen);
-            }
-          });
+          // ⚠️ Rimosso il Future.delayed automatico!
+          // La freccia rossa e il banner rimarranno visibili finché non si clicca
+          // di nuovo il pulsante "Analisi" per fare lo switch back.
         } else {
-          // Nessuna minaccia trovata
-          analyzeCurrentPosition(currentFen);
+          // ⚠️ Se non c'è minaccia, riprende l'analisi normale usando il tempo corretto
+          analyzeCurrentPosition(
+            currentFen,
+            baseTimeMs: state.currentBaseTimeMs,
+          );
         }
       }
     });

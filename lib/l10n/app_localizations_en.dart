@@ -652,10 +652,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
 
   @override
-  String get shashinIdea => '💡 Simple Idea (No thermodynamic drop)';
+  String get shashinIdea => '💡 Simple strategic Idea';
 
   @override
-  String shashinThreat(int drop) {
-    return '🔥 THREAT! (Risk: drop of $drop zones)';
-  }
+  String get threatMild => '⚠️ Mild Threat';
+
+  @override
+  String get threatModerate => '🔥 Moderate Threat';
+
+  @override
+  String get threatSevere => '💀 SEVERE THREAT!';
 }

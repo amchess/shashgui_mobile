@@ -89,25 +89,45 @@ class EngineControls extends ConsumerWidget {
     final autoplayState = ref.watch(autoplayControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
     final loc = AppLocalizations.of(context)!;
+
     ref.listen<EngineState>(engineControllerProvider, (previous, next) {
       if (next.threatMoveUci.isNotEmpty &&
           previous?.threatMoveUci != next.threatMoveUci) {
         final int drop = next.threatDrop ?? 0;
-        final bool isLethal = drop >= 1;
+
+        String message;
+        Color bgColor;
+
+        // Scala cromatica e testuale delle minacce
+        if (drop >= 3) {
+          message = loc.threatSevere;
+          bgColor = Colors.red.shade900; // 💀 Minaccia letale: Rosso Scuro
+        } else if (drop == 2) {
+          message = loc.threatModerate;
+          bgColor = Colors
+              .deepOrange
+              .shade700; // 🔥 Minaccia media: Arancione scuro/Rosso
+        } else if (drop == 1) {
+          message = loc.threatMild;
+          bgColor = Colors.orange.shade800; // ⚠️ Minaccia lieve: Arancione
+        } else {
+          message = loc.shashinIdea;
+          bgColor = Colors
+              .blue
+              .shade700; // 💡 Semplice Idea: Blu (stacca nettamente dalle minacce)
+        }
 
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isLethal ? loc.shashinThreat(drop) : loc.shashinIdea,
+              message,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
-            backgroundColor: isLethal
-                ? Colors.red.shade800
-                : Colors.amber.shade800,
+            backgroundColor: bgColor,
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
           ),
@@ -386,11 +406,18 @@ class EngineControls extends ConsumerWidget {
                 },
               ),
 
-              // ⚠️ IL PULSANTE DELLE MINACCE RIPRISTINATO
+              // =========================================================
+              // ⚠️ PULSANTE RADAR MINACCE AGGIORNATO (LOGICA DI SWITCH)
+              // =========================================================
               _buildControlButton(
                 icon: Icons.crisis_alert,
-                color: Colors.redAccent,
-                label: loc.rilevaMinacce,
+                color: engineState.threatMoveUci.isNotEmpty
+                    ? Colors
+                          .orangeAccent // Colore quando la minaccia è visibile
+                    : Colors.redAccent, // Colore di default
+                label: engineState.threatMoveUci.isNotEmpty
+                    ? "Analisi" // Etichetta quando la minaccia è visibile
+                    : loc.rilevaMinacce, // Etichetta di default
                 onPressed: () {
                   if (!engineState.isRunning) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -403,35 +430,47 @@ class EngineControls extends ConsumerWidget {
                     return;
                   }
 
-                  if (boardController.game.in_check) {
+                  if (engineState.threatMoveUci.isNotEmpty) {
+                    // ⚠️ SWITCH BACK: Pulisce la minaccia e torna all'analisi normale
+                    ref.read(engineControllerProvider.notifier).clearThreat();
+                    ref
+                        .read(engineControllerProvider.notifier)
+                        .analyzeCurrentPosition(
+                          boardController.getFen(),
+                          baseTimeMs: engineState.currentBaseTimeMs,
+                        );
+                  } else {
+                    // ⚠️ AVVIO SCAN: Se non c'è minaccia, la cerca
+                    if (boardController.game.in_check) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(loc.impossibileAnalizzareLeMinacce),
+                        ),
+                      );
+                      return;
+                    }
+                    if (boardController.getFen().contains(
+                      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+                    )) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(loc.nessunaMinacciaAllaMossaInizia),
+                        ),
+                      );
+                      return;
+                    }
+
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(loc.impossibileAnalizzareLeMinacce),
+                      const SnackBar(
+                        content: Text("Scansione minacce in corso..."),
+                        duration: Duration(seconds: 1),
                       ),
                     );
-                    return;
-                  }
-                  if (boardController.getFen().contains(
-                    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
-                  )) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(loc.nessunaMinacciaAllaMossaInizia),
-                      ),
-                    );
-                    return;
-                  }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Scansione minacce in corso..."),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-
-                  ref
-                      .read(engineControllerProvider.notifier)
-                      .scanThreats(boardController.getFen());
+                    ref
+                        .read(engineControllerProvider.notifier)
+                        .scanThreats(boardController.getFen());
+                  }
                 },
               ),
 
@@ -473,9 +512,40 @@ class EngineControls extends ConsumerWidget {
                   }
                 },
               ),
-            ],
+
+              // ⬇️ INIZIO BLOCCO DA INCOLLARE QUI SOTTO ⬇️
+
+              // =========================================================
+              // BOTTONE COPIA PGN NEGLI APPUNTI
+              // =========================================================
+              _buildControlButton(
+                icon: Icons.copy,
+                color: Colors.cyanAccent, // Un colore diverso per spiccare
+                label: "Copia",
+                onPressed: () {
+                  // Genera il PGN della partita attualmente sulla scacchiera
+                  final currentPgn = boardController.game.pgn();
+                  ImportExportService.copyPgnToClipboard(context, currentPgn);
+                },
+              ),
+
+              // =========================================================
+              // BOTTONE CONDIVIDI / SALVA SU DRIVE
+              // =========================================================
+              _buildControlButton(
+                icon: Icons.share,
+                color: Colors.yellowAccent,
+                label: "Condividi",
+                onPressed: () {
+                  final currentPgn = boardController.game.pgn();
+                  ImportExportService.exportPgn(currentPgn);
+                },
+              ),
+
+              // ⬆️ FINE BLOCCO DA INCOLLARE ⬆️
+            ], // Fine dei children della Row
           ),
-        ),
+        ), // Fine FittedBox
       ),
     );
   }

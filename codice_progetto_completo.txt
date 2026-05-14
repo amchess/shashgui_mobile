@@ -802,7 +802,6 @@ class LiveBookOracle {
   // =========================================================================
   // ⚠️ LA NOSTRA FORMULA ESTRATTA (Ora testabile in totale isolamento!)
   // =========================================================================
-  @visibleForTesting
   static double calculateEffectiveWinProbability(
     int w,
     int d,
@@ -928,6 +927,7 @@ class LiveBookOracle {
 FILE: lib\core\logic\livebook_scanner.dart
 ================================================================================
 
+import 'livebook_oracle.dart';
 import 'dart:convert';
 import 'dart:math'; // ⚠️ FIX: SPOSTATO QUI IN CIMA!
 import 'package:http/http.dart' as http;
@@ -1254,17 +1254,19 @@ class LiveBookScanner {
             int w = move['white'] ?? 0;
             int d = move['draws'] ?? 0;
             int b = move['black'] ?? 0;
-            int total = w + d + b;
-            double freqPct = (total / globalTot) * 100.0;
 
-            if (total < 1 || (total / globalTot) < 0.005) continue;
+            // ⚠️ FIX: Usiamo la formula matematica pura e centralizzata dell'Oracolo!
+            double pEff = LiveBookOracle.calculateEffectiveWinProbability(
+              w,
+              d,
+              b,
+              globalTot,
+              isWhiteTurn,
+            );
 
-            double wpPura = isWhiteTurn
-                ? ((w + d / 2.0) / total) * 100.0
-                : ((b + d / 2.0) / total) * 100.0;
-            double pEff = (wpPura * 0.70) + (freqPct * 0.30);
+            // Il filtro anti-rumore dell'Oracolo restituisce -1.0 se la mossa è irrilevante
+            if (pEff < 0) continue;
 
-            // ⚠️ MIRACOLO LICHESS: Ci passa il SAN direttamente dal JSON!
             processedMoves.add({
               'uci': move['uci'],
               'san': move['san'] ?? move['uci'],
@@ -2278,7 +2280,6 @@ class CrossedEvalOrchestrator {
       final match = RegExp(
         "($targetColor) pieces \\(worst to best static activity\\):\\s*([A-Z]?)([a-h][1-8])\\((-?\\d+)\\)\\s*<-- Worst unit",
       ).firstMatch(line);
-
       if (match != null) {
         String pieceChar = match.group(2)!;
         String sq = match.group(3)!;
@@ -2303,7 +2304,11 @@ class CrossedEvalOrchestrator {
         }
       }
 
-      if (line.startsWith("*** Note: Static activity")) {
+      // ⚠️ FIX: Il marker finale infallibile per ShashChess!
+      if (line.startsWith(
+            "*** Note: Static activity analysis based on current piece placement ***",
+          ) ||
+          line.contains("Final Static Activity Evaluation")) {
         currentState = CrossedState.masterThinking;
         engineManager.sendCommand('go movetime $baseTimeMs');
       }
@@ -2379,10 +2384,8 @@ class CrossedEvalOrchestrator {
             "${translatePiece(makBlackMatch.group(1)!)} in ${makBlackMatch.group(2)!}";
       }
 
-      // Fine della traccia 'eval'
-      if (line.startsWith("Best move:") ||
-          line.contains("Final static evaluation") ||
-          line.startsWith("*** Note:")) {
+      // ⚠️ FIX: Il marker finale infallibile per Alexander!
+      if (line.startsWith("Best move:")) {
         currentState = CrossedState.baseEval;
         onLog(loc.logCalcThermodynamicZone);
         engineManager.sendCommand('go movetime $baseTimeMs');
@@ -2465,14 +2468,17 @@ class CrossedEvalOrchestrator {
     }
   }
 
-  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) ARRICCHITO
+  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) COMPLETAMENTE BILINGUE
   String _generateStaticAnalysisText() {
     StringBuffer txt = StringBuffer();
+    bool isIt = loc.localeName == 'it'; // Rileva la lingua corrente
 
     // 1. TIPO DI CENTRO
     if (centerType != null && centerType!.isNotEmpty) {
       txt.write(
-        "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. ",
+        isIt
+            ? "La struttura centrale determina il piano di gioco: abbiamo un **$centerType**. "
+            : "The central structure dictates the plan: we have a **$centerType**. ",
       );
     }
 
@@ -2480,71 +2486,83 @@ class CrossedEvalOrchestrator {
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
       if (diff == 0) {
-        txt.write(
-          "Lo spazio controllato è in **perfetto equilibrio** ($spaceWhite a $spaceBlack). ",
-        );
+        txt.write("${loc.evalSpaceBalanced} ($spaceWhite - $spaceBlack). ");
       } else if (diff >= 4) {
-        txt.write("Il Bianco gode di un netto dominio territoriale. ");
+        txt.write("${loc.evalWhiteDominate} ");
       } else if (diff >= 1) {
-        txt.write("Il Bianco possiede un lieve vantaggio di spazio. ");
+        txt.write("${loc.evalWhiteSlightEdge} ");
       } else if (diff <= -4) {
-        txt.write(
-          "Il Nero ha asfissiato i pezzi bianchi con un forte vantaggio spaziale. ",
-        );
+        txt.write("${loc.evalBlackDominate} ");
       } else {
-        txt.write(
-          "Il Nero detiene un leggero controllo territoriale superiore. ",
-        );
+        txt.write("${loc.evalBlackSlightEdge} ");
       }
     }
 
-    // 3. BARICENTRO ED ESPANSIONE (Chi sta spingendo di più?)
+    // 3. BARICENTRO ED ESPANSIONE
     if (deltaExpansion != null) {
       if (deltaExpansion!.abs() < 0.2) {
-        txt.write("Il baricentro dei due schieramenti è simmetrico. ");
+        txt.write(
+          isIt
+              ? "Il baricentro dei due schieramenti è simmetrico. "
+              : "The center of gravity is symmetrical. ",
+        );
       } else if (deltaExpansion! > 0.5) {
         txt.write(
-          "Il Bianco è molto più espanso, tenendo i pezzi in ranghi avanzati. ",
+          isIt
+              ? "Il Bianco è molto più espanso, tenendo i pezzi avanzati. "
+              : "White is much more expanded. ",
         );
       } else if (deltaExpansion! < -0.5) {
         txt.write(
-          "Il Nero ha un fattore di espansione superiore e sta spingendo le linee. ",
+          isIt
+              ? "Il Nero ha un fattore di espansione superiore. "
+              : "Black has a higher expansion factor. ",
         );
       }
     }
 
-    // 4. DENSITÀ E COORDINAZIONE (Principio di Shashin sui pezzi a corto raggio)
+    // 4. DENSITÀ E COORDINAZIONE
     if (deltaK != null) {
       if (deltaK!.abs() <= 0.02) {
         txt.write(
-          "La densità di imballaggio (coordinazione dei pezzi a corto raggio) è bilanciata. ",
+          isIt
+              ? "La densità di imballaggio (coordinazione a corto raggio) è bilanciata. "
+              : "The packing density is perfectly balanced. ",
         );
       } else if (deltaK! > 0.05) {
         txt.write(
-          "Il Bianco ha pezzi a corto raggio (Cavalli/Pedoni) meglio raggruppati. ",
+          isIt
+              ? "Il Bianco ha pezzi a corto raggio meglio raggruppati. "
+              : "White has better grouped short-range pieces. ",
         );
       } else if (deltaK! < -0.05) {
-        txt.write("Il Nero ha una struttura più densa e compatta. ");
+        txt.write(
+          isIt
+              ? "Il Nero ha una struttura più densa e compatta. "
+              : "Black has a more compact structure. ",
+        );
       }
     }
 
-    // 5. VANTAGGI MATERIALI STATICI (Coppia degli Alfieri)
+    // 5. VANTAGGI MATERIALI STATICI
     if (hasBishopPairWhite && !hasBishopPairBlack) {
       txt.write(
-        "\nIl Bianco possiede il vantaggio a lungo termine della **coppia degli alfieri**. ",
+        isIt
+            ? "\nIl Bianco possiede il vantaggio della **coppia degli alfieri**. "
+            : "\nWhite holds the long-term advantage of the **bishop pair**. ",
       );
     } else if (hasBishopPairBlack && !hasBishopPairWhite) {
       txt.write(
-        "\nIl Nero detiene la **coppia degli alfieri**, un fattore chiave in posizioni aperte. ",
+        isIt
+            ? "\nIl Nero detiene la **coppia degli alfieri**. "
+            : "\nBlack holds the **bishop pair**, a key factor in open games. ",
       );
     }
 
-    // 6. PRINCIPIO DI MAKOGONOV (Il pezzo peggiore)
+    // 6. PRINCIPIO DI MAKOGONOV
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
     if (worst != null) {
-      txt.write(
-        "\nInfine, per il principio di Makogonov, l'unità che richiede l'urgenza maggiore di essere riattivata è **$worst**.",
-      );
+      txt.write("\n${loc.evalMakogonovWorst} **$worst**.");
     }
 
     return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
@@ -2574,7 +2592,7 @@ class CrossedEvalOrchestrator {
     }
     report.writeln("");
 
-    // 2. ANALISI PRE-MOSSA (Ora potentissima!)
+    // 2. ANALISI PRE-MOSSA
     report.writeln(loc.reportTitleStatic);
     report.writeln(
       "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
@@ -3164,12 +3182,19 @@ class ShashinFsm {
 FILE: lib\core\services\import_export_service.dart
 ================================================================================
 
+// ignore_for_file: deprecated_member_use
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Per la Clipboard
+import 'package:share_plus/share_plus.dart'; // Per la condivisione
 import 'dart:io';
 
 class ImportExportService {
-  // Ritorna il contenuto del file sotto forma di stringa
+  // ===========================================================================
+  // 1. IMPORTAZIONE (Il tuo codice originale intatto)
+  // ===========================================================================
+
   Future<String?> pickAndReadFile() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -3195,30 +3220,24 @@ class ImportExportService {
       final pathSegments = uri.pathSegments;
       final lastSegment = pathSegments.last;
 
-      // Tentativo 1: endpoint sperimentale (se mai funzionerà)
       final testUrl = "$cleanUrl.pgn";
       var response = await http.get(Uri.parse(testUrl));
       if (response.statusCode == 200 && response.body.contains('[Event')) {
         return response.body;
       }
 
-      // Tentativo 2: estrarre l'ID del round e scaricare tutto il round
-      // Pattern: .../round-1/{roundId}/{gameId}
       final roundIndex = pathSegments.indexWhere((s) => s.startsWith('round-'));
       if (roundIndex != -1 && roundIndex + 1 < pathSegments.length) {
         final roundId = pathSegments[roundIndex + 1];
         final roundUrl = "https://lichess.org/api/broadcast/round/$roundId.pgn";
         response = await http.get(Uri.parse(roundUrl));
         if (response.statusCode == 200 && response.body.isNotEmpty) {
-          // Normalizza i newline (Windows -> Unix) per facilitare il parsing
           String normalizedPgn = response.body.replaceAll('\r\n', '\n');
-          // Estrai la partita specifica dal PGN del round
           final gamePgn = _extractGameFromPgn(normalizedPgn, lastSegment);
           if (gamePgn != null) return gamePgn;
         }
       }
 
-      // Se nessun tentativo ha funzionato
       throw Exception('Broadcast game not found: $lastSegment');
     }
 
@@ -3238,18 +3257,46 @@ class ImportExportService {
     }
   }
 
-  // Helper per estrarre una partita dal PGN completo del round
   String? _extractGameFromPgn(String fullPgn, String gameId) {
-    // ⚠️ FIX: Usa una Lookahead Regex. Taglia il testo ESATTAMENTE prima di ogni
-    // "[Event " senza rompere i doppi a capo interni alle mosse.
     final games = fullPgn.split(RegExp(r'\n*(?=\[Event )'));
-
     for (final game in games) {
       if (game.contains(gameId)) {
         return game.trim();
       }
     }
     return null;
+  }
+
+  // ===========================================================================
+  // 2. ESPORTAZIONE E CLIPBOARD (Le nuove aggiunte)
+  // ===========================================================================
+
+  static Future<void> copyPgnToClipboard(
+    BuildContext context,
+    String pgn,
+  ) async {
+    if (pgn.isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: pgn));
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          "PGN copiato negli appunti! 📋",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  static Future<void> exportPgn(String pgn) async {
+    if (pgn.isEmpty) return;
+
+    await Share.share(pgn, subject: 'Partita esportata da ShashGui Mobile');
   }
 }
 
@@ -4031,7 +4078,13 @@ class EngineController extends StateNotifier<EngineState> {
     int baseTimeMs = 1500,
     String engineName = 'shashchess',
   }) async {
-    state = state.copyWith(isRunning: true, selectedEngine: engineName);
+    // ⚠️ Salva il tempo scelto dall'utente nello stato per usi futuri (es. Radar)
+    state = state.copyWith(
+      isRunning: true,
+      selectedEngine: engineName,
+      currentBaseTimeMs: baseTimeMs,
+    );
+
     try {
       // 1. Inizializza il motore se non esiste o se è cambiato
       if (_engineManager.engineOutput == null ||
@@ -4092,49 +4145,84 @@ class EngineController extends StateNotifier<EngineState> {
     }
   }
 
-  // ⚠️ LA FUNZIONE RIPRISTINATA: IL RADAR DELLE MINACCE!
+  // ⚠️ NUOVO METODO: Per resettare il radar manualmente tramite il pulsante Toggle
+  void clearThreat() {
+    state = state.copyWith(threatMoveUci: "", threatDrop: 0);
+  }
+
   Future<void> scanThreats(String currentFen) async {
     if (!state.isRunning) return;
 
-    // 1. Ferma l'analisi attuale
     _fsm?.stop();
     _engineManager.sendCommand('stop');
 
-    // 2. Manipola la FEN per cedere il turno (Null Move)
+    // ====================================================================
+    // ⚠️ IL FIX DEFINITIVO: CONGELIAMO LA WP DELLA NOSTRA POSIZIONE!
+    // Siccome l'FSM continua ad ascoltare in background e a sporcare
+    // lo state.zone con i calcoli della mossa nulla, salviamo il dato qui.
+    // ====================================================================
+    final double frozenOurWp = state.zone.wp;
+
     List<String> fenParts = currentFen.split(' ');
-    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w'; // Inverte turno
-    fenParts[3] =
-        '-'; // Rimuove eventuali catture en-passant (per evitare FEN illegali)
+    fenParts[1] = (fenParts[1] == 'w') ? 'b' : 'w';
+    fenParts[3] = '-';
     String nullMoveFen = fenParts.join(' ');
 
-    // 3. Aspetta un istante per far pulire il buffer al motore
-    await Future.delayed(const Duration(milliseconds: 100));
+    _engineManager.sendCommand('setoption name ShashinMode value Normal');
+    _engineManager.sendCommand('setoption name UCI_LimitStrength value false');
 
+    await Future.delayed(const Duration(milliseconds: 100));
     _engineManager.sendCommand('position fen $nullMoveFen');
-    _engineManager.sendCommand(
-      'go movetime 1500',
-    ); // 1 secondo e mezzo basta per le minacce dirette
+
+    // ⚠️ COERENZA TEMPORALE: Usiamo il tempo dell'analisi salvato nello stato
+    _engineManager.sendCommand('go movetime ${state.currentBaseTimeMs}');
+
+    int? calcoloThreatDrop;
 
     StreamSubscription<String>? threatSub;
     threatSub = _engineManager.engineOutput?.listen((line) {
+      if (line.contains("wdl") && line.contains("multipv 1")) {
+        final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
+
+        if (wdlMatch != null) {
+          int w = int.parse(wdlMatch.group(1)!);
+          int d = int.parse(wdlMatch.group(2)!);
+          int l = int.parse(wdlMatch.group(3)!);
+
+          ShashinZone opponentNewZone = analyzeShashinZone(w, d, l);
+
+          // ⚠️ USIAMO LA VARIABILE CONGELATA, IGNORIAMO LO STATO GLOBALE!
+          double opponentCurrentWp = 100.0 - frozenOurWp;
+
+          int currentZoneIndex = getZoneIndex(opponentCurrentWp);
+          int newZoneIndex = getZoneIndex(opponentNewZone.wp);
+
+          int jump = newZoneIndex - currentZoneIndex;
+
+          // NOTA: Se preferisci che i micro-scatti di 1 singola zona in apertura
+          // siano sempre considerati "Semplici Idee", cambia `jump > 0` con `jump > 1`.
+          calcoloThreatDrop = jump > 0 ? jump : 0;
+        }
+      }
+
       if (line.startsWith('bestmove')) {
         threatSub?.cancel();
         final parts = line.split(' ');
 
         if (parts.length > 1 && parts[1] != '(none)' && parts[1] != '0000') {
-          // Ha trovato una minaccia! Aggiorna lo stato globale con la mossa
-          state = state.copyWith(threatMoveUci: parts[1]);
-
-          // Lascia la freccia visibile per 3 secondi, poi ripristina la normalità
-          Future.delayed(const Duration(seconds: 3), () {
-            if (state.isRunning) {
-              state = state.copyWith(threatMoveUci: "");
-              analyzeCurrentPosition(currentFen);
-            }
-          });
+          state = state.copyWith(
+            threatMoveUci: parts[1],
+            threatDrop: calcoloThreatDrop ?? 0,
+          );
+          // ⚠️ Rimosso il Future.delayed automatico!
+          // La freccia rossa e il banner rimarranno visibili finché non si clicca
+          // di nuovo il pulsante "Analisi" per fare lo switch back.
         } else {
-          // Nessuna minaccia trovata, ripristina subito l'analisi normale
-          analyzeCurrentPosition(currentFen);
+          // ⚠️ Se non c'è minaccia, riprende l'analisi normale usando il tempo corretto
+          analyzeCurrentPosition(
+            currentFen,
+            baseTimeMs: state.currentBaseTimeMs,
+          );
         }
       }
     });
@@ -4182,6 +4270,8 @@ class EngineState {
   // ⚠️ CAMPI PER LE MINACCE RAFFINATE XAI
   final int? threatDrop;
   final Color? threatColor;
+  final int
+  currentBaseTimeMs; // ⚠️ NUOVO CAMPO: Tempo base per la coerenza del radar
 
   EngineState({
     this.isRunning = false,
@@ -4192,6 +4282,7 @@ class EngineState {
     this.threatMoveUci = "",
     this.threatDrop,
     this.threatColor,
+    this.currentBaseTimeMs = 1500, // ⚠️ Valore di default
   });
 
   // Il copyWith è fondamentale in Riverpod per aggiornare solo un pezzo dello stato
@@ -4204,6 +4295,7 @@ class EngineState {
     String? threatMoveUci,
     int? threatDrop,
     Color? threatColor,
+    int? currentBaseTimeMs, // ⚠️ AGGIUNTO
   }) {
     return EngineState(
       isRunning: isRunning ?? this.isRunning,
@@ -4214,6 +4306,8 @@ class EngineState {
       threatMoveUci: threatMoveUci ?? this.threatMoveUci,
       threatDrop: threatDrop ?? this.threatDrop,
       threatColor: threatColor ?? this.threatColor,
+      currentBaseTimeMs:
+          currentBaseTimeMs ?? this.currentBaseTimeMs, // ⚠️ AGGIUNTO
     );
   }
 }
@@ -5679,9 +5773,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Future<void> _startCoach() async {
     setState(() {
       _isRunning = true;
-      _logs.add("Avvio motore base (Alexander)...");
+      // ⚠️ Traduzione al volo basata sul contesto
+      _logs.add(
+        AppLocalizations.of(context)!.localeName == 'it'
+            ? "Avvio motore base (Alexander)..."
+            : "Starting base engine (Alexander)...",
+      );
     });
-
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;
@@ -5966,25 +6064,45 @@ class EngineControls extends ConsumerWidget {
     final autoplayState = ref.watch(autoplayControllerProvider);
     final boardController = ref.watch(boardControllerProvider);
     final loc = AppLocalizations.of(context)!;
+
     ref.listen<EngineState>(engineControllerProvider, (previous, next) {
       if (next.threatMoveUci.isNotEmpty &&
           previous?.threatMoveUci != next.threatMoveUci) {
         final int drop = next.threatDrop ?? 0;
-        final bool isLethal = drop >= 1;
+
+        String message;
+        Color bgColor;
+
+        // Scala cromatica e testuale delle minacce
+        if (drop >= 3) {
+          message = loc.threatSevere;
+          bgColor = Colors.red.shade900; // 💀 Minaccia letale: Rosso Scuro
+        } else if (drop == 2) {
+          message = loc.threatModerate;
+          bgColor = Colors
+              .deepOrange
+              .shade700; // 🔥 Minaccia media: Arancione scuro/Rosso
+        } else if (drop == 1) {
+          message = loc.threatMild;
+          bgColor = Colors.orange.shade800; // ⚠️ Minaccia lieve: Arancione
+        } else {
+          message = loc.shashinIdea;
+          bgColor = Colors
+              .blue
+              .shade700; // 💡 Semplice Idea: Blu (stacca nettamente dalle minacce)
+        }
 
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isLethal ? loc.shashinThreat(drop) : loc.shashinIdea,
+              message,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
-            backgroundColor: isLethal
-                ? Colors.red.shade800
-                : Colors.amber.shade800,
+            backgroundColor: bgColor,
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
           ),
@@ -6263,11 +6381,18 @@ class EngineControls extends ConsumerWidget {
                 },
               ),
 
-              // ⚠️ IL PULSANTE DELLE MINACCE RIPRISTINATO
+              // =========================================================
+              // ⚠️ PULSANTE RADAR MINACCE AGGIORNATO (LOGICA DI SWITCH)
+              // =========================================================
               _buildControlButton(
                 icon: Icons.crisis_alert,
-                color: Colors.redAccent,
-                label: loc.rilevaMinacce,
+                color: engineState.threatMoveUci.isNotEmpty
+                    ? Colors
+                          .orangeAccent // Colore quando la minaccia è visibile
+                    : Colors.redAccent, // Colore di default
+                label: engineState.threatMoveUci.isNotEmpty
+                    ? "Analisi" // Etichetta quando la minaccia è visibile
+                    : loc.rilevaMinacce, // Etichetta di default
                 onPressed: () {
                   if (!engineState.isRunning) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -6280,35 +6405,47 @@ class EngineControls extends ConsumerWidget {
                     return;
                   }
 
-                  if (boardController.game.in_check) {
+                  if (engineState.threatMoveUci.isNotEmpty) {
+                    // ⚠️ SWITCH BACK: Pulisce la minaccia e torna all'analisi normale
+                    ref.read(engineControllerProvider.notifier).clearThreat();
+                    ref
+                        .read(engineControllerProvider.notifier)
+                        .analyzeCurrentPosition(
+                          boardController.getFen(),
+                          baseTimeMs: engineState.currentBaseTimeMs,
+                        );
+                  } else {
+                    // ⚠️ AVVIO SCAN: Se non c'è minaccia, la cerca
+                    if (boardController.game.in_check) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(loc.impossibileAnalizzareLeMinacce),
+                        ),
+                      );
+                      return;
+                    }
+                    if (boardController.getFen().contains(
+                      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+                    )) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(loc.nessunaMinacciaAllaMossaInizia),
+                        ),
+                      );
+                      return;
+                    }
+
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(loc.impossibileAnalizzareLeMinacce),
+                      const SnackBar(
+                        content: Text("Scansione minacce in corso..."),
+                        duration: Duration(seconds: 1),
                       ),
                     );
-                    return;
-                  }
-                  if (boardController.getFen().contains(
-                    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
-                  )) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(loc.nessunaMinacciaAllaMossaInizia),
-                      ),
-                    );
-                    return;
-                  }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Scansione minacce in corso..."),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-
-                  ref
-                      .read(engineControllerProvider.notifier)
-                      .scanThreats(boardController.getFen());
+                    ref
+                        .read(engineControllerProvider.notifier)
+                        .scanThreats(boardController.getFen());
+                  }
                 },
               ),
 
@@ -6350,9 +6487,40 @@ class EngineControls extends ConsumerWidget {
                   }
                 },
               ),
-            ],
+
+              // ⬇️ INIZIO BLOCCO DA INCOLLARE QUI SOTTO ⬇️
+
+              // =========================================================
+              // BOTTONE COPIA PGN NEGLI APPUNTI
+              // =========================================================
+              _buildControlButton(
+                icon: Icons.copy,
+                color: Colors.cyanAccent, // Un colore diverso per spiccare
+                label: "Copia",
+                onPressed: () {
+                  // Genera il PGN della partita attualmente sulla scacchiera
+                  final currentPgn = boardController.game.pgn();
+                  ImportExportService.copyPgnToClipboard(context, currentPgn);
+                },
+              ),
+
+              // =========================================================
+              // BOTTONE CONDIVIDI / SALVA SU DRIVE
+              // =========================================================
+              _buildControlButton(
+                icon: Icons.share,
+                color: Colors.yellowAccent,
+                label: "Condividi",
+                onPressed: () {
+                  final currentPgn = boardController.game.pgn();
+                  ImportExportService.exportPgn(currentPgn);
+                },
+              ),
+
+              // ⬆️ FINE BLOCCO DA INCOLLARE ⬆️
+            ], // Fine dei children della Row
           ),
-        ),
+        ), // Fine FittedBox
       ),
     );
   }
@@ -9868,17 +10036,29 @@ abstract class AppLocalizations {
   /// **'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.'**
   String get featureSqlDesc;
 
-  /// Messaggio mostrato quando la Null Move rileva un'idea senza calo termodinamico
+  /// Messaggio per una mossa che non altera la zona termodinamica
   ///
   /// In it, this message translates to:
-  /// **'💡 Semplice Idea (Nessun calo termodinamico)'**
+  /// **'💡 Semplice Idea strategica'**
   String get shashinIdea;
 
-  /// Messaggio mostrato quando la Null Move rileva una minaccia letale
+  /// Messaggio per un calo di 1 zona
   ///
   /// In it, this message translates to:
-  /// **'🔥 MINACCIA! (Rischio: crollo di {drop} zone)'**
-  String shashinThreat(int drop);
+  /// **'⚠️ Minaccia Lieve'**
+  String get threatMild;
+
+  /// Messaggio per un calo di 2 zone
+  ///
+  /// In it, this message translates to:
+  /// **'🔥 Minaccia Moderata'**
+  String get threatModerate;
+
+  /// Messaggio per un calo di 3 o più zone
+  ///
+  /// In it, this message translates to:
+  /// **'💀 MINACCIA GRAVE!'**
+  String get threatSevere;
 }
 
 class _AppLocalizationsDelegate
@@ -10575,12 +10755,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
 
   @override
-  String get shashinIdea => '💡 Simple Idea (No thermodynamic drop)';
+  String get shashinIdea => '💡 Simple strategic Idea';
 
   @override
-  String shashinThreat(int drop) {
-    return '🔥 THREAT! (Risk: drop of $drop zones)';
-  }
+  String get threatMild => '⚠️ Mild Threat';
+
+  @override
+  String get threatModerate => '🔥 Moderate Threat';
+
+  @override
+  String get threatSevere => '💀 SEVERE THREAT!';
 }
 
 
@@ -11246,12 +11430,16 @@ class AppLocalizationsIt extends AppLocalizations {
       'Motore di ricerca database rivoluzionario. Usa query SQL per filtrare partite per pattern: \'Mostrami tutte le partite in Zona Tal con densità K > 0.5\'.';
 
   @override
-  String get shashinIdea => '💡 Semplice Idea (Nessun calo termodinamico)';
+  String get shashinIdea => '💡 Semplice Idea strategica';
 
   @override
-  String shashinThreat(int drop) {
-    return '🔥 MINACCIA! (Rischio: crollo di $drop zone)';
-  }
+  String get threatMild => '⚠️ Minaccia Lieve';
+
+  @override
+  String get threatModerate => '🔥 Minaccia Moderata';
+
+  @override
+  String get threatSevere => '💀 MINACCIA GRAVE!';
 }
 
 

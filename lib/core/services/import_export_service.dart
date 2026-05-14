@@ -1,9 +1,16 @@
+// ignore_for_file: deprecated_member_use
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Per la Clipboard
+import 'package:share_plus/share_plus.dart'; // Per la condivisione
 import 'dart:io';
 
 class ImportExportService {
-  // Ritorna il contenuto del file sotto forma di stringa
+  // ===========================================================================
+  // 1. IMPORTAZIONE (Il tuo codice originale intatto)
+  // ===========================================================================
+
   Future<String?> pickAndReadFile() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -29,30 +36,24 @@ class ImportExportService {
       final pathSegments = uri.pathSegments;
       final lastSegment = pathSegments.last;
 
-      // Tentativo 1: endpoint sperimentale (se mai funzionerà)
       final testUrl = "$cleanUrl.pgn";
       var response = await http.get(Uri.parse(testUrl));
       if (response.statusCode == 200 && response.body.contains('[Event')) {
         return response.body;
       }
 
-      // Tentativo 2: estrarre l'ID del round e scaricare tutto il round
-      // Pattern: .../round-1/{roundId}/{gameId}
       final roundIndex = pathSegments.indexWhere((s) => s.startsWith('round-'));
       if (roundIndex != -1 && roundIndex + 1 < pathSegments.length) {
         final roundId = pathSegments[roundIndex + 1];
         final roundUrl = "https://lichess.org/api/broadcast/round/$roundId.pgn";
         response = await http.get(Uri.parse(roundUrl));
         if (response.statusCode == 200 && response.body.isNotEmpty) {
-          // Normalizza i newline (Windows -> Unix) per facilitare il parsing
           String normalizedPgn = response.body.replaceAll('\r\n', '\n');
-          // Estrai la partita specifica dal PGN del round
           final gamePgn = _extractGameFromPgn(normalizedPgn, lastSegment);
           if (gamePgn != null) return gamePgn;
         }
       }
 
-      // Se nessun tentativo ha funzionato
       throw Exception('Broadcast game not found: $lastSegment');
     }
 
@@ -72,17 +73,45 @@ class ImportExportService {
     }
   }
 
-  // Helper per estrarre una partita dal PGN completo del round
   String? _extractGameFromPgn(String fullPgn, String gameId) {
-    // ⚠️ FIX: Usa una Lookahead Regex. Taglia il testo ESATTAMENTE prima di ogni
-    // "[Event " senza rompere i doppi a capo interni alle mosse.
     final games = fullPgn.split(RegExp(r'\n*(?=\[Event )'));
-
     for (final game in games) {
       if (game.contains(gameId)) {
         return game.trim();
       }
     }
     return null;
+  }
+
+  // ===========================================================================
+  // 2. ESPORTAZIONE E CLIPBOARD (Le nuove aggiunte)
+  // ===========================================================================
+
+  static Future<void> copyPgnToClipboard(
+    BuildContext context,
+    String pgn,
+  ) async {
+    if (pgn.isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: pgn));
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          "PGN copiato negli appunti! 📋",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  static Future<void> exportPgn(String pgn) async {
+    if (pgn.isEmpty) return;
+
+    await Share.share(pgn, subject: 'Partita esportata da ShashGui Mobile');
   }
 }

@@ -450,20 +450,20 @@
   "@featureSqlDesc": {
     "description": "Descrizione della feature SQL"
   },
-"shashinIdea": "💡 Semplice Idea (Nessun calo termodinamico)",
+  "shashinIdea": "💡 Semplice Idea strategica",
   "@shashinIdea": {
-    "description": "Messaggio mostrato quando la Null Move rileva un'idea senza calo termodinamico"
+    "description": "Messaggio per una mossa che non altera la zona termodinamica"
   },
-  
-  "shashinThreat": "🔥 MINACCIA! (Rischio: crollo di {drop} zone)",
-  "@shashinThreat": {
-    "description": "Messaggio mostrato quando la Null Move rileva una minaccia letale",
-    "placeholders": {
-      "drop": {
-        "type": "int",
-        "example": "2",
-        "description": "Il numero di zone termodinamiche perse"
-      }
-    }
-  }  
+  "threatMild": "⚠️ Minaccia Lieve",
+  "@threatMild": {
+    "description": "Messaggio per un calo di 1 zona"
+  },
+  "threatModerate": "🔥 Minaccia Moderata",
+  "@threatModerate": {
+    "description": "Messaggio per un calo di 2 zone"
+  },
+  "threatSevere": "💀 MINACCIA GRAVE!",
+  "@threatSevere": {
+    "description": "Messaggio per un calo di 3 o più zone"
+  }
 }
