@@ -739,8 +739,9 @@ class EngineManager {
         // Inviando una stringa di errore nello stream di output, la Macchina a Stati (FSM)
         // e gli Orchestratori lo leggeranno e lo stamperanno automaticamente
         // nei Log dell'interfaccia utente (UI)!
+        // ⚠️ FIX P6: Aggiunto tag ENGINE_FATAL
         _outputController?.add(
-          "ERRORE DI SISTEMA: Connessione col motore interrotta inaspettatamente.",
+          "ENGINE_FATAL: Connessione col motore interrotta inaspettatamente.",
         );
 
         // 3. Forziamo la pulizia
@@ -1330,7 +1331,7 @@ class LiveBookScanner {
 // ⚠️ HELPER PUBBLICO PER L'ORACOLO (Testabile in isolamento con injection)
 // =========================================================================
 class OracleRoulette {
-  @visibleForTesting
+  // ⚠️ FIX LINTER: Rimossa l'annotazione @visibleForTesting che bloccava gli orchestratori!
   static String? spin(List<LiveBookMove> moves, {double? testRandomVal}) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||
@@ -1397,8 +1398,17 @@ class ShashinZone {
   final Color color;
   final double wp; // La percentuale esatta (0.0 - 100.0)
   final List<String> avatars; // Quale faccina mostrare (ora supporta array)
+  final String
+  shashinMode; // ⚠️ FIX P4: Il parametro UCI integrato nell'oggetto!
 
-  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatars);
+  ShashinZone(
+    this.name,
+    this.symbol,
+    this.color,
+    this.wp,
+    this.avatars, {
+    this.shashinMode = "Normal", // Default "Normal"
+  });
 }
 
 /// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
@@ -1454,6 +1464,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.purple,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
 
@@ -1465,6 +1476,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orangeAccent,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt == 75) {
@@ -1474,12 +1486,20 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.tealAccent,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
 
   // Zone PETROSIAN (Rosso/Arancio)
   if (wpInt >= 0 && wpInt <= 5) {
-    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatars);
+    return ShashinZone(
+      "High Petrosian",
+      "-+",
+      Colors.red,
+      wpDouble,
+      avatars,
+      shashinMode: "Petrosian",
+    );
   }
   if (wpInt >= 6 && wpInt <= 10) {
     return ShashinZone(
@@ -1488,6 +1508,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.deepOrange,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 11 && wpInt <= 15) {
@@ -1497,6 +1518,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orange,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 16 && wpInt <= 20) {
@@ -1506,10 +1528,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orangeAccent,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 21 && wpInt <= 24) {
-    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatars);
+    return ShashinZone(
+      "Low Petrosian",
+      "=/+",
+      Colors.amber,
+      wpDouble,
+      avatars,
+      shashinMode: "Petrosian",
+    );
   }
   if (wpInt >= 25 && wpInt <= 49) {
     return ShashinZone(
@@ -1518,12 +1548,20 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.purpleAccent,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
 
   // Zona CAPABLANCA (Blu)
   if (wpInt == 50) {
-    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatars);
+    return ShashinZone(
+      "Capablanca",
+      "=",
+      Colors.blue,
+      wpDouble,
+      avatars,
+      shashinMode: "Capablanca",
+    );
   }
 
   // Zone TAL (Verde)
@@ -1534,10 +1572,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.teal,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
   if (wpInt >= 76 && wpInt <= 79) {
-    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatars);
+    return ShashinZone(
+      "Low Tal",
+      "+/=",
+      Colors.lightGreen,
+      wpDouble,
+      avatars,
+      shashinMode: "Tal",
+    );
   }
   if (wpInt >= 80 && wpInt <= 84) {
     return ShashinZone(
@@ -1546,6 +1592,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
   if (wpInt >= 85 && wpInt <= 89) {
@@ -1555,6 +1602,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green[700]!,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
   if (wpInt >= 90 && wpInt <= 94) {
@@ -1564,10 +1612,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green[800]!,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
 
-  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
+  return ShashinZone(
+    "High Tal",
+    "+-",
+    Colors.green[900]!,
+    wpDouble,
+    avatars,
+    shashinMode: "Tal",
+  );
 }
 
 // =========================================================================
@@ -1604,7 +1660,6 @@ FILE: lib\core\orchestrators\autoplay_orchestrator.dart
 
 // lib/core/orchestrators/autoplay_orchestrator.dart
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
@@ -1736,7 +1791,10 @@ class AutoplayOrchestrator {
           [],
           isNeural,
         );
-        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        // ⚠️ FIX P2: Usiamo la funzione pubblica testata invece del vecchio doppione locale
+        String? chosenUci = OracleRoulette.spin(result.moves);
+
         if (chosenUci != null) {
           onLog("📖 Il $colorName gioca dal LiveBook!");
           _executeMoveOnBoard(chosenUci, fromBook: true);
@@ -2078,58 +2136,6 @@ class AutoplayOrchestrator {
 
   void dispose() {
     stop();
-  }
-
-  String? _applyOracleRoulette(List<LiveBookMove> moves) {
-    if (moves.isEmpty ||
-        moves.first.move == "-" ||
-        moves.first.move.contains(".")) {
-      return null;
-    }
-
-    List<Map<String, dynamic>> parsedMoves = [];
-    for (var m in moves) {
-      parsedMoves.add({
-        'uci': m.move,
-        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
-      });
-    }
-
-    if (parsedMoves.isEmpty) {
-      return null;
-    }
-
-    double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<Map<String, dynamic>> eliteMoves = parsedMoves
-        .take(3)
-        .where((m) => m['wp'] >= 45.0)
-        .toList();
-
-    if (eliteMoves.isEmpty) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<double> weights = [];
-    double totalWeight = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
-      weights.add(weight);
-      totalWeight += weight;
-    }
-
-    double randomVal = Random().nextDouble() * totalWeight;
-    double current = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      current += weights[i];
-      if (randomVal <= current) {
-        return eliteMoves[i]['uci'];
-      }
-    }
-    return eliteMoves.first['uci'];
   }
 }
 
@@ -2684,7 +2690,6 @@ FILE: lib\core\orchestrators\play_orchestrator.dart
 ================================================================================
 
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
@@ -2755,7 +2760,9 @@ class PlayOrchestrator {
           [],
           isShash,
         );
-        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        // ⚠️ FIX P2: Usiamo la funzione pubblica testata invece del vecchio doppione locale
+        String? chosenUci = OracleRoulette.spin(result.moves);
 
         if (chosenUci != null) {
           onLog("📖 Mossa pescata dal LiveBook Cloud!");
@@ -2780,58 +2787,6 @@ class PlayOrchestrator {
         'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
       );
     }
-  }
-
-  String? _applyOracleRoulette(List<LiveBookMove> moves) {
-    if (moves.isEmpty ||
-        moves.first.move == "-" ||
-        moves.first.move.contains(".")) {
-      return null;
-    }
-
-    List<Map<String, dynamic>> parsedMoves = [];
-    for (var m in moves) {
-      parsedMoves.add({
-        'uci': m.move,
-        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
-      });
-    }
-
-    if (parsedMoves.isEmpty) {
-      return null;
-    }
-
-    double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<Map<String, dynamic>> eliteMoves = parsedMoves
-        .take(3)
-        .where((m) => m['wp'] >= 45.0)
-        .toList();
-
-    if (eliteMoves.isEmpty) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<double> weights = [];
-    double totalWeight = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
-      weights.add(weight);
-      totalWeight += weight;
-    }
-
-    double randomVal = Random().nextDouble() * totalWeight;
-    double current = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      current += weights[i];
-      if (randomVal <= current) {
-        return eliteMoves[i]['uci'];
-      }
-    }
-    return eliteMoves.first['uci'];
   }
 
   void _listenToEngine() {
@@ -3170,12 +3125,10 @@ class ShashinFsm {
       "🎯 CICLO $_iteration | FASE 2: Calcolo [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
     );
 
-    String targetMode = "Normal";
-    if (currentZone.name.contains("Tal")) targetMode = "Tal";
-    if (currentZone.name.contains("Petrosian")) targetMode = "Petrosian";
-    if (currentZone.name.contains("Capablanca")) targetMode = "Capablanca";
-
-    engineManager.sendCommand('setoption name ShashinMode value $targetMode');
+    // ⚠️ FIX P4: Usa la variabile shashinMode nativa della zona, senza string matching!
+    engineManager.sendCommand(
+      'setoption name ShashinMode value ${currentZone.shashinMode}',
+    );
 
     Future.delayed(const Duration(milliseconds: 50), () {
       if (currentState == FsmState.phase2) {

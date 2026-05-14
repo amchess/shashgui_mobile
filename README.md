@@ -19,7 +19,7 @@ Unlike traditional chess GUIs, ShashGui reads the engine's WDL (Win/Draw/Loss) m
 | Platform | Status | Notes |
 |---|---|---|
 | **Android** | ✅ Beta-ready | Native `.so` via `MethodChannel`, 3 ABI targets, Android 15 compliant (16 KB page size) |
-| **iOS** | 🔜 Roadmap Phase 2 | Requires Dart FFI migration — `Process.start()` is incompatible with App Store sandboxing |
+| **iOS** | 🔜 Roadmap Phase 2 | Requires Dart FFI migration — `Process.start()` is incompatible with App Store sandboxing (§2.5.2) |
 
 ---
 
@@ -65,12 +65,14 @@ Two engines are compiled as native shared libraries and distributed pre-built fo
 
 `EngineManager.initEngine()` lifecycle:
 1. Calls `getNativeLibDir` via `MethodChannel` on the Android side to locate the correct `.so`
-2. Extracts NNUE weight files (`nn-c288c895ea92.nnue`, `nn-37f18f62d772.nnue`) to the app's documents directory on first launch — checked by file size to skip redundant writes, executed in a background `Isolate` via `compute()`
+2. Extracts NNUE weight files (`nn-c288c895ea92.nnue`, `nn-37f18f62d772.nnue`) to the app's documents directory on first launch — existence-check only to skip redundant writes, executed in a background `Isolate` via `compute()`
 3. Spawns the engine process and connects `stdout` to a broadcast `Stream<String>`
 4. Drains `stderr` to prevent OS buffer deadlocks
 5. Sends `uci` → `setoption EvalFile` → `isready` and awaits `readyok` (**15 s timeout** — throws `TimeoutException` on failure)
 
 On `dispose()`, the process kill is dispatched via `Future.microtask` to avoid blocking the main thread.
+
+**Broken Pipe handling:** if `stdin.writeln()` throws (e.g. the OS killed the C++ process due to low RAM), the manager sets `_isDead = true` and injects an error string directly into the output stream — the FSM and all orchestrators surface it automatically in the UI log.
 
 ---
 
@@ -122,7 +124,7 @@ A multi-phase evaluation pipeline running entirely on-device:
 | 2200–2499 | Advanced | Expert HCE (ELO 3190) |
 | ≥ 2500 | Expert | Superhuman NNUE (ELO 3500) |
 
-**NAG assignment:**
+**NAG assignment** — powered by `calculateZoneDrop(studentWp, masterWp)` from `shashin_logic.dart`:
 
 | Zone-drop (master vs student) | NAG verdict |
 |---|---|
@@ -153,7 +155,7 @@ Navigation: `goBack()`, `goForward()`, `goToStart()`, `goToEnd()`.
 A full tournament framework for engine-vs-engine matches:
 
 - Configurable: white/black engine, Livebook toggle per colour, time control (movetime or clock+increment), number of rounds, optional colour reversal, optional start from current position
-- `AutoplayOrchestrator` manages: **Livebook Oracle Roulette** (exponential weights `[9, 3, 1]` among top-3 moves with WP ≥ 45%), watchdog timer (10 s, resolves via zone-based heuristic), threefold-repetition detection, insufficient material detection, 50-move rule
+- `AutoplayOrchestrator` manages: **Livebook Oracle Roulette** (class `OracleRoulette` with DI-testable `spin()` method — exponential weights `[9, 3, 1]` among top-3 moves with WP ≥ 45%), watchdog timer (10 s, resolves via zone-based heuristic), threefold-repetition detection, insufficient material detection, 50-move rule
 - Live clock updates via `onClockUpdate(wTimeMs, bTimeMs)` callback
 - Each completed game is appended to `gauntlet_results.pgn` in the app's documents directory with full PGN headers
 - Moves are forwarded to `NotationController` via `onMovePlayed(san, fen)` for real-time notation display
@@ -191,7 +193,7 @@ Human-vs-engine games with a fully custom interactive board:
 
 `file_picker` opens `pgn`, `epd`, `fen`, `txt` files. Lichess games are fetched by URL supporting:
 - Standard game URL → `/game/export/{id}?evals=0&clocks=0`
-- Broadcast URL → `/broadcast/{slug}/{id}` via the Broadcast API
+- Broadcast URL → `/broadcast/{slug}/{id}` via the Broadcast API (multi-endpoint fallback, CRLF normalisation, lookahead Regex for single-game extraction)
 
 **PGN parsing runs in a separate `Isolate`** via `compute(_parsePgnInBackground, text)`, keeping the main thread free for rendering even with large files.
 
@@ -205,15 +207,15 @@ Human-vs-engine games with a fully custom interactive board:
 - **Lichess Masters** (`explorer.lichess.ovh/masters`) — human-style moves (HCE engines)
 - **ChessDB** (`chessdb.cn/cdb.php?action=queryall`) — neural moves (NNUE engines)
 
-`LiveBookOracle` adds an **LRU-style in-memory cache** (max 200 entries, FIFO eviction) keyed by `"{fen}_{isNeural}"` to avoid redundant API calls.
+`LiveBookOracle` adds an **LRU-style in-memory cache** (max 200 entries, FIFO eviction via `LinkedHashMap.keys.first`) keyed by `"{fen}_{isNeural}"` to avoid redundant API calls.
 
-**Effective Win Probability formula (`pEff`):**
+**Effective Win Probability formula (`pEff`)** — extracted as a `@visibleForTesting` static method for isolated unit testing:
 ```dart
 pEff = (winProbability * 0.70) + (popularityScore * 0.30)
 ```
-This 70/30 blend prevents statistical outliers (moves with 100% WP but played once) from dominating the ranking. Moves with popularity < 0.5% of total games are discarded entirely.
+This 70/30 blend prevents statistical outliers (moves with 100% WP but played once) from dominating the ranking. Moves with popularity < 0.5% of total games are discarded entirely (returns `-1.0`).
 
-**Oracle Roulette:** if the top move has WP < 40%, always play it; otherwise apply exponential weights `[9, 3, 1]` to the top-3 moves (WP ≥ 45%) for weighted-random selection, introducing human-like unpredictability in the Autoplay gauntlet.
+**Oracle Roulette** (`class OracleRoulette` in `livebook_scanner.dart`): if the top move has WP < 40%, always play it; otherwise apply exponential weights `[9, 3, 1]` to the top-3 moves (WP ≥ 45%) for weighted-random selection. The `spin()` method accepts an optional `testRandomVal` parameter for deterministic unit testing (Dependency Injection pattern).
 
 ---
 
@@ -237,6 +239,8 @@ ShashGui Mobile acts as the gateway to a high-performance Cloud infrastructure t
 - **Nugget Extraction:** Scans PGN archives to surface `wp == 25` (Petrosian Nugget) or `wp == 75` (Tal Nugget) positions.
 - **Divergence Dossier (XAI):** Identifies patterns where human intuition and neural understanding systematically diverge across an opening repertoire.
 - **ShashQL:** A proprietary query language for searching positional databases using thermodynamic conditions.
+
+All Cloud logic lives server-side. The mobile client contains no proprietary algorithms.
 
 ---
 
@@ -441,7 +445,9 @@ shashgui_mobile/
 │
 ├── test/
 │   ├── shashin_logic_test.dart           ← 6 parametric unit tests
-│   └── core/logic/livebook_oracle_test.dart  ← pEff formula + outlier rejection
+│   ├── core/logic/livebook_oracle_test.dart  ← pEff formula + outlier rejection
+│   ├── core/logic/nag_logic_test.dart    ← getZoneIndex + calculateZoneDrop
+│   └── core/logic/oracle_roulette_test.dart  ← Statistical distribution and desperation fallback
 │
 └── integration_test/
 ```
@@ -520,7 +526,8 @@ Current unit test coverage:
 | File | Tests | What is verified |
 |---|---|---|
 | `test/shashin_logic_test.dart` | 6 | Capablanca (50%), Total Chaos, High Tal (95%), High Petrosian (5%), Petrosian Nugget (25%), division-by-zero safety |
-| `test/core/logic/livebook_oracle_test.dart` | 3+ | pEff formula (White), pEff formula (Black), popularity filter (< 0.5% discarded) |
+| `test/core/logic/livebook_oracle_test.dart` | 4 | pEff formula (White), pEff formula (Black), popularity filter (< 0.5% discarded), anti-trap penalty (WP 100% but rare) |
+| `test/core/logic/nag_logic_test.dart` | 5 | `getZoneIndex` boundary values, `calculateZoneDrop` (0 drop, 1 drop, 2 drop, blunder ≥ 3, catastrophic blunder = 8) |
 
 ---
 

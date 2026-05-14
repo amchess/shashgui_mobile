@@ -201,12 +201,10 @@ class ShashinFsm {
       "🎯 CICLO $_iteration | FASE 2: Calcolo [ ${currentZone.name.toUpperCase()} ] (${t2}ms)...",
     );
 
-    String targetMode = "Normal";
-    if (currentZone.name.contains("Tal")) targetMode = "Tal";
-    if (currentZone.name.contains("Petrosian")) targetMode = "Petrosian";
-    if (currentZone.name.contains("Capablanca")) targetMode = "Capablanca";
-
-    engineManager.sendCommand('setoption name ShashinMode value $targetMode');
+    // ⚠️ FIX P4: Usa la variabile shashinMode nativa della zona, senza string matching!
+    engineManager.sendCommand(
+      'setoption name ShashinMode value ${currentZone.shashinMode}',
+    );
 
     Future.delayed(const Duration(milliseconds: 50), () {
       if (currentState == FsmState.phase2) {

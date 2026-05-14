@@ -121,8 +121,9 @@ class EngineManager {
         // Inviando una stringa di errore nello stream di output, la Macchina a Stati (FSM)
         // e gli Orchestratori lo leggeranno e lo stamperanno automaticamente
         // nei Log dell'interfaccia utente (UI)!
+        // ⚠️ FIX P6: Aggiunto tag ENGINE_FATAL
         _outputController?.add(
-          "ERRORE DI SISTEMA: Connessione col motore interrotta inaspettatamente.",
+          "ENGINE_FATAL: Connessione col motore interrotta inaspettatamente.",
         );
 
         // 3. Forziamo la pulizia

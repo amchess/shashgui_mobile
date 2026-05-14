@@ -401,7 +401,7 @@ class LiveBookScanner {
 // ⚠️ HELPER PUBBLICO PER L'ORACOLO (Testabile in isolamento con injection)
 // =========================================================================
 class OracleRoulette {
-  @visibleForTesting
+  // ⚠️ FIX LINTER: Rimossa l'annotazione @visibleForTesting che bloccava gli orchestratori!
   static String? spin(List<LiveBookMove> moves, {double? testRandomVal}) {
     if (moves.isEmpty ||
         moves.first.move == "-" ||

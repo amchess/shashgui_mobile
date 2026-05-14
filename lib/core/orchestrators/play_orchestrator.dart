@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
@@ -70,7 +69,9 @@ class PlayOrchestrator {
           [],
           isShash,
         );
-        String? chosenUci = _applyOracleRoulette(result.moves);
+
+        // ⚠️ FIX P2: Usiamo la funzione pubblica testata invece del vecchio doppione locale
+        String? chosenUci = OracleRoulette.spin(result.moves);
 
         if (chosenUci != null) {
           onLog("📖 Mossa pescata dal LiveBook Cloud!");
@@ -95,58 +96,6 @@ class PlayOrchestrator {
         'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
       );
     }
-  }
-
-  String? _applyOracleRoulette(List<LiveBookMove> moves) {
-    if (moves.isEmpty ||
-        moves.first.move == "-" ||
-        moves.first.move.contains(".")) {
-      return null;
-    }
-
-    List<Map<String, dynamic>> parsedMoves = [];
-    for (var m in moves) {
-      parsedMoves.add({
-        'uci': m.move,
-        'wp': double.tryParse(m.description.replaceAll('%', '')) ?? 0.0,
-      });
-    }
-
-    if (parsedMoves.isEmpty) {
-      return null;
-    }
-
-    double topScore = parsedMoves.first['wp'];
-    if (topScore < 40.0) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<Map<String, dynamic>> eliteMoves = parsedMoves
-        .take(3)
-        .where((m) => m['wp'] >= 45.0)
-        .toList();
-
-    if (eliteMoves.isEmpty) {
-      return parsedMoves.first['uci'];
-    }
-
-    List<double> weights = [];
-    double totalWeight = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      double weight = pow(3.0, (eliteMoves.length - i - 1)).toDouble();
-      weights.add(weight);
-      totalWeight += weight;
-    }
-
-    double randomVal = Random().nextDouble() * totalWeight;
-    double current = 0.0;
-    for (int i = 0; i < eliteMoves.length; i++) {
-      current += weights[i];
-      if (randomVal <= current) {
-        return eliteMoves[i]['uci'];
-      }
-    }
-    return eliteMoves.first['uci'];
   }
 
   void _listenToEngine() {

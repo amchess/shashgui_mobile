@@ -6,8 +6,17 @@ class ShashinZone {
   final Color color;
   final double wp; // La percentuale esatta (0.0 - 100.0)
   final List<String> avatars; // Quale faccina mostrare (ora supporta array)
+  final String
+  shashinMode; // ⚠️ FIX P4: Il parametro UCI integrato nell'oggetto!
 
-  ShashinZone(this.name, this.symbol, this.color, this.wp, this.avatars);
+  ShashinZone(
+    this.name,
+    this.symbol,
+    this.color,
+    this.wp,
+    this.avatars, {
+    this.shashinMode = "Normal", // Default "Normal"
+  });
 }
 
 /// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
@@ -63,6 +72,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.purple,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
 
@@ -74,6 +84,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orangeAccent,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt == 75) {
@@ -83,12 +94,20 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.tealAccent,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
 
   // Zone PETROSIAN (Rosso/Arancio)
   if (wpInt >= 0 && wpInt <= 5) {
-    return ShashinZone("High Petrosian", "-+", Colors.red, wpDouble, avatars);
+    return ShashinZone(
+      "High Petrosian",
+      "-+",
+      Colors.red,
+      wpDouble,
+      avatars,
+      shashinMode: "Petrosian",
+    );
   }
   if (wpInt >= 6 && wpInt <= 10) {
     return ShashinZone(
@@ -97,6 +116,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.deepOrange,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 11 && wpInt <= 15) {
@@ -106,6 +126,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orange,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 16 && wpInt <= 20) {
@@ -115,10 +136,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.orangeAccent,
       wpDouble,
       avatars,
+      shashinMode: "Petrosian",
     );
   }
   if (wpInt >= 21 && wpInt <= 24) {
-    return ShashinZone("Low Petrosian", "=/+", Colors.amber, wpDouble, avatars);
+    return ShashinZone(
+      "Low Petrosian",
+      "=/+",
+      Colors.amber,
+      wpDouble,
+      avatars,
+      shashinMode: "Petrosian",
+    );
   }
   if (wpInt >= 25 && wpInt <= 49) {
     return ShashinZone(
@@ -127,12 +156,20 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.purpleAccent,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
 
   // Zona CAPABLANCA (Blu)
   if (wpInt == 50) {
-    return ShashinZone("Capablanca", "=", Colors.blue, wpDouble, avatars);
+    return ShashinZone(
+      "Capablanca",
+      "=",
+      Colors.blue,
+      wpDouble,
+      avatars,
+      shashinMode: "Capablanca",
+    );
   }
 
   // Zone TAL (Verde)
@@ -143,10 +180,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.teal,
       wpDouble,
       avatars,
+      shashinMode: "Normal",
     );
   }
   if (wpInt >= 76 && wpInt <= 79) {
-    return ShashinZone("Low Tal", "+/=", Colors.lightGreen, wpDouble, avatars);
+    return ShashinZone(
+      "Low Tal",
+      "+/=",
+      Colors.lightGreen,
+      wpDouble,
+      avatars,
+      shashinMode: "Tal",
+    );
   }
   if (wpInt >= 80 && wpInt <= 84) {
     return ShashinZone(
@@ -155,6 +200,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
   if (wpInt >= 85 && wpInt <= 89) {
@@ -164,6 +210,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green[700]!,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
   if (wpInt >= 90 && wpInt <= 94) {
@@ -173,10 +220,18 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       Colors.green[800]!,
       wpDouble,
       avatars,
+      shashinMode: "Tal",
     );
   }
 
-  return ShashinZone("High Tal", "+-", Colors.green[900]!, wpDouble, avatars);
+  return ShashinZone(
+    "High Tal",
+    "+-",
+    Colors.green[900]!,
+    wpDouble,
+    avatars,
+    shashinMode: "Tal",
+  );
 }
 
 // =========================================================================
