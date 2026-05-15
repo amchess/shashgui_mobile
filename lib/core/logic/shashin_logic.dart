@@ -4,10 +4,10 @@ class ShashinZone {
   final String name;
   final String symbol;
   final Color color;
-  final double wp; // La percentuale esatta (0.0 - 100.0)
-  final List<String> avatars; // Quale faccina mostrare (ora supporta array)
-  final String
-  shashinMode; // ⚠️ FIX P4: Il parametro UCI integrato nell'oggetto!
+  final double wp;
+  final List<String> avatars;
+  final String shashinMode;
+  final double avatarScale; // ⚠️ NUOVO: Gestisce la grandezza della faccina!
 
   ShashinZone(
     this.name,
@@ -15,11 +15,12 @@ class ShashinZone {
     this.color,
     this.wp,
     this.avatars, {
-    this.shashinMode = "Normal", // Default "Normal"
+    this.shashinMode = "Normal",
+    this.avatarScale = 1.0, // 1.0 è la dimensione normale di default
   });
 }
 
-/// Converte i millesimi WDL in una Zona Shashin con WP e Avatar
+/// Converte i millesimi WDL in una Zona Shashin rispettando la Tabella Ufficiale
 ShashinZone analyzeShashinZone(int w, int d, int l) {
   int total = w + d + l;
   if (total == 0) {
@@ -28,13 +29,13 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
     ]);
   }
 
-  // Calcolo esatto Win Probability (WP)
+  // Calcolo WP
   double wpDouble = ((w + (d / 2.0)) / total) * 100.0;
   int wpInt = wpDouble.round();
 
-  // Assegnazione Avatar (Percorsi alle immagini locali)
+  // 1. Assegnazione Avatar
   List<String> getAvatars(int wp) {
-    // 0. Total Chaos
+    // Total Chaos
     if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
       return [
         "assets/images/capablanca.png",
@@ -42,11 +43,10 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
         "assets/images/tal.png",
       ];
     }
-
-    // 1. Prima controlliamo se è una Pepita (Nugget)
+    // Le Pepite a 25 e 75 esatti!
     if (wp == 25 || wp == 75) return ["assets/images/nugget.png"];
 
-    // 2. Zone miste (Caos)
+    // Zone Caos
     if (wp >= 25 && wp <= 49) {
       return ["assets/images/capablanca.png", "assets/images/petrosian.png"];
     }
@@ -54,51 +54,32 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       return ["assets/images/capablanca.png", "assets/images/tal.png"];
     }
 
-    // 3. Altrimenti, assegniamo il giocatore standard
+    // Dominio netto
     if (wp > 50) return ["assets/images/tal.png"];
     if (wp < 50) return ["assets/images/petrosian.png"];
-
-    // 4. Perfetto equilibrio
     return ["assets/images/capablanca.png"];
   }
 
   List<String> avatars = getAvatars(wpInt);
 
-  // Total Chaos: perfetto equilibrio
+  // ==========================================
+  // TABELLA SHASHIN UFFICIALE (MAPPING ESATTO)
+  // ==========================================
+
+  // Total Chaos: perfetto equilibrio WDL
   if ((w - 333).abs() <= 5 && (d - 333).abs() <= 5 && (l - 333).abs() <= 5) {
     return ShashinZone(
-      "Chaos: Capa-Petrosian-Tal",
+      "Chaos: Capablanca-Petrosian-Tal",
       "∞",
       Colors.purple,
       wpDouble,
       avatars,
       shashinMode: "Normal",
+      avatarScale: 1.0,
     );
   }
 
-  // Pepite
-  if (wpInt == 25) {
-    return ShashinZone(
-      "Petrosian Nugget",
-      "⚱️",
-      Colors.orangeAccent,
-      wpDouble,
-      avatars,
-      shashinMode: "Petrosian",
-    );
-  }
-  if (wpInt == 75) {
-    return ShashinZone(
-      "Tal Nugget",
-      "⚱️",
-      Colors.tealAccent,
-      wpDouble,
-      avatars,
-      shashinMode: "Tal",
-    );
-  }
-
-  // Zone PETROSIAN (Rosso/Arancio)
+  // ZONE PETROSIAN [0 - 49]
   if (wpInt >= 0 && wpInt <= 5) {
     return ShashinZone(
       "High Petrosian",
@@ -107,7 +88,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Petrosian",
-    );
+      avatarScale: 1.3,
+    ); // Grandissimo
   }
   if (wpInt >= 6 && wpInt <= 10) {
     return ShashinZone(
@@ -117,6 +99,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Petrosian",
+      avatarScale: 1.15,
     );
   }
   if (wpInt >= 11 && wpInt <= 15) {
@@ -127,7 +110,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Petrosian",
-    );
+      avatarScale: 1.0,
+    ); // Normale
   }
   if (wpInt >= 16 && wpInt <= 20) {
     return ShashinZone(
@@ -137,6 +121,7 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Petrosian",
+      avatarScale: 0.85,
     );
   }
   if (wpInt >= 21 && wpInt <= 24) {
@@ -147,20 +132,25 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Petrosian",
-    );
+      avatarScale: 0.7,
+    ); // Molto piccolo
   }
   if (wpInt >= 25 && wpInt <= 49) {
+    String name = wpInt == 25
+        ? "Petrosian Nugget"
+        : "Chaos: Capablanca-Petrosian";
     return ShashinZone(
-      "Chaos: Capablanca-Petrosian",
+      name,
       "↓",
       Colors.purpleAccent,
       wpDouble,
       avatars,
       shashinMode: "Normal",
+      avatarScale: 1.0,
     );
   }
 
-  // Zona CAPABLANCA (Blu)
+  // ZONA CAPABLANCA [50]
   if (wpInt == 50) {
     return ShashinZone(
       "Capablanca",
@@ -169,18 +159,21 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Capablanca",
+      avatarScale: 1.0,
     );
   }
 
-  // Zone TAL (Verde)
+  // ZONE TAL [51 - 100]
   if (wpInt >= 51 && wpInt <= 75) {
+    String name = wpInt == 75 ? "Tal Nugget" : "Chaos: Capablanca-Tal";
     return ShashinZone(
-      "Chaos: Capablanca-Tal",
+      name,
       "↑",
       Colors.teal,
       wpDouble,
       avatars,
       shashinMode: "Normal",
+      avatarScale: 1.0,
     );
   }
   if (wpInt >= 76 && wpInt <= 79) {
@@ -191,7 +184,8 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Tal",
-    );
+      avatarScale: 0.7,
+    ); // Molto piccolo
   }
   if (wpInt >= 80 && wpInt <= 84) {
     return ShashinZone(
@@ -201,37 +195,44 @@ ShashinZone analyzeShashinZone(int w, int d, int l) {
       wpDouble,
       avatars,
       shashinMode: "Tal",
+      avatarScale: 0.85,
     );
   }
   if (wpInt >= 85 && wpInt <= 89) {
     return ShashinZone(
       "Middle Tal",
       "+/-",
-      Colors.green[700]!,
+      Colors.green.shade700,
       wpDouble,
       avatars,
       shashinMode: "Tal",
-    );
+      avatarScale: 1.0,
+    ); // Normale
   }
   if (wpInt >= 90 && wpInt <= 94) {
     return ShashinZone(
       "High-Middle Tal",
       r"+/- \ +-",
-      Colors.green[800]!,
+      Colors.green.shade800,
       wpDouble,
       avatars,
       shashinMode: "Tal",
+      avatarScale: 1.15,
     );
   }
+  if (wpInt >= 95 && wpInt <= 100) {
+    return ShashinZone(
+      "High Tal",
+      "+-",
+      Colors.green.shade900,
+      wpDouble,
+      avatars,
+      shashinMode: "Tal",
+      avatarScale: 1.3,
+    ); // Grandissimo
+  }
 
-  return ShashinZone(
-    "High Tal",
-    "+-",
-    Colors.green[900]!,
-    wpDouble,
-    avatars,
-    shashinMode: "Tal",
-  );
+  return ShashinZone("Unknown", "?", Colors.grey, wpDouble, avatars);
 }
 
 // =========================================================================

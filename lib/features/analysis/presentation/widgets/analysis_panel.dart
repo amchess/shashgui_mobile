@@ -89,32 +89,25 @@ class AnalysisPanel extends ConsumerWidget {
           ],
 
           // 3. HEADER ZONA TERMODINAMICA E AVATAR
+          // ⚠️ FIX: Disegna tutte le faccine e le ingrandisce/rimpicciolisce
+          // a seconda della forza (Low, Middle, High) passata dallo stato!
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    zone.name.toUpperCase(),
-                    style: TextStyle(
-                      color: zone.color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+            children: zone.avatars
+                .map(
+                  (avatarPath) => Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Transform.scale(
+                      scale: zone
+                          .avatarScale, // Applica dinamicamente il ridimensionamento!
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: zone.color.withValues(alpha: 0.2),
+                        backgroundImage: AssetImage(avatarPath),
+                      ),
                     ),
                   ),
-                  Text(
-                    "Simbolo: ${zone.symbol} | WP: ${zone.wp.toStringAsFixed(1)}%",
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: zone.color.withValues(alpha: 0.2),
-                backgroundImage: AssetImage(zone.avatars.first),
-              ),
-            ],
+                )
+                .toList(),
           ),
 
           const SizedBox(height: 12),
