@@ -141,14 +141,11 @@ class AutoplayController extends StateNotifier<AutoplayState> {
       state = state.copyWith(useCurrentPosition: v);
   void setReverseColors(bool v) => state = state.copyWith(reverseColors: v);
 
-  Future<void> startMatch(
-    BuildContext context, {
-    bool isRestart = false,
-  }) async {
+  Future<void> startMatch({bool isRestart = false}) async {
+    // ⚠️ Rimosso BuildContext
     final boardCtrl = ref.read(boardControllerProvider);
 
     if (!isRestart) {
-      // ⚠️ FIX: Aggiunte le graffe
       if (ref.read(engineControllerProvider).isRunning) {
         ref.read(engineControllerProvider.notifier).stopEngine();
       }
@@ -225,23 +222,19 @@ class AutoplayController extends StateNotifier<AutoplayState> {
         ref.read(notationControllerProvider.notifier).addMove(san, fen, 'main');
       },
 
-      onGameOver: (res) => _handleEndOfGame(context, res),
+      onGameOver: (res) => _handleEndOfGame(res),
     );
 
     _orchestrator!.startMatch();
   }
 
-  void _handleEndOfGame(BuildContext context, String? result) async {
-    // Salvataggio Database (operazione asincrona che richiede tempo)
+  void _handleEndOfGame(String? result) async {
+    // ⚠️ Rimosso BuildContext
+    // Salvataggio Database
     await _saveMatchToDatabase(result);
 
-    // ⚠️ FIX: Controllo di sicurezza "mounted" dopo l'await!
-    // Assicura che la schermata non sia stata chiusa mentre salvavamo il file.
-    if (!context.mounted) {
-      return;
-    }
+    // ⚠️ RIMOSSO il blocco if (!context.mounted) return;
 
-    // ⚠️ FIX: Aggiunte le graffe a tutta la catena if/else if/else
     if (result!.contains("1-0")) {
       state = state.copyWith(scoreWhite: state.scoreWhite + 1);
     } else if (result.contains("0-1")) {
@@ -269,11 +262,9 @@ class AutoplayController extends StateNotifier<AutoplayState> {
 
       onLog("🔄 Preparazione Round ${state.currentGame}...");
 
-      // ⚠️ FIX: Aggiunto un ulteriore controllo context.mounted prima di riavviare
       Future.delayed(const Duration(seconds: 3), () {
-        if (context.mounted) {
-          startMatch(context, isRestart: true);
-        }
+        // ⚠️ RIMOSSO il controllo if (context.mounted)
+        startMatch(isRestart: true);
       });
     } else {
       state = state.copyWith(

@@ -395,7 +395,7 @@ class AutoplayModal extends ConsumerWidget {
                 Navigator.pop(context);
                 ref
                     .read(autoplayControllerProvider.notifier)
-                    .startMatch(context);
+                    .startMatch(); // ⚠️ Non passiamo più il context qui!
               },
               icon: const Icon(Icons.smart_toy),
               label: Text(loc.avviaMatch),

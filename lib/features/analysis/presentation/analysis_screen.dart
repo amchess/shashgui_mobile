@@ -6,6 +6,9 @@ import 'widgets/board_section.dart';
 import 'widgets/analysis_panel.dart';
 import 'widgets/engine_controls.dart';
 import 'widgets/notation_panel.dart'; // ⚠️ IMPORTIAMO IL PANNELLO DELLE MOSSE!
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import '../../../../core/services/import_export_service.dart'; // ⚠️ AGGIUNTO L'IMPORT MANCANTE!
 
 class AnalysisScreen extends ConsumerWidget {
   const AnalysisScreen({super.key});
@@ -20,8 +23,82 @@ class AnalysisScreen extends ConsumerWidget {
           previous.isPlaying == true &&
           next.isPlaying == false) {
         if (next.currentLog == "🏆 Torneo Concluso!") {
-          // ... (Il codice del popup rimane identico, non lo riscrivo per brevità)
-          // Lascia pure il tuo blocco ref.listen invariato!
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: const Text(
+                "🏆 Torneo Concluso!",
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "${next.whiteEngine.toUpperCase()} vs ${next.blackEngine.toUpperCase()}",
+                    style: const TextStyle(
+                      color: Colors.cyanAccent,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Divider(color: Colors.white24, height: 20),
+                  Text(
+                    "Vittorie Bianco: ${next.scoreWhite}",
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                  Text(
+                    "Vittorie Nero: ${next.scoreBlack}",
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                  Text(
+                    "Patte: ${next.draws}",
+                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                ],
+              ),
+              actions: [
+                // NUOVO BOTTONE PER CONDIVIDERE IL FILE PGN DEL TORNEO!
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx); // Chiude il popup
+                    try {
+                      final directory =
+                          await getApplicationDocumentsDirectory();
+                      // ⚠️ CORRETTO: rimosso "java.io."
+                      final file = File(
+                        '${directory.path}/gauntlet_results.pgn',
+                      );
+                      if (await file.exists()) {
+                        final contents = await file.readAsString();
+                        // Usiamo il tuo servizio per aprire il menu di condivisione di Android
+                        ImportExportService.exportPgn(contents);
+                      }
+                    } catch (e) {
+                      debugPrint("Errore esportazione: $e");
+                    }
+                  },
+                  child: const Text(
+                    "CONDIVIDI PGN",
+                    style: TextStyle(color: Colors.greenAccent),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                  child: const Text(
+                    "CHIUDI",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
         }
       }
     });
