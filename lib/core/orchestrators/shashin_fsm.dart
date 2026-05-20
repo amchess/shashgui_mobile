@@ -12,6 +12,7 @@ class EngineStats {
   final int nodes;
   final int nps;
   final List<String> pvs;
+  final String score; // ⚠️ NUOVO: Il valore in CP o Mate
 
   const EngineStats({
     this.depth = 0,
@@ -19,6 +20,7 @@ class EngineStats {
     this.nodes = 0,
     this.nps = 0,
     this.pvs = const [],
+    this.score = "", // ⚠️ Valore di default
   });
 }
 
@@ -55,6 +57,7 @@ class ShashinFsm {
   int _currentSelDepth = 0;
   int _currentNodes = 0;
   int _currentNps = 0;
+  String _currentScore = "";
   bool _statsUpdatePending = false;
 
   ShashinFsm({
@@ -101,6 +104,20 @@ class ShashinFsm {
       final npsMatch = RegExp(r"nps (\d+)").firstMatch(line);
       if (npsMatch != null) _currentNps = int.parse(npsMatch.group(1)!);
 
+      // ⚠️ LA MAGIA PER I CENTIPEDONI E IL MATE
+      final cpMatch = RegExp(r"score cp (-?\d+)").firstMatch(line);
+      if (cpMatch != null) {
+        int cpVal = int.parse(cpMatch.group(1)!);
+        _currentScore = (cpVal / 100.0).toStringAsFixed(2);
+        if (cpVal > 0)
+          _currentScore = "+$_currentScore"; // Aggiunge il + ai positivi
+      } else {
+        final mateMatch = RegExp(r"score mate (-?\d+)").firstMatch(line);
+        if (mateMatch != null) {
+          _currentScore = "M${mateMatch.group(1)}";
+        }
+      }
+
       int multipv =
           int.tryParse(
             RegExp(r"multipv (\d+)").firstMatch(line)?.group(1) ?? "1",
@@ -130,6 +147,7 @@ class ShashinFsm {
               nodes: _currentNodes,
               nps: _currentNps,
               pvs: currentPvs,
+              score: _currentScore,
             ),
           );
         });

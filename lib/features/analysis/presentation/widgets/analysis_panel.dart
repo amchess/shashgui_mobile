@@ -89,27 +89,53 @@ class AnalysisPanel extends ConsumerWidget {
           ],
 
           // 3. HEADER ZONA TERMODINAMICA E AVATAR
-          // ⚠️ FIX: Disegna tutte le faccine e le ingrandisce/rimpicciolisce
-          // a seconda della forza (Low, Middle, High) passata dallo stato!
           Row(
-            children: zone.avatars
-                .map(
-                  (avatarPath) => Padding(
-                    padding: const EdgeInsets.only(left: 4.0),
-                    child: Transform.scale(
-                      scale: zone
-                          .avatarScale, // Applica dinamicamente il ridimensionamento!
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: zone.color.withValues(alpha: 0.2),
-                        backgroundImage: AssetImage(avatarPath),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: zone.avatars
+                    .map(
+                      (avatarPath) => Padding(
+                        padding: const EdgeInsets.only(left: 4.0),
+                        child: Transform.scale(
+                          scale: zone.avatarScale,
+                          child: CircleAvatar(
+                            radius: 20,
+                            backgroundColor: zone.color.withValues(alpha: 0.2),
+                            backgroundImage: AssetImage(avatarPath),
+                          ),
+                        ),
                       ),
+                    )
+                    .toList(),
+              ),
+              // I DATI MATEMATICI (WP e CP)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    "${zone.wp.toStringAsFixed(1)}%",
+                    style: TextStyle(
+                      color: zone.color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
                     ),
                   ),
-                )
-                .toList(),
+                  if (stats.score.isNotEmpty)
+                    Text(
+                      stats.score,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
-
           const SizedBox(height: 12),
 
           // 4. TERMOMETRO SHASHIN
