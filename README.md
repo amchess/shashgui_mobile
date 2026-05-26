@@ -204,7 +204,7 @@ Human-vs-engine games with a fully custom interactive board:
 ### 🌐 Livebook Integration (`LiveBookScanner` + `LiveBookOracle`)
 
 `LiveBookScanner.scan()` queries two cloud sources concurrently:
-- **Lichess Masters** (`explorer.lichess.ovh/masters`) — human-style moves (HCE engines)
+- **Lichess Masters** (`explorer.lichess.org/masters`) — human-style moves (HCE engines)
 - **ChessDB** (`chessdb.cn/cdb.php?action=queryall`) — neural moves (NNUE engines)
 
 `LiveBookOracle` adds an **LRU-style in-memory cache** (max 200 entries, FIFO eviction via `LinkedHashMap.keys.first`) keyed by `"{fen}_{isNeural}"` to avoid redundant API calls.

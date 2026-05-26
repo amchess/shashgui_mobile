@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class LiveBookOracle {
-  static const String _lichessUrl = "https://explorer.lichess.ovh/masters?fen=";
+  static const String _lichessUrl = "https://explorer.lichess.org/masters?fen=";
   static const String _chessDbUrl =
       "https://www.chessdb.cn/cdb.php?action=queryall&json=1&board=";
 

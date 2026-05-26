@@ -207,7 +207,7 @@ class LiveBookScanner {
   ) async {
     try {
       final url =
-          "https://explorer.lichess.ovh/masters?fen=${Uri.encodeComponent(fen)}";
+          "https://explorer.lichess.org/masters?fen=${Uri.encodeComponent(fen)}";
       Map<String, String> requestHeaders = {
         'Accept': 'application/json',
         'User-Agent': 'ShashGuiMobileApp/1.0',
@@ -391,6 +391,9 @@ class LiveBookScanner {
         moves: [LiveBookMove(move: "-", san: "-", description: "Errore API")],
       );
     } catch (e) {
+      // ⚠️ AGGIUNGI QUESTA RIGA PER SPIARE L'ERRORE:
+      debugPrint("ERRORE DI RETE LICHESS: $e");
+
       return LiveBookResult(
         moves: [
           LiveBookMove(move: "-", san: "-", description: "Nessuna connessione"),
