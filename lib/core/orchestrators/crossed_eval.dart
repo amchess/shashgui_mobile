@@ -296,24 +296,42 @@ class CrossedEvalOrchestrator {
     if (masterElo >= 3500) {
       onLog(loc.logEngineSwap);
       engineManager.dispose();
+
+      // 1. Diamo al sistema operativo mezzo secondo per pulire davvero la RAM
+      // dal vecchio processo prima di lanciare la rete neurale pesante.
+      await Future.delayed(const Duration(milliseconds: 500));
+
       await engineManager.initEngine('shashchess', [
         'nn-c288c895ea92.nnue',
         'nn-37f18f62d772.nnue',
       ]);
+
       _outputSubscription?.cancel();
       _outputSubscription = engineManager.engineOutput?.listen(
         _handleEngineOutput,
       );
       onLog(loc.logShashReady);
 
+      // 2. ⚠️ IL FIX: Diciamo al motore di prepararsi a una nuova partita
+      // e aspettiamo un attimo che la tabella di trasposizione sia pulita.
+      engineManager.sendCommand('ucinewgame');
+      await Future.delayed(const Duration(milliseconds: 100));
+
       currentState = CrossedState.masterStaticEval;
       engineManager.sendCommand('position fen $currentFen');
+
+      // 3. Un altro micro-delay prima dell'eval per assicurarci che la FEN sia stata digerita
+      await Future.delayed(const Duration(milliseconds: 50));
       engineManager.sendCommand('eval');
       return;
     } else {
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
       engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
       currentState = CrossedState.masterThinking;
+
+      engineManager.sendCommand('ucinewgame');
+      await Future.delayed(const Duration(milliseconds: 100));
+
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('go movetime $baseTimeMs');
     }

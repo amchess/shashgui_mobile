@@ -109,8 +109,9 @@ class ShashinFsm {
       if (cpMatch != null) {
         int cpVal = int.parse(cpMatch.group(1)!);
         _currentScore = (cpVal / 100.0).toStringAsFixed(2);
-        if (cpVal > 0)
+        if (cpVal > 0) {
           _currentScore = "+$_currentScore"; // Aggiunge il + ai positivi
+        }
       } else {
         final mateMatch = RegExp(r"score mate (-?\d+)").firstMatch(line);
         if (mateMatch != null) {

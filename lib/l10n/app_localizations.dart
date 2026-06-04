@@ -587,7 +587,7 @@ abstract class AppLocalizations {
   /// No description provided for @sbloccaIlCloud999mese.
   ///
   /// In it, this message translates to:
-  /// **'SBLOCCA IL CLOUD (9.99€/mese)'**
+  /// **'SBLOCCA IL CLOUD (Premium)'**
   String get sbloccaIlCloud999mese;
 
   /// No description provided for @beyondTheEval.
@@ -605,7 +605,7 @@ abstract class AppLocalizations {
   /// No description provided for @sviluppatoreAndreaManzo.
   ///
   /// In it, this message translates to:
-  /// **'Sviluppatore: Andrea Manzo'**
+  /// **'Sviluppatore: AlphaGambit'**
   String get sviluppatoreAndreaManzo;
 
   /// No description provided for @motoriIntegratiShashchessNnueA.
@@ -671,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDev.
   ///
   /// In it, this message translates to:
-  /// **'Sviluppatore: Andrea Manzo'**
+  /// **'Sviluppatore: AlphaGambit'**
   String get aboutDev;
 
   /// No description provided for @aboutEngines.

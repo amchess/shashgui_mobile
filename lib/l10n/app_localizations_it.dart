@@ -267,7 +267,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Le seguenti funzionalità richiedono un';
 
   @override
-  String get sbloccaIlCloud999mese => 'SBLOCCA IL CLOUD (9.99€/mese)';
+  String get sbloccaIlCloud999mese => 'SBLOCCA IL CLOUD (Premium)';
 
   @override
   String get beyondTheEval => 'Beyond the eval';
@@ -276,7 +276,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get shashgui => 'ShashGUI';
 
   @override
-  String get sviluppatoreAndreaManzo => 'Sviluppatore: Andrea Manzo';
+  String get sviluppatoreAndreaManzo => 'Sviluppatore: AlphaGambit';
 
   @override
   String get motoriIntegratiShashchessNnueA =>
@@ -311,7 +311,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get appTitle => 'ShashGui';
 
   @override
-  String get aboutDev => 'Sviluppatore: Andrea Manzo';
+  String get aboutDev => 'Sviluppatore: AlphaGambit';
 
   @override
   String get aboutEngines =>
