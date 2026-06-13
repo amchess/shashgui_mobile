@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import '../../../../l10n/app_localizations.dart';
 import '../domain/play_controller.dart';
-import 'custom_chess_board.dart'; // ⚠️ Importiamo la nostra nuova scacchiera
+import 'custom_chess_board.dart';
 
 class PlayScreen extends ConsumerStatefulWidget {
   const PlayScreen({super.key});
@@ -19,7 +19,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
   @override
   void initState() {
     super.initState();
-    // ⚠️ LA MAGIA: Colleghiamo il motore logico di gioco alla nuova UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _boardControllerListener = ref.read(playBoardProvider);
       _boardControllerListener?.addListener(_syncBoard);
@@ -41,13 +40,79 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     super.dispose();
   }
 
+  Widget _buildPlayerBadge(
+    String name,
+    int timeMs,
+    bool isWhite,
+    int tcType,
+    int baseTime,
+  ) {
+    String timeStr = "";
+    if (tcType == 1) {
+      int secs = (timeMs / 1000).ceil();
+      timeStr = "${secs}s";
+    } else {
+      int secs = timeMs ~/ 1000;
+      timeStr =
+          "${(secs ~/ 60).toString().padLeft(2, '0')}:${(secs % 60).toString().padLeft(2, '0')}";
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isWhite
+            ? Colors.white.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: isWhite ? Colors.white : Colors.grey[700]!),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            name == 'UMANO'
+                ? Icons.person
+                : (name == 'shashchess' ? Icons.memory : Icons.shield),
+            color: isWhite ? Colors.black87 : Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            name.toUpperCase(),
+            style: TextStyle(
+              color: isWhite ? Colors.black : Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              timeStr,
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(playControllerProvider);
     final boardController = ref.watch(playBoardProvider);
     final loc = AppLocalizations.of(context)!;
 
-    // Determina da che lato guardare la scacchiera in base al colore scelto
     bool isWhiteBottom = state.userColor == PlayerColor.white;
 
     return Scaffold(
@@ -58,7 +123,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
       ),
       body: Column(
         children: [
-          // 1. MESSAGGI DI STATO E LOG
+          // 1. MESSAGGI DI STATO (Traduzione dinamica se in standby)
           Container(
             padding: const EdgeInsets.all(12),
             width: double.infinity,
@@ -75,7 +140,39 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
             ),
           ),
 
-          // 2. LA NUOVA SCACCHIERA DI GIOCO
+          // OROLOGI
+          if (state.isPlaying)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildPlayerBadge(
+                    state.userColor == PlayerColor.white
+                        ? 'UMANO'
+                        : state.selectedEngine,
+                    state.whiteTime,
+                    true,
+                    state.tcType,
+                    state.baseTime,
+                  ),
+                  _buildPlayerBadge(
+                    state.userColor == PlayerColor.black
+                        ? 'UMANO'
+                        : state.selectedEngine,
+                    state.blackTime,
+                    false,
+                    state.tcType,
+                    state.baseTime,
+                  ),
+                ],
+              ),
+            ),
+
+          // 2. SCACCHIERA DI GIOCO
           Expanded(
             child: Center(
               child: Padding(
@@ -85,10 +182,8 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                   child: CustomChessBoard(
                     isWhiteBottom: isWhiteBottom,
                     onUserMove: (uciMove) {
-                      // Se la partita non è iniziata, non permettiamo tocchi
                       if (!state.isPlaying) return;
 
-                      // ⚠️ FIX: Impediamo all'utente di rubare il turno o muovere i pezzi del computer!
                       final fen = boardController.getFen();
                       final isWhiteTurn = fen.split(' ')[1] == 'w';
                       final isUserTurn =
@@ -98,18 +193,15 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                               !isWhiteTurn);
 
                       if (!isUserTurn) {
-                        // Fa "rimbalzare" indietro il pezzo ricaricando l'ultima posizione valida
                         ref
                             .read(customBoardProvider.notifier)
                             .updateFen(boardController.getFen());
                         return;
                       }
 
-                      // Scompone la mossa UCI (es. "e2e4" o "e7e8q")
                       final fromSq = uciMove.substring(0, 2);
                       final toSq = uciMove.substring(2, 4);
 
-                      // Applica la mossa al vecchio controller logico
                       if (uciMove.length == 5) {
                         boardController.makeMoveWithPromotion(
                           from: fromSq,
@@ -120,7 +212,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         boardController.makeMove(from: fromSq, to: toSq);
                       }
 
-                      // Avvisa il controller che hai mosso, così il motore risponderà
                       ref.read(playControllerProvider.notifier).onUserMove();
                     },
                   ),
@@ -140,7 +231,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ⚠️ NASCONDIAMO LE IMPOSTAZIONI DURANTE LA PARTITA!
                   if (!state.isPlaying) ...[
                     // --- SELETTORE COLORE E MOTORE ---
                     Row(
@@ -189,7 +279,33 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     ),
                     const Divider(color: Colors.white24, height: 24),
 
-                    // --- OPZIONI LIVEBOOK E TRATTI ---
+                    // --- OPZIONI POSIZIONE, LIVEBOOK, ECC ---
+                    SwitchListTile(
+                      title: Text(
+                        loc.localeName == 'it'
+                            ? "Usa posizione corrente"
+                            : "Use current position",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      subtitle: Text(
+                        loc.localeName == 'it'
+                            ? "Inizia la partita dalla posizione visibile sulla scacchiera."
+                            : "Start the game from the current position visible on the board.",
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      value: state.useCurrentPosition,
+                      activeColor: Colors.blueAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => ref
+                          .read(playControllerProvider.notifier)
+                          .toggleUseCurrentPosition(v),
+                    ),
                     SwitchListTile(
                       title: Text(
                         loc.usaLivebookCloud,
@@ -212,34 +328,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                           .read(playControllerProvider.notifier)
                           .toggleLivebook(v),
                     ),
-                    ListTile(
-                      title: Text(
-                        loc.filtriTrattiPosizionali,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      subtitle: Text(
-                        loc.aggiungeBiasStrategicoAlleMoss,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.lock,
-                        color: Colors.orangeAccent,
-                        size: 20,
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(loc.funzioneTrattiPosizionaliBlocc),
-                        ),
-                      ),
-                    ),
+
                     const Divider(color: Colors.white24, height: 24),
 
                     // --- OPZIONI ELO (SOLO PER ALEXANDER) ---
@@ -394,8 +483,9 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                  ], // <-- FINE DEL BLOCCO IF
-                  // --- BOTTONE PRINCIPALE START / STOP --- (Questo rimane sempre visibile!)
+                  ],
+
+                  // --- BOTTONE PRINCIPALE START / STOP ---
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -403,14 +493,18 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         if (state.isPlaying) {
                           ref.read(playControllerProvider.notifier).stopGame();
                         } else {
-                          ref.read(playControllerProvider.notifier).startGame();
+                          ref
+                              .read(playControllerProvider.notifier)
+                              .startGame(loc); // ⚠️ PASSA LOC QUI
                         }
                       },
                       icon: Icon(
                         state.isPlaying ? Icons.stop : Icons.play_arrow,
                       ),
                       label: Text(
-                        state.isPlaying ? loc.annulla : loc.gioca,
+                        state.isPlaying
+                            ? (loc.localeName == 'it' ? "ANNULLA" : "CANCEL")
+                            : (loc.localeName == 'it' ? "GIOCA" : "PLAY"),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

@@ -482,11 +482,11 @@ class EngineControls extends ConsumerWidget {
                   if (engineState.isRunning) {
                     ref.read(engineControllerProvider.notifier).stopEngine();
                   }
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
+                  // ⚠️ LA MAGIA: showBottomSheet (Senza Modal!) non blocca la scacchiera!
+                  Scaffold.of(context).showBottomSheet(
+                    (context) => const CoachModal(),
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const CoachModal(),
+                    elevation: 10,
                   );
                 },
               ),

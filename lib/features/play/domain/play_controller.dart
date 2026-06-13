@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
-import 'package:shared_preferences/shared_preferences.dart'; // ⚠️ AGGIUNGI QUESTO IMPORT!
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../main.dart'; // ⚠️ AGGIUNTO PER ACCEDERE AD appLocale GLOBALE
+import '../../../l10n/app_localizations.dart';
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/orchestrators/play_orchestrator.dart';
 import '../../../core/services/shared_prefs_provider.dart';
@@ -19,10 +21,13 @@ class PlayState {
   final int baseTime;
   final int increment;
 
-  // --- NUOVI PARAMETRI RECUPERATI ---
   final bool useLivebook;
   final bool limitStrength;
   final double eloValue;
+  final bool useCurrentPosition;
+
+  final int whiteTime;
+  final int blackTime;
 
   PlayState({
     this.isPlaying = false,
@@ -35,6 +40,9 @@ class PlayState {
     this.useLivebook = true,
     this.limitStrength = false,
     this.eloValue = 1500,
+    this.useCurrentPosition = false,
+    this.whiteTime = 0,
+    this.blackTime = 0,
   });
 
   PlayState copyWith({
@@ -48,6 +56,9 @@ class PlayState {
     bool? useLivebook,
     bool? limitStrength,
     double? eloValue,
+    bool? useCurrentPosition,
+    int? whiteTime,
+    int? blackTime,
   }) {
     return PlayState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -60,6 +71,9 @@ class PlayState {
       useLivebook: useLivebook ?? this.useLivebook,
       limitStrength: limitStrength ?? this.limitStrength,
       eloValue: eloValue ?? this.eloValue,
+      useCurrentPosition: useCurrentPosition ?? this.useCurrentPosition,
+      whiteTime: whiteTime ?? this.whiteTime,
+      blackTime: blackTime ?? this.blackTime,
     );
   }
 }
@@ -74,15 +88,13 @@ class PlayController extends StateNotifier<PlayState> {
   final Ref ref;
   final EngineManager _engineManager = EngineManager();
   PlayOrchestrator? _orchestrator;
-  late final SharedPreferences _prefs; // Variabile per la memoria
+  late final SharedPreferences _prefs;
 
   PlayController(this.ref) : super(PlayState()) {
-    // Recuperiamo le preferenze istantaneamente grazie a Riverpod
     _prefs = ref.read(sharedPrefsProvider);
     _loadPreferences();
   }
 
-  // --- CARICAMENTO MEMORIA ---
   void _loadPreferences() {
     state = state.copyWith(
       selectedEngine: _prefs.getString('play_engine') ?? 'alexander',
@@ -92,12 +104,11 @@ class PlayController extends StateNotifier<PlayState> {
       useLivebook: _prefs.getBool('play_useLivebook') ?? true,
       limitStrength: _prefs.getBool('play_limitStrength') ?? false,
       eloValue: _prefs.getDouble('play_eloValue') ?? 1500.0,
+      useCurrentPosition: _prefs.getBool('play_useCurrentPosition') ?? false,
     );
   }
 
-  // --- SETTER CON SALVATAGGIO IN MEMORIA ---
   void setUserColor(PlayerColor color) {
-    // Non salviamo il colore, di solito l'utente lo sceglie al momento
     state = state.copyWith(userColor: color);
   }
 
@@ -108,9 +119,7 @@ class PlayController extends StateNotifier<PlayState> {
 
   void setTcType(int type) {
     _prefs.setInt('play_tcType', type);
-    int newBaseTime = type == 0
-        ? 5
-        : 3; // Reset dei tempi di default in base alla cadenza
+    int newBaseTime = type == 0 ? 5 : 3;
     _prefs.setInt('play_baseTime', newBaseTime);
     _prefs.setInt('play_increment', 0);
     state = state.copyWith(tcType: type, baseTime: newBaseTime, increment: 0);
@@ -141,20 +150,35 @@ class PlayController extends StateNotifier<PlayState> {
     state = state.copyWith(eloValue: val);
   }
 
-  Future<void> startGame() async {
+  void toggleUseCurrentPosition(bool val) {
+    _prefs.setBool('play_useCurrentPosition', val);
+    state = state.copyWith(useCurrentPosition: val);
+  }
+
+  Future<void> startGame(AppLocalizations loc) async {
+    // ⚠️ RICEVE L'OGGETTO LOC
+    bool isIt = loc.localeName == 'it';
     state = state.copyWith(
       isPlaying: true,
-      logMessage: "Avvio motore in corso...",
+      logMessage: isIt ? "Avvio motore in corso..." : "Starting engine...",
+      whiteTime: state.tcType == 0
+          ? state.baseTime * 60 * 1000
+          : state.baseTime * 1000,
+      blackTime: state.tcType == 0
+          ? state.baseTime * 60 * 1000
+          : state.baseTime * 1000,
     );
+
     final boardCtrl = ref.read(playBoardProvider);
-    boardCtrl.resetBoard();
+    if (!state.useCurrentPosition) {
+      boardCtrl.resetBoard();
+    }
 
     await _engineManager.initEngine(state.selectedEngine, [
       'nn-c288c895ea92.nnue',
       'nn-37f18f62d772.nnue',
     ]);
 
-    // --- IMPOSTAZIONE ELO PER ALEXANDER ---
     if (state.selectedEngine == 'alexander') {
       if (state.limitStrength) {
         _engineManager.sendCommand(
@@ -163,9 +187,15 @@ class PlayController extends StateNotifier<PlayState> {
         _engineManager.sendCommand(
           'setoption name UCI_Elo value ${state.eloValue.toInt()}',
         );
+        _engineManager.sendCommand(
+          'setoption name Simulate human blunders value true',
+        );
       } else {
         _engineManager.sendCommand(
           'setoption name UCI_LimitStrength value false',
+        );
+        _engineManager.sendCommand(
+          'setoption name Simulate human blunders value false',
         );
       }
     }
@@ -176,8 +206,11 @@ class PlayController extends StateNotifier<PlayState> {
       onLog: (msg) => state = state.copyWith(logMessage: msg),
       onGameOver: (msg) => state = state.copyWith(
         isPlaying: false,
-        logMessage: msg ?? "Partita Terminata!",
+        logMessage: msg ?? (isIt ? "Partita Terminata!" : "Game Over!"),
       ),
+      onClockUpdate: (w, b) =>
+          state = state.copyWith(whiteTime: w, blackTime: b),
+      loc: loc, // ⚠️ PASSA IL MASTER LOC ALL'ORCHESTRATORE
       useLivebook: state.useLivebook,
       tcType: state.tcType,
       baseTimeMs: state.tcType == 0
@@ -187,9 +220,6 @@ class PlayController extends StateNotifier<PlayState> {
     );
     _orchestrator!.startGame();
 
-    // ⚠️ FIX RACE CONDITION: Ora che l'orchestratore è nato, controlliamo di chi è il turno!
-    // Se l'utente gioca col Nero, o se gioca col Bianco ma ha GIA' mosso mentre
-    // il motore stava caricando, il turno sarà del computer. Quindi lo facciamo partire!
     final fen = boardCtrl.getFen();
     final isWhiteTurn = fen.split(' ')[1] == 'w';
     final isEngineTurn =
@@ -202,13 +232,17 @@ class PlayController extends StateNotifier<PlayState> {
   }
 
   void onUserMove() {
-    if (state.isPlaying) _orchestrator?.playCycle();
+    if (state.isPlaying) _orchestrator?.registerUserMove();
   }
 
   void stopGame() {
     _orchestrator?.stop();
     _engineManager.sendCommand('stop');
-    state = state.copyWith(isPlaying: false, logMessage: "Partita interrotta.");
+    bool isIt = appLocale.value.languageCode == 'it';
+    state = state.copyWith(
+      isPlaying: false,
+      logMessage: isIt ? "Partita interrotta." : "Game interrupted.",
+    );
   }
 
   @override

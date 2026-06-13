@@ -2731,6 +2731,7 @@ FILE: lib\core\orchestrators\play_orchestrator.dart
 
 import 'dart:async';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
+import '../../l10n/app_localizations.dart'; // ⚠️ AGGIUNTO IMPORT
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
 
@@ -2739,6 +2740,8 @@ class PlayOrchestrator {
   final ChessBoardController boardController;
   final Function(String) onLog;
   final Function(String?) onGameOver;
+  final Function(int wTimeMs, int bTimeMs) onClockUpdate;
+  final AppLocalizations loc; // ⚠️ AGGIUNTO PER INTERNAZIONALIZZAZIONE
   final bool useLivebook;
 
   final int tcType;
@@ -2747,7 +2750,10 @@ class PlayOrchestrator {
 
   int _wtime = 0;
   int _btime = 0;
-  DateTime? _lastEngineStart;
+
+  Timer? _clockTimer;
+  Timer? _watchdogTimer;
+  DateTime _lastTimeUpdate = DateTime.now();
 
   StreamSubscription<String>? _outputSubscription;
   bool _isEngineThinking = false;
@@ -2759,38 +2765,125 @@ class PlayOrchestrator {
     required this.boardController,
     required this.onLog,
     required this.onGameOver,
+    required this.onClockUpdate,
+    required this.loc, // ⚠️ RICHIESTO NEL COSTRUTTORE
     this.useLivebook = true,
     this.tcType = 1,
     this.baseTimeMs = 3000,
     this.incMs = 0,
   }) {
-    if (tcType == 0) {
-      _wtime = baseTimeMs;
-      _btime = baseTimeMs;
-    }
+    _wtime = baseTimeMs;
+    _btime = baseTimeMs;
   }
 
   String _getPosKey(String fen) => fen.split(' ').take(4).join(' ');
 
   void startGame() {
-    onLog("🎮 Partita iniziata! Buona fortuna.");
+    bool isIt = loc.localeName == 'it';
+    onLog(
+      isIt
+          ? "🎮 Partita iniziata! Buona fortuna."
+          : "🎮 Game started! Good luck.",
+    );
+
     _outOfBook = !useLivebook;
     _positionCount.clear();
     _positionCount[_getPosKey(boardController.getFen())] = 1;
+
+    _lastTimeUpdate = DateTime.now();
+    _clockTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _updateClock(),
+    );
+    onClockUpdate(_wtime, _btime);
+
     _listenToEngine();
   }
 
-  void playCycle() async {
-    if (_isEngineThinking) {
-      return;
+  void _updateClock() {
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastTimeUpdate).inMilliseconds;
+    _lastTimeUpdate = now;
+    bool isIt = loc.localeName == 'it';
+
+    bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
+    if (isWhiteTurn) {
+      _wtime -= elapsed;
+      if (_wtime <= 0) {
+        _clockTimer?.cancel();
+        onGameOver(
+          isIt
+              ? "0-1 (Vince il Nero per il Tempo)"
+              : "0-1 (Black wins on Time)",
+        );
+        stop();
+        return;
+      }
+    } else {
+      _btime -= elapsed;
+      if (_btime <= 0) {
+        _clockTimer?.cancel();
+        onGameOver(
+          isIt
+              ? "1-0 (Vince il Bianco per il Tempo)"
+              : "1-0 (White wins on Time)",
+        );
+        stop();
+        return;
+      }
     }
+    onClockUpdate(_wtime, _btime);
+  }
+
+  void registerUserMove() {
+    _updateClock();
+    bool wasWhite = boardController.getFen().split(' ')[1] == 'b';
+    if (tcType == 0) {
+      if (wasWhite) {
+        _wtime += incMs;
+      } else {
+        _btime += incMs;
+      }
+    } else {
+      _wtime = baseTimeMs;
+      _btime = baseTimeMs;
+    }
+
+    onClockUpdate(_wtime, _btime);
+    playCycle();
+  }
+
+  void playCycle() async {
+    if (_isEngineThinking) return;
     if (_checkStatus()) {
       stop();
       return;
     }
 
     _isEngineThinking = true;
-    onLog("🤖 Il computer sta pensando...");
+    bool isIt = loc.localeName == 'it';
+    onLog(
+      isIt
+          ? "🤖 Il computer sta pensando..."
+          : "🤖 The computer is thinking...",
+    );
+
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer(const Duration(seconds: 10), () {
+      if (_isEngineThinking) {
+        onLog(
+          isIt
+              ? "⛔ Il motore non risponde, forzo la fine..."
+              : "⛔ Engine not responding, forcing end...",
+        );
+        stop();
+        onGameOver(
+          isIt
+              ? "1/2-1/2 (Patta tecnica per blocco motore)"
+              : "1/2-1/2 (Technical draw due to engine freeze)",
+        );
+      }
+    });
 
     if (!_outOfBook) {
       bool isShash = engineManager.engineOutput == null;
@@ -2800,20 +2893,30 @@ class PlayOrchestrator {
           [],
           isShash,
         );
-
-        // ⚠️ FIX P2: Usiamo la funzione pubblica testata invece del vecchio doppione locale
         String? chosenUci = OracleRoulette.spin(result.moves);
 
         if (chosenUci != null) {
-          onLog("📖 Mossa pescata dal LiveBook Cloud!");
+          onLog(
+            isIt
+                ? "📖 Mossa pescata dal LiveBook Cloud!"
+                : "📖 Move fetched from LiveBook Cloud!",
+          );
           _executeMoveOnBoard(chosenUci, fromBook: true);
           return;
         } else {
-          onLog("📉 Livebook esaurito. Il motore pensa da solo.");
+          onLog(
+            isIt
+                ? "📉 Livebook esaurito. Il motore pensa da solo."
+                : "📉 Livebook exhausted. Engine thinks on its own.",
+          );
           _outOfBook = true;
         }
       } catch (e) {
-        onLog("⚠️ Errore LiveBook ($e). Il motore pensa da solo.");
+        onLog(
+          isIt
+              ? "⚠️ Errore LiveBook ($e). Il motore pensa da solo."
+              : "⚠️ LiveBook Error ($e). Engine thinks on its own.",
+        );
         _outOfBook = true;
       }
     }
@@ -2822,7 +2925,6 @@ class PlayOrchestrator {
     if (tcType == 1) {
       engineManager.sendCommand('go movetime $baseTimeMs');
     } else {
-      _lastEngineStart = DateTime.now();
       engineManager.sendCommand(
         'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
       );
@@ -2831,9 +2933,8 @@ class PlayOrchestrator {
 
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
-      if (!_isEngineThinking) {
-        return;
-      }
+      if (!_isEngineThinking) return;
+      bool isIt = loc.localeName == 'it';
 
       if (line.startsWith('bestmove')) {
         final parts = line.split(' ');
@@ -2843,15 +2944,13 @@ class PlayOrchestrator {
           if (best == '(none)' || best == '0000' || best == 'resign') {
             bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
             String winner = isWhiteTurn
-                ? "0-1 (Vince il Nero)"
-                : "1-0 (Vince il Bianco)";
+                ? (isIt ? "0-1 (Vince il Nero)" : "0-1 (Black Wins)")
+                : (isIt ? "1-0 (Vince il Bianco)" : "1-0 (White Wins)");
             String reason = (best == 'resign')
-                ? "per Abbandono"
-                : "per Fine Partita";
+                ? (isIt ? "per Abbandono" : "by Resignation")
+                : (isIt ? "per Fine Partita" : "by Game Over");
 
-            if (!_checkStatus()) {
-              onGameOver("$winner $reason");
-            }
+            if (!_checkStatus()) onGameOver("$winner $reason");
             stop();
           } else {
             _executeMoveOnBoard(best, fromBook: false);
@@ -2862,6 +2961,8 @@ class PlayOrchestrator {
   }
 
   void _executeMoveOnBoard(String uciMove, {bool fromBook = false}) {
+    bool wasWhite = boardController.getFen().split(' ')[1] == 'w';
+
     try {
       if (uciMove.length >= 4) {
         String fromSq = uciMove.substring(0, 2);
@@ -2882,65 +2983,65 @@ class PlayOrchestrator {
     _positionCount[newKey] = (_positionCount[newKey] ?? 0) + 1;
 
     _isEngineThinking = false;
+    _watchdogTimer?.cancel();
 
-    if (tcType == 0 && _lastEngineStart != null) {
-      int elapsed = DateTime.now().difference(_lastEngineStart!).inMilliseconds;
-      if (boardController.getFen().contains(" b ")) {
-        _wtime -= elapsed;
-        if (_wtime <= 0) {
-          onGameOver("0-1 (Vince il Nero per il Tempo)");
-          stop();
-          return;
-        }
+    _updateClock();
+    if (tcType == 0) {
+      if (wasWhite) {
         _wtime += incMs;
       } else {
-        _btime -= elapsed;
-        if (_btime <= 0) {
-          onGameOver("1-0 (Vince il Bianco per il Tempo)");
-          stop();
-          return;
-        }
         _btime += incMs;
       }
+    } else {
+      _wtime = baseTimeMs;
+      _btime = baseTimeMs;
     }
+    onClockUpdate(_wtime, _btime);
 
-    if (_checkStatus()) {
-      stop();
-    }
+    if (_checkStatus()) stop();
   }
 
   bool _checkStatus() {
     var legalMoves = boardController.game.generate_moves();
+    bool isIt = loc.localeName == 'it';
 
     if (boardController.game.in_checkmate || legalMoves.isEmpty) {
       if (boardController.game.in_check) {
         bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
         onGameOver(
-          isWhiteTurn ? "0-1 (Vince il Nero)" : "1-0 (Vince il Bianco)",
+          isWhiteTurn
+              ? (isIt ? "0-1 (Vince il Nero)" : "0-1 (Black Wins)")
+              : (isIt ? "1-0 (Vince il Bianco)" : "1-0 (White Wins)"),
         );
       } else {
-        onGameOver("1/2-1/2 (Stallo)");
+        onGameOver(isIt ? "1/2-1/2 (Stallo)" : "1/2-1/2 (Stalemate)");
       }
       return true;
     }
 
     String currentKey = _getPosKey(boardController.getFen());
     if ((_positionCount[currentKey] ?? 0) >= 3) {
-      onGameOver("1/2-1/2 (Patta per Ripetizione)");
+      onGameOver(
+        isIt
+            ? "1/2-1/2 (Patta per Ripetizione)"
+            : "1/2-1/2 (Draw by Repetition)",
+      );
       return true;
     }
 
     List<String> fenParts = boardController.getFen().split(' ');
     int halfMoves = fenParts.length > 4 ? (int.tryParse(fenParts[4]) ?? 0) : 0;
     if (halfMoves >= 100) {
-      onGameOver("1/2-1/2 (Regola delle 50 Mosse)");
+      onGameOver(
+        isIt ? "1/2-1/2 (Regola delle 50 Mosse)" : "1/2-1/2 (50-Move Rule)",
+      );
       return true;
     }
 
     if (boardController.game.in_draw ||
         boardController.game.in_stalemate ||
         boardController.game.insufficient_material) {
-      onGameOver("1/2-1/2 (Patta)");
+      onGameOver(isIt ? "1/2-1/2 (Patta)" : "1/2-1/2 (Draw)");
       return true;
     }
 
@@ -2948,10 +3049,14 @@ class PlayOrchestrator {
   }
 
   void stop() {
+    _clockTimer?.cancel();
+    _watchdogTimer?.cancel();
     _outputSubscription?.cancel();
   }
 
   void dispose() {
+    _clockTimer?.cancel();
+    _watchdogTimer?.cancel();
     _outputSubscription?.cancel();
   }
 }
@@ -5868,10 +5973,12 @@ class CoachModal extends ConsumerStatefulWidget {
 
 class _CoachModalState extends ConsumerState<CoachModal> {
   double _elo = 1500;
-  double _timeSec = 2; // ⚠️ Modificato in secondi!
-
+  double _timeSec = 2; // Valore in secondi
   bool _isRunning = false;
   bool _isFinished = false;
+
+  // ⚠️ LA NUOVA VARIABILE PER LA MINIMIZZAZIONE
+  bool _isMinimized = false;
 
   final List<String> _logs = [];
   String _report = "";
@@ -5880,8 +5987,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   CrossedEvalOrchestrator? _orchestrator;
 
   final ScrollController _scrollController = ScrollController();
-  final ScrollController _reportScrollController =
-      ScrollController(); // ⚠️ Controller dedicato al testo finale
+  final ScrollController _reportScrollController = ScrollController();
 
   @override
   void initState() {
@@ -5901,13 +6007,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Future<void> _startCoach() async {
     setState(() {
       _isRunning = true;
-      // ⚠️ Traduzione al volo basata sul contesto
       _logs.add(
         AppLocalizations.of(context)!.localeName == 'it'
             ? "Avvio motore base (Alexander)..."
             : "Starting base engine (Alexander)...",
       );
     });
+
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;
@@ -5932,12 +6038,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
           _report = report;
           _isRunning = false;
           _isFinished = true;
+          // ⚠️ ESPANSIONE AUTOMATICA QUANDO HA FINITO!
+          _isMinimized = false;
         });
       },
     );
 
     final fen = ref.read(boardControllerProvider).getFen();
-    // ⚠️ Moltiplichiamo i secondi per 1000 per passare i millisecondi corretti all'orchestratore
     _orchestrator!.startCrossedEval(
       fen,
       _elo.toInt(),
@@ -5949,27 +6056,115 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
 
+    // ==========================================
+    // ⚠️ LAYOUT MINIMIZZATO (PICCOLO BANNER)
+    // ==========================================
+    if (_isMinimized) {
+      return GestureDetector(
+        onTap: () =>
+            setState(() => _isMinimized = false), // Cliccando si espande
+        child: Container(
+          height: 65,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1a1a1a),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 10,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              if (_isRunning)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.orangeAccent,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              else
+                const Icon(Icons.psychology, color: Colors.orangeAccent),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  _isRunning
+                      ? "Coach in elaborazione..."
+                      : "Coach in attesa...",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.expand_less, color: Colors.white),
+                onPressed: () => setState(() => _isMinimized = false),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ==========================================
+    // ⚠️ LAYOUT NORMALE (ESPANSO)
+    // ==========================================
     return Container(
-      // Aumentato leggermente l'altezza per dare più respiro al testo
       height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            loc.coachAnalisiIncrociata,
-            style: const TextStyle(
-              color: Colors.orangeAccent,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
+          // HEADER CON TITOLO E PULSANTI (Minimizza e Chiudi)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SizedBox(width: 40), // Bilanciamento per centrare il testo
+              Expanded(
+                child: Text(
+                  loc.coachAnalisiIncrociata,
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.expand_more, color: Colors.white54),
+                    onPressed: () => setState(() => _isMinimized = true),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.redAccent),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const Divider(color: Colors.white24, height: 30),
+          const Divider(color: Colors.white24, height: 20),
 
           // FASE 1: IMPOSTAZIONI
           if (!_isRunning && !_isFinished) ...[
@@ -5980,8 +6175,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             Slider(
               value: _elo,
               min: 800,
-              max: 3190, // ⚠️ Limite aggiornato a 3190
-              divisions: 239, // Scatti da 10 Elo
+              max: 3190,
+              divisions: 239,
               label: _elo.toInt().toString(),
               activeColor: Colors.blueAccent,
               onChanged: (val) => setState(() => _elo = val),
@@ -5993,13 +6188,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             const SizedBox(height: 20),
 
             Text(
-              "Tempo di riflessione: ${_timeSec.toInt()} s", // ⚠️ UI in secondi
+              "Tempo di riflessione: ${_timeSec.toInt()} s",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
               value: _timeSec,
               min: 1,
-              max: 30, // Massimo 30 secondi
+              max: 30,
               divisions: 29,
               label: "${_timeSec.toInt()} s",
               activeColor: Colors.greenAccent,
@@ -6012,6 +6207,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               label: Text(loc.avviaCoach),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.all(16),
               ),
             ),
@@ -6047,6 +6243,17 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            // Bottone per minimizzare comodamente durante l'attesa
+            ElevatedButton.icon(
+              onPressed: () => setState(() => _isMinimized = true),
+              icon: const Icon(Icons.expand_more),
+              label: const Text("Minimizza e Gioca"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey[800],
+                foregroundColor: Colors.white,
+              ),
+            ),
           ],
 
           // FASE 3: VERDETTO FINALE
@@ -6062,13 +6269,11 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   ),
                 ),
                 child: Scrollbar(
-                  // ⚠️ Aggiunta barra di scorrimento visibile
                   controller: _reportScrollController,
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _reportScrollController,
                     child: SelectableText(
-                      // ⚠️ Testo ora selezionabile per il copia/incolla!
                       _report,
                       style: const TextStyle(
                         color: Colors.white,
@@ -6085,6 +6290,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey[800],
+                foregroundColor: Colors.white,
               ),
               child: Text(loc.chiudi),
             ),
@@ -6585,11 +6791,11 @@ class EngineControls extends ConsumerWidget {
                   if (engineState.isRunning) {
                     ref.read(engineControllerProvider.notifier).stopEngine();
                   }
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
+                  // ⚠️ LA MAGIA: showBottomSheet (Senza Modal!) non blocca la scacchiera!
+                  Scaffold.of(context).showBottomSheet(
+                    (context) => const CoachModal(),
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const CoachModal(),
+                    elevation: 10,
                   );
                 },
               ),
@@ -7354,7 +7560,9 @@ FILE: lib\features\play\domain\play_controller.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
-import 'package:shared_preferences/shared_preferences.dart'; // ⚠️ AGGIUNGI QUESTO IMPORT!
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../main.dart'; // ⚠️ AGGIUNTO PER ACCEDERE AD appLocale GLOBALE
+import '../../../l10n/app_localizations.dart';
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/orchestrators/play_orchestrator.dart';
 import '../../../core/services/shared_prefs_provider.dart';
@@ -7373,10 +7581,13 @@ class PlayState {
   final int baseTime;
   final int increment;
 
-  // --- NUOVI PARAMETRI RECUPERATI ---
   final bool useLivebook;
   final bool limitStrength;
   final double eloValue;
+  final bool useCurrentPosition;
+
+  final int whiteTime;
+  final int blackTime;
 
   PlayState({
     this.isPlaying = false,
@@ -7389,6 +7600,9 @@ class PlayState {
     this.useLivebook = true,
     this.limitStrength = false,
     this.eloValue = 1500,
+    this.useCurrentPosition = false,
+    this.whiteTime = 0,
+    this.blackTime = 0,
   });
 
   PlayState copyWith({
@@ -7402,6 +7616,9 @@ class PlayState {
     bool? useLivebook,
     bool? limitStrength,
     double? eloValue,
+    bool? useCurrentPosition,
+    int? whiteTime,
+    int? blackTime,
   }) {
     return PlayState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -7414,6 +7631,9 @@ class PlayState {
       useLivebook: useLivebook ?? this.useLivebook,
       limitStrength: limitStrength ?? this.limitStrength,
       eloValue: eloValue ?? this.eloValue,
+      useCurrentPosition: useCurrentPosition ?? this.useCurrentPosition,
+      whiteTime: whiteTime ?? this.whiteTime,
+      blackTime: blackTime ?? this.blackTime,
     );
   }
 }
@@ -7428,15 +7648,13 @@ class PlayController extends StateNotifier<PlayState> {
   final Ref ref;
   final EngineManager _engineManager = EngineManager();
   PlayOrchestrator? _orchestrator;
-  late final SharedPreferences _prefs; // Variabile per la memoria
+  late final SharedPreferences _prefs;
 
   PlayController(this.ref) : super(PlayState()) {
-    // Recuperiamo le preferenze istantaneamente grazie a Riverpod
     _prefs = ref.read(sharedPrefsProvider);
     _loadPreferences();
   }
 
-  // --- CARICAMENTO MEMORIA ---
   void _loadPreferences() {
     state = state.copyWith(
       selectedEngine: _prefs.getString('play_engine') ?? 'alexander',
@@ -7446,12 +7664,11 @@ class PlayController extends StateNotifier<PlayState> {
       useLivebook: _prefs.getBool('play_useLivebook') ?? true,
       limitStrength: _prefs.getBool('play_limitStrength') ?? false,
       eloValue: _prefs.getDouble('play_eloValue') ?? 1500.0,
+      useCurrentPosition: _prefs.getBool('play_useCurrentPosition') ?? false,
     );
   }
 
-  // --- SETTER CON SALVATAGGIO IN MEMORIA ---
   void setUserColor(PlayerColor color) {
-    // Non salviamo il colore, di solito l'utente lo sceglie al momento
     state = state.copyWith(userColor: color);
   }
 
@@ -7462,9 +7679,7 @@ class PlayController extends StateNotifier<PlayState> {
 
   void setTcType(int type) {
     _prefs.setInt('play_tcType', type);
-    int newBaseTime = type == 0
-        ? 5
-        : 3; // Reset dei tempi di default in base alla cadenza
+    int newBaseTime = type == 0 ? 5 : 3;
     _prefs.setInt('play_baseTime', newBaseTime);
     _prefs.setInt('play_increment', 0);
     state = state.copyWith(tcType: type, baseTime: newBaseTime, increment: 0);
@@ -7495,20 +7710,35 @@ class PlayController extends StateNotifier<PlayState> {
     state = state.copyWith(eloValue: val);
   }
 
-  Future<void> startGame() async {
+  void toggleUseCurrentPosition(bool val) {
+    _prefs.setBool('play_useCurrentPosition', val);
+    state = state.copyWith(useCurrentPosition: val);
+  }
+
+  Future<void> startGame(AppLocalizations loc) async {
+    // ⚠️ RICEVE L'OGGETTO LOC
+    bool isIt = loc.localeName == 'it';
     state = state.copyWith(
       isPlaying: true,
-      logMessage: "Avvio motore in corso...",
+      logMessage: isIt ? "Avvio motore in corso..." : "Starting engine...",
+      whiteTime: state.tcType == 0
+          ? state.baseTime * 60 * 1000
+          : state.baseTime * 1000,
+      blackTime: state.tcType == 0
+          ? state.baseTime * 60 * 1000
+          : state.baseTime * 1000,
     );
+
     final boardCtrl = ref.read(playBoardProvider);
-    boardCtrl.resetBoard();
+    if (!state.useCurrentPosition) {
+      boardCtrl.resetBoard();
+    }
 
     await _engineManager.initEngine(state.selectedEngine, [
       'nn-c288c895ea92.nnue',
       'nn-37f18f62d772.nnue',
     ]);
 
-    // --- IMPOSTAZIONE ELO PER ALEXANDER ---
     if (state.selectedEngine == 'alexander') {
       if (state.limitStrength) {
         _engineManager.sendCommand(
@@ -7517,9 +7747,15 @@ class PlayController extends StateNotifier<PlayState> {
         _engineManager.sendCommand(
           'setoption name UCI_Elo value ${state.eloValue.toInt()}',
         );
+        _engineManager.sendCommand(
+          'setoption name Simulate human blunders value true',
+        );
       } else {
         _engineManager.sendCommand(
           'setoption name UCI_LimitStrength value false',
+        );
+        _engineManager.sendCommand(
+          'setoption name Simulate human blunders value false',
         );
       }
     }
@@ -7530,8 +7766,11 @@ class PlayController extends StateNotifier<PlayState> {
       onLog: (msg) => state = state.copyWith(logMessage: msg),
       onGameOver: (msg) => state = state.copyWith(
         isPlaying: false,
-        logMessage: msg ?? "Partita Terminata!",
+        logMessage: msg ?? (isIt ? "Partita Terminata!" : "Game Over!"),
       ),
+      onClockUpdate: (w, b) =>
+          state = state.copyWith(whiteTime: w, blackTime: b),
+      loc: loc, // ⚠️ PASSA IL MASTER LOC ALL'ORCHESTRATORE
       useLivebook: state.useLivebook,
       tcType: state.tcType,
       baseTimeMs: state.tcType == 0
@@ -7541,9 +7780,6 @@ class PlayController extends StateNotifier<PlayState> {
     );
     _orchestrator!.startGame();
 
-    // ⚠️ FIX RACE CONDITION: Ora che l'orchestratore è nato, controlliamo di chi è il turno!
-    // Se l'utente gioca col Nero, o se gioca col Bianco ma ha GIA' mosso mentre
-    // il motore stava caricando, il turno sarà del computer. Quindi lo facciamo partire!
     final fen = boardCtrl.getFen();
     final isWhiteTurn = fen.split(' ')[1] == 'w';
     final isEngineTurn =
@@ -7556,13 +7792,17 @@ class PlayController extends StateNotifier<PlayState> {
   }
 
   void onUserMove() {
-    if (state.isPlaying) _orchestrator?.playCycle();
+    if (state.isPlaying) _orchestrator?.registerUserMove();
   }
 
   void stopGame() {
     _orchestrator?.stop();
     _engineManager.sendCommand('stop');
-    state = state.copyWith(isPlaying: false, logMessage: "Partita interrotta.");
+    bool isIt = appLocale.value.languageCode == 'it';
+    state = state.copyWith(
+      isPlaying: false,
+      logMessage: isIt ? "Partita interrotta." : "Game interrupted.",
+    );
   }
 
   @override
@@ -7932,7 +8172,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import '../../../../l10n/app_localizations.dart';
 import '../domain/play_controller.dart';
-import 'custom_chess_board.dart'; // ⚠️ Importiamo la nostra nuova scacchiera
+import 'custom_chess_board.dart';
 
 class PlayScreen extends ConsumerStatefulWidget {
   const PlayScreen({super.key});
@@ -7947,7 +8187,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
   @override
   void initState() {
     super.initState();
-    // ⚠️ LA MAGIA: Colleghiamo il motore logico di gioco alla nuova UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _boardControllerListener = ref.read(playBoardProvider);
       _boardControllerListener?.addListener(_syncBoard);
@@ -7969,13 +8208,79 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     super.dispose();
   }
 
+  Widget _buildPlayerBadge(
+    String name,
+    int timeMs,
+    bool isWhite,
+    int tcType,
+    int baseTime,
+  ) {
+    String timeStr = "";
+    if (tcType == 1) {
+      int secs = (timeMs / 1000).ceil();
+      timeStr = "${secs}s";
+    } else {
+      int secs = timeMs ~/ 1000;
+      timeStr =
+          "${(secs ~/ 60).toString().padLeft(2, '0')}:${(secs % 60).toString().padLeft(2, '0')}";
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isWhite
+            ? Colors.white.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: isWhite ? Colors.white : Colors.grey[700]!),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            name == 'UMANO'
+                ? Icons.person
+                : (name == 'shashchess' ? Icons.memory : Icons.shield),
+            color: isWhite ? Colors.black87 : Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            name.toUpperCase(),
+            style: TextStyle(
+              color: isWhite ? Colors.black : Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              timeStr,
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(playControllerProvider);
     final boardController = ref.watch(playBoardProvider);
     final loc = AppLocalizations.of(context)!;
 
-    // Determina da che lato guardare la scacchiera in base al colore scelto
     bool isWhiteBottom = state.userColor == PlayerColor.white;
 
     return Scaffold(
@@ -7986,7 +8291,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
       ),
       body: Column(
         children: [
-          // 1. MESSAGGI DI STATO E LOG
+          // 1. MESSAGGI DI STATO (Traduzione dinamica se in standby)
           Container(
             padding: const EdgeInsets.all(12),
             width: double.infinity,
@@ -8003,7 +8308,39 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
             ),
           ),
 
-          // 2. LA NUOVA SCACCHIERA DI GIOCO
+          // OROLOGI
+          if (state.isPlaying)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildPlayerBadge(
+                    state.userColor == PlayerColor.white
+                        ? 'UMANO'
+                        : state.selectedEngine,
+                    state.whiteTime,
+                    true,
+                    state.tcType,
+                    state.baseTime,
+                  ),
+                  _buildPlayerBadge(
+                    state.userColor == PlayerColor.black
+                        ? 'UMANO'
+                        : state.selectedEngine,
+                    state.blackTime,
+                    false,
+                    state.tcType,
+                    state.baseTime,
+                  ),
+                ],
+              ),
+            ),
+
+          // 2. SCACCHIERA DI GIOCO
           Expanded(
             child: Center(
               child: Padding(
@@ -8013,10 +8350,8 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                   child: CustomChessBoard(
                     isWhiteBottom: isWhiteBottom,
                     onUserMove: (uciMove) {
-                      // Se la partita non è iniziata, non permettiamo tocchi
                       if (!state.isPlaying) return;
 
-                      // ⚠️ FIX: Impediamo all'utente di rubare il turno o muovere i pezzi del computer!
                       final fen = boardController.getFen();
                       final isWhiteTurn = fen.split(' ')[1] == 'w';
                       final isUserTurn =
@@ -8026,18 +8361,15 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                               !isWhiteTurn);
 
                       if (!isUserTurn) {
-                        // Fa "rimbalzare" indietro il pezzo ricaricando l'ultima posizione valida
                         ref
                             .read(customBoardProvider.notifier)
                             .updateFen(boardController.getFen());
                         return;
                       }
 
-                      // Scompone la mossa UCI (es. "e2e4" o "e7e8q")
                       final fromSq = uciMove.substring(0, 2);
                       final toSq = uciMove.substring(2, 4);
 
-                      // Applica la mossa al vecchio controller logico
                       if (uciMove.length == 5) {
                         boardController.makeMoveWithPromotion(
                           from: fromSq,
@@ -8048,7 +8380,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         boardController.makeMove(from: fromSq, to: toSq);
                       }
 
-                      // Avvisa il controller che hai mosso, così il motore risponderà
                       ref.read(playControllerProvider.notifier).onUserMove();
                     },
                   ),
@@ -8068,7 +8399,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ⚠️ NASCONDIAMO LE IMPOSTAZIONI DURANTE LA PARTITA!
                   if (!state.isPlaying) ...[
                     // --- SELETTORE COLORE E MOTORE ---
                     Row(
@@ -8117,7 +8447,33 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     ),
                     const Divider(color: Colors.white24, height: 24),
 
-                    // --- OPZIONI LIVEBOOK E TRATTI ---
+                    // --- OPZIONI POSIZIONE, LIVEBOOK, ECC ---
+                    SwitchListTile(
+                      title: Text(
+                        loc.localeName == 'it'
+                            ? "Usa posizione corrente"
+                            : "Use current position",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      subtitle: Text(
+                        loc.localeName == 'it'
+                            ? "Inizia la partita dalla posizione visibile sulla scacchiera."
+                            : "Start the game from the current position visible on the board.",
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      value: state.useCurrentPosition,
+                      activeColor: Colors.blueAccent,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => ref
+                          .read(playControllerProvider.notifier)
+                          .toggleUseCurrentPosition(v),
+                    ),
                     SwitchListTile(
                       title: Text(
                         loc.usaLivebookCloud,
@@ -8140,34 +8496,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                           .read(playControllerProvider.notifier)
                           .toggleLivebook(v),
                     ),
-                    ListTile(
-                      title: Text(
-                        loc.filtriTrattiPosizionali,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      subtitle: Text(
-                        loc.aggiungeBiasStrategicoAlleMoss,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.lock,
-                        color: Colors.orangeAccent,
-                        size: 20,
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(loc.funzioneTrattiPosizionaliBlocc),
-                        ),
-                      ),
-                    ),
+
                     const Divider(color: Colors.white24, height: 24),
 
                     // --- OPZIONI ELO (SOLO PER ALEXANDER) ---
@@ -8322,8 +8651,9 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                  ], // <-- FINE DEL BLOCCO IF
-                  // --- BOTTONE PRINCIPALE START / STOP --- (Questo rimane sempre visibile!)
+                  ],
+
+                  // --- BOTTONE PRINCIPALE START / STOP ---
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -8331,14 +8661,18 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         if (state.isPlaying) {
                           ref.read(playControllerProvider.notifier).stopGame();
                         } else {
-                          ref.read(playControllerProvider.notifier).startGame();
+                          ref
+                              .read(playControllerProvider.notifier)
+                              .startGame(loc); // ⚠️ PASSA LOC QUI
                         }
                       },
                       icon: Icon(
                         state.isPlaying ? Icons.stop : Icons.play_arrow,
                       ),
                       label: Text(
-                        state.isPlaying ? loc.annulla : loc.gioca,
+                        state.isPlaying
+                            ? (loc.localeName == 'it' ? "ANNULLA" : "CANCEL")
+                            : (loc.localeName == 'it' ? "GIOCA" : "PLAY"),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

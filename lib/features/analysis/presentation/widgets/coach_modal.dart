@@ -14,10 +14,12 @@ class CoachModal extends ConsumerStatefulWidget {
 
 class _CoachModalState extends ConsumerState<CoachModal> {
   double _elo = 1500;
-  double _timeSec = 2; // ⚠️ Modificato in secondi!
-
+  double _timeSec = 2; // Valore in secondi
   bool _isRunning = false;
   bool _isFinished = false;
+
+  // ⚠️ LA NUOVA VARIABILE PER LA MINIMIZZAZIONE
+  bool _isMinimized = false;
 
   final List<String> _logs = [];
   String _report = "";
@@ -26,8 +28,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   CrossedEvalOrchestrator? _orchestrator;
 
   final ScrollController _scrollController = ScrollController();
-  final ScrollController _reportScrollController =
-      ScrollController(); // ⚠️ Controller dedicato al testo finale
+  final ScrollController _reportScrollController = ScrollController();
 
   @override
   void initState() {
@@ -47,13 +48,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Future<void> _startCoach() async {
     setState(() {
       _isRunning = true;
-      // ⚠️ Traduzione al volo basata sul contesto
       _logs.add(
         AppLocalizations.of(context)!.localeName == 'it'
             ? "Avvio motore base (Alexander)..."
             : "Starting base engine (Alexander)...",
       );
     });
+
     await _coachEngine.initEngine('alexander', []);
 
     if (!mounted) return;
@@ -78,12 +79,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
           _report = report;
           _isRunning = false;
           _isFinished = true;
+          // ⚠️ ESPANSIONE AUTOMATICA QUANDO HA FINITO!
+          _isMinimized = false;
         });
       },
     );
 
     final fen = ref.read(boardControllerProvider).getFen();
-    // ⚠️ Moltiplichiamo i secondi per 1000 per passare i millisecondi corretti all'orchestratore
     _orchestrator!.startCrossedEval(
       fen,
       _elo.toInt(),
@@ -95,27 +97,115 @@ class _CoachModalState extends ConsumerState<CoachModal> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
 
+    // ==========================================
+    // ⚠️ LAYOUT MINIMIZZATO (PICCOLO BANNER)
+    // ==========================================
+    if (_isMinimized) {
+      return GestureDetector(
+        onTap: () =>
+            setState(() => _isMinimized = false), // Cliccando si espande
+        child: Container(
+          height: 65,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1a1a1a),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 10,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              if (_isRunning)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.orangeAccent,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              else
+                const Icon(Icons.psychology, color: Colors.orangeAccent),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  _isRunning
+                      ? "Coach in elaborazione..."
+                      : "Coach in attesa...",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.expand_less, color: Colors.white),
+                onPressed: () => setState(() => _isMinimized = false),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ==========================================
+    // ⚠️ LAYOUT NORMALE (ESPANSO)
+    // ==========================================
     return Container(
-      // Aumentato leggermente l'altezza per dare più respiro al testo
       height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Color(0xFF1a1a1a),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            loc.coachAnalisiIncrociata,
-            style: const TextStyle(
-              color: Colors.orangeAccent,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
+          // HEADER CON TITOLO E PULSANTI (Minimizza e Chiudi)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SizedBox(width: 40), // Bilanciamento per centrare il testo
+              Expanded(
+                child: Text(
+                  loc.coachAnalisiIncrociata,
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.expand_more, color: Colors.white54),
+                    onPressed: () => setState(() => _isMinimized = true),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.redAccent),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const Divider(color: Colors.white24, height: 30),
+          const Divider(color: Colors.white24, height: 20),
 
           // FASE 1: IMPOSTAZIONI
           if (!_isRunning && !_isFinished) ...[
@@ -126,8 +216,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             Slider(
               value: _elo,
               min: 800,
-              max: 3190, // ⚠️ Limite aggiornato a 3190
-              divisions: 239, // Scatti da 10 Elo
+              max: 3190,
+              divisions: 239,
               label: _elo.toInt().toString(),
               activeColor: Colors.blueAccent,
               onChanged: (val) => setState(() => _elo = val),
@@ -139,13 +229,13 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             const SizedBox(height: 20),
 
             Text(
-              "Tempo di riflessione: ${_timeSec.toInt()} s", // ⚠️ UI in secondi
+              "Tempo di riflessione: ${_timeSec.toInt()} s",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
               value: _timeSec,
               min: 1,
-              max: 30, // Massimo 30 secondi
+              max: 30,
               divisions: 29,
               label: "${_timeSec.toInt()} s",
               activeColor: Colors.greenAccent,
@@ -158,6 +248,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               label: Text(loc.avviaCoach),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.all(16),
               ),
             ),
@@ -193,6 +284,17 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            // Bottone per minimizzare comodamente durante l'attesa
+            ElevatedButton.icon(
+              onPressed: () => setState(() => _isMinimized = true),
+              icon: const Icon(Icons.expand_more),
+              label: const Text("Minimizza e Gioca"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey[800],
+                foregroundColor: Colors.white,
+              ),
+            ),
           ],
 
           // FASE 3: VERDETTO FINALE
@@ -208,13 +310,11 @@ class _CoachModalState extends ConsumerState<CoachModal> {
                   ),
                 ),
                 child: Scrollbar(
-                  // ⚠️ Aggiunta barra di scorrimento visibile
                   controller: _reportScrollController,
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _reportScrollController,
                     child: SelectableText(
-                      // ⚠️ Testo ora selezionabile per il copia/incolla!
                       _report,
                       style: const TextStyle(
                         color: Colors.white,
@@ -231,6 +331,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey[800],
+                foregroundColor: Colors.white,
               ),
               child: Text(loc.chiudi),
             ),
