@@ -178,6 +178,19 @@ class PlayController extends StateNotifier<PlayState> {
       'nn-37f18f62d772.nnue',
     ]);
 
+    // 1. CARICAMENTO OPZIONI GENERALI SALVATE NEL LABORATORIO (Hash, Threads, ecc.)
+    final keys = _prefs.getKeys().where(
+      (k) => k.startsWith('${state.selectedEngine}_'),
+    );
+    for (var key in keys) {
+      final optionName = key.replaceFirst('${state.selectedEngine}_', '');
+      final value = _prefs.getString(key);
+      if (value != null && value.isNotEmpty) {
+        _engineManager.sendCommand('setoption name $optionName value $value');
+      }
+    }
+
+    // 2. SOVRASCRITTURA OPZIONI SPECIFICHE PER LA MODALITÀ GIOCA (Alexander Elo & Blunders)
     if (state.selectedEngine == 'alexander') {
       if (state.limitStrength) {
         _engineManager.sendCommand(
@@ -199,6 +212,7 @@ class PlayController extends StateNotifier<PlayState> {
       }
     }
 
+    // 3. BARRIERA DI SINCRONIZZAZIONE
     _engineManager.sendCommand('isready');
     await Future.delayed(const Duration(milliseconds: 100));
 
