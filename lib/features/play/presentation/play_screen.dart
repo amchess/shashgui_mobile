@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import '../../../../l10n/app_localizations.dart';
+import '../../../../core/services/import_export_service.dart';
 import '../domain/play_controller.dart';
 import 'custom_chess_board.dart';
 
@@ -48,8 +49,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     int baseTime,
   ) {
     String timeStr = "";
-    // ⚠️ LA MAGIA MATEMATICA: Usa l'arrotondamento per eccesso (ceil) per tutto!
-    // Se hai 1 millisecondo, mostrerà 1 secondo. Mostrerà 0 SOLO quando è uno zero assoluto e definitivo.
     int secs = (timeMs / 1000).ceil();
 
     if (tcType == 1) {
@@ -117,12 +116,11 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
 
     bool isWhiteBottom = state.userColor == PlayerColor.white;
 
-    // ⚠️ IL POP-UP ESPLICITO DI FINE PARTITA
+    // --- IL POP-UP DI FINE PARTITA CON TASTO ESPORTA ---
     ref.listen<PlayState>(playControllerProvider, (previous, next) {
       if (previous != null &&
           previous.isPlaying == true &&
           next.isPlaying == false) {
-        // Se la partita è finita da sola o per tempo (escludendo l'interruzione manuale)
         if (next.logMessage != "Partita interrotta." &&
             next.logMessage != "Game interrupted.") {
           showDialog(
@@ -138,11 +136,24 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                 textAlign: TextAlign.center,
               ),
               content: Text(
-                next.logMessage, // Qui c'è il verdetto esatto: Timeout, Patta, Matto
+                next.logMessage,
                 style: const TextStyle(color: Colors.white, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               actions: [
+                TextButton.icon(
+                  onPressed: () {
+                    ImportExportService.copyPgnToClipboard(
+                      context,
+                      boardController.game.pgn(),
+                    );
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.greenAccent),
+                  label: Text(
+                    loc.localeName == 'it' ? "COPIA PGN" : "COPY PGN",
+                    style: const TextStyle(color: Colors.greenAccent),
+                  ),
+                ),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
@@ -522,42 +533,123 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (state.isPlaying) {
-                          ref.read(playControllerProvider.notifier).stopGame();
-                        } else {
-                          ref
-                              .read(playControllerProvider.notifier)
-                              .startGame(loc);
-                        }
-                      },
-                      icon: Icon(
-                        state.isPlaying ? Icons.stop : Icons.play_arrow,
-                      ),
-                      label: Text(
-                        state.isPlaying
-                            ? (loc.localeName == 'it' ? "ANNULLA" : "CANCEL")
-                            : (loc.localeName == 'it' ? "GIOCA" : "PLAY"),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  if (state.isPlaying) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => ref
+                                .read(playControllerProvider.notifier)
+                                .resignGame(loc),
+                            icon: const Icon(Icons.flag),
+                            label: Text(
+                              loc.localeName == 'it' ? "ABBANDONA" : "RESIGN",
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: state.isPlaying
-                            ? Colors.red[700]
-                            : Colors.green[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => ref
+                                .read(playControllerProvider.notifier)
+                                .offerDraw(loc),
+                            icon: const Icon(Icons.handshake),
+                            label: Text(
+                              loc.localeName == 'it' ? "PATTA" : "DRAW",
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => ref
+                            .read(playControllerProvider.notifier)
+                            .stopGame(),
+                        icon: const Icon(Icons.stop),
+                        label: Text(
+                          loc.localeName == 'it' ? "INTERROMPI" : "ABORT",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[800],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => ref
+                            .read(playControllerProvider.notifier)
+                            .startGame(loc),
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(
+                          loc.localeName == 'it' ? "GIOCA" : "PLAY",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (boardController.game.history.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            ImportExportService.copyPgnToClipboard(
+                              context,
+                              boardController.game.pgn(),
+                            );
+                          },
+                          icon: const Icon(Icons.file_copy),
+                          label: Text(
+                            loc.localeName == 'it'
+                                ? "COPIA PGN PER IL LABORATORIO"
+                                : "COPY PGN FOR LAB",
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.cyanAccent,
+                            side: const BorderSide(color: Colors.cyanAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),

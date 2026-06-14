@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../main.dart'; // ⚠️ AGGIUNTO PER ACCEDERE AD appLocale GLOBALE
+import '../../../main.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/engine/engine_manager.dart';
 import '../../../core/orchestrators/play_orchestrator.dart';
@@ -156,7 +156,6 @@ class PlayController extends StateNotifier<PlayState> {
   }
 
   Future<void> startGame(AppLocalizations loc) async {
-    // ⚠️ RICEVE L'OGGETTO LOC
     bool isIt = loc.localeName == 'it';
     state = state.copyWith(
       isPlaying: true,
@@ -200,14 +199,13 @@ class PlayController extends StateNotifier<PlayState> {
       }
     }
 
-    // ⚠️ LA BARRIERA DI SINCRONIZZAZIONE (EVITA L'INGOLFAMENTO DEL MOTORE)
     _engineManager.sendCommand('isready');
     await Future.delayed(const Duration(milliseconds: 100));
 
     _orchestrator = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: boardCtrl,
-      engineName: state.selectedEngine, // ⚠️ AGGIUNTO PARAMETRO QUI
+      engineName: state.selectedEngine,
       onLog: (msg) => state = state.copyWith(logMessage: msg),
       onGameOver: (msg) => state = state.copyWith(
         isPlaying: false,
@@ -223,6 +221,7 @@ class PlayController extends StateNotifier<PlayState> {
           : (state.baseTime * 1000),
       incMs: state.increment * 1000,
     );
+
     _orchestrator!.startGame();
 
     final fen = boardCtrl.getFen();
@@ -238,6 +237,116 @@ class PlayController extends StateNotifier<PlayState> {
 
   void onUserMove() {
     if (state.isPlaying) _orchestrator?.registerUserMove();
+  }
+
+  // --- ABBANDONA LA PARTITA ---
+  void resignGame(AppLocalizations loc) {
+    if (!state.isPlaying) return;
+    _orchestrator?.stop();
+    _engineManager.sendCommand('stop');
+    bool isWhiteUser = state.userColor == PlayerColor.white;
+    bool isIt = loc.localeName == 'it';
+    String winner = isWhiteUser
+        ? (isIt
+              ? "0-1 (Vince il computer per Abbandono)"
+              : "0-1 (Computer wins by Resignation)")
+        : (isIt
+              ? "1-0 (Vince il computer per Abbandono)"
+              : "1-0 (Computer wins by Resignation)");
+
+    state = state.copyWith(isPlaying: false, logMessage: winner);
+  }
+
+  // --- OFFRI PATTA (CON LOGICA DECISIONALE DEL MOTORE) ---
+  void offerDraw(AppLocalizations loc) {
+    if (!state.isPlaying) return;
+
+    bool isIt = loc.localeName == 'it';
+    final fen = ref.read(playBoardProvider).getFen();
+
+    // 1. Calcolo rapido del bilancio materiale dalla FEN
+    int materialScore = 0;
+    final pieces = fen.split(' ')[0];
+    for (int i = 0; i < pieces.length; i++) {
+      switch (pieces[i]) {
+        case 'Q':
+          materialScore += 9;
+          break;
+        case 'R':
+          materialScore += 5;
+          break;
+        case 'B':
+          materialScore += 3;
+          break;
+        case 'N':
+          materialScore += 3;
+          break;
+        case 'P':
+          materialScore += 1;
+          break;
+        case 'q':
+          materialScore -= 9;
+          break;
+        case 'r':
+          materialScore -= 5;
+          break;
+        case 'b':
+          materialScore -= 3;
+          break;
+        case 'n':
+          materialScore -= 3;
+          break;
+        case 'p':
+          materialScore -= 1;
+          break;
+      }
+    }
+
+    // Se l'utente è bianco, il vantaggio del motore si calcola invertendo il segno
+    bool isUserWhite = state.userColor == PlayerColor.white;
+    int engineAdvantage = isUserWhite ? -materialScore : materialScore;
+
+    // 2. Il motore prende la sua decisione
+    bool acceptDraw = false;
+
+    if (engineAdvantage > 0) {
+      // Il motore sta vincendo: RIFIUTA SEMPRE
+      acceptDraw = false;
+    } else if (engineAdvantage < 0) {
+      // Il motore sta perdendo: ACCETTA SEMPRE
+      acceptDraw = true;
+    } else {
+      // Parità materiale perfetta: Accetta al 50%
+      acceptDraw = DateTime.now().millisecond % 2 == 0;
+    }
+
+    // 3. Risoluzione della proposta
+    if (acceptDraw) {
+      _orchestrator?.stop();
+      _engineManager.sendCommand('stop');
+      state = state.copyWith(
+        isPlaying: false,
+        logMessage: isIt
+            ? "1/2-1/2 (Patta concordata)"
+            : "1/2-1/2 (Draw agreed)",
+      );
+    } else {
+      // Il motore rifiuta e te lo dice in faccia
+      state = state.copyWith(
+        logMessage: isIt
+            ? "❌ Proposta rifiutata. Il motore continua!"
+            : "❌ Draw declined. Engine plays on!",
+      );
+
+      // Dopo 2.5 secondi, il messaggio di rifiuto svanisce
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (mounted && state.isPlaying) {
+          state = state.copyWith(
+            logMessage: isIt ? "Tocca a te..." : "Your turn...",
+          );
+        }
+      });
+    }
   }
 
   void stopGame() {
