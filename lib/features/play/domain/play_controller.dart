@@ -200,9 +200,14 @@ class PlayController extends StateNotifier<PlayState> {
       }
     }
 
+    // ⚠️ LA BARRIERA DI SINCRONIZZAZIONE (EVITA L'INGOLFAMENTO DEL MOTORE)
+    _engineManager.sendCommand('isready');
+    await Future.delayed(const Duration(milliseconds: 100));
+
     _orchestrator = PlayOrchestrator(
       engineManager: _engineManager,
       boardController: boardCtrl,
+      engineName: state.selectedEngine, // ⚠️ AGGIUNTO PARAMETRO QUI
       onLog: (msg) => state = state.copyWith(logMessage: msg),
       onGameOver: (msg) => state = state.copyWith(
         isPlaying: false,
@@ -210,7 +215,7 @@ class PlayController extends StateNotifier<PlayState> {
       ),
       onClockUpdate: (w, b) =>
           state = state.copyWith(whiteTime: w, blackTime: b),
-      loc: loc, // ⚠️ PASSA IL MASTER LOC ALL'ORCHESTRATORE
+      loc: loc,
       useLivebook: state.useLivebook,
       tcType: state.tcType,
       baseTimeMs: state.tcType == 0

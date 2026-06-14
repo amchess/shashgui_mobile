@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
-import '../../l10n/app_localizations.dart'; // ⚠️ AGGIUNTO IMPORT
+import '../../l10n/app_localizations.dart';
 import '../engine/engine_manager.dart';
 import '../logic/livebook_scanner.dart';
 
 class PlayOrchestrator {
   final EngineManager engineManager;
   final ChessBoardController boardController;
+  final String engineName;
   final Function(String) onLog;
   final Function(String?) onGameOver;
   final Function(int wTimeMs, int bTimeMs) onClockUpdate;
-  final AppLocalizations loc; // ⚠️ AGGIUNTO PER INTERNAZIONALIZZAZIONE
+  final AppLocalizations loc;
   final bool useLivebook;
 
   final int tcType;
@@ -21,7 +22,6 @@ class PlayOrchestrator {
   int _btime = 0;
 
   Timer? _clockTimer;
-  Timer? _watchdogTimer;
   DateTime _lastTimeUpdate = DateTime.now();
 
   StreamSubscription<String>? _outputSubscription;
@@ -32,10 +32,11 @@ class PlayOrchestrator {
   PlayOrchestrator({
     required this.engineManager,
     required this.boardController,
+    required this.engineName,
     required this.onLog,
     required this.onGameOver,
     required this.onClockUpdate,
-    required this.loc, // ⚠️ RICHIESTO NEL COSTRUTTORE
+    required this.loc,
     this.useLivebook = true,
     this.tcType = 1,
     this.baseTimeMs = 3000,
@@ -79,24 +80,32 @@ class PlayOrchestrator {
     if (isWhiteTurn) {
       _wtime -= elapsed;
       if (_wtime <= 0) {
+        _wtime = 0;
+        onClockUpdate(_wtime, _btime); // ⚠️ FORZA L'UI A ZERO ESATTO
         _clockTimer?.cancel();
-        onGameOver(
-          isIt
-              ? "0-1 (Vince il Nero per il Tempo)"
-              : "0-1 (Black wins on Time)",
-        );
+        if (!_checkStatus()) {
+          onGameOver(
+            isIt
+                ? "0-1 (Vince il Nero per il Tempo)"
+                : "0-1 (Black wins on Time)",
+          );
+        }
         stop();
         return;
       }
     } else {
       _btime -= elapsed;
       if (_btime <= 0) {
+        _btime = 0;
+        onClockUpdate(_wtime, _btime); // ⚠️ FORZA L'UI A ZERO ESATTO
         _clockTimer?.cancel();
-        onGameOver(
-          isIt
-              ? "1-0 (Vince il Bianco per il Tempo)"
-              : "1-0 (White wins on Time)",
-        );
+        if (!_checkStatus()) {
+          onGameOver(
+            isIt
+                ? "1-0 (Vince il Bianco per il Tempo)"
+                : "1-0 (White wins on Time)",
+          );
+        }
         stop();
         return;
       }
@@ -137,25 +146,8 @@ class PlayOrchestrator {
           : "🤖 The computer is thinking...",
     );
 
-    _watchdogTimer?.cancel();
-    _watchdogTimer = Timer(const Duration(seconds: 10), () {
-      if (_isEngineThinking) {
-        onLog(
-          isIt
-              ? "⛔ Il motore non risponde, forzo la fine..."
-              : "⛔ Engine not responding, forcing end...",
-        );
-        stop();
-        onGameOver(
-          isIt
-              ? "1/2-1/2 (Patta tecnica per blocco motore)"
-              : "1/2-1/2 (Technical draw due to engine freeze)",
-        );
-      }
-    });
-
     if (!_outOfBook) {
-      bool isShash = engineManager.engineOutput == null;
+      bool isShash = engineName == 'shashchess';
       try {
         var result = await LiveBookScanner.scan(
           boardController.getFen(),
@@ -183,14 +175,15 @@ class PlayOrchestrator {
       } catch (e) {
         onLog(
           isIt
-              ? "⚠️ Errore LiveBook ($e). Il motore pensa da solo."
-              : "⚠️ LiveBook Error ($e). Engine thinks on its own.",
+              ? "⚠️ Errore LiveBook. Il motore pensa da solo."
+              : "⚠️ LiveBook Error. Engine thinks on its own.",
         );
         _outOfBook = true;
       }
     }
 
     engineManager.sendCommand('position fen ${boardController.getFen()}');
+
     if (tcType == 1) {
       engineManager.sendCommand('go movetime $baseTimeMs');
     } else {
@@ -203,6 +196,7 @@ class PlayOrchestrator {
   void _listenToEngine() {
     _outputSubscription = engineManager.engineOutput?.listen((line) {
       if (!_isEngineThinking) return;
+
       bool isIt = loc.localeName == 'it';
 
       if (line.startsWith('bestmove')) {
@@ -252,7 +246,6 @@ class PlayOrchestrator {
     _positionCount[newKey] = (_positionCount[newKey] ?? 0) + 1;
 
     _isEngineThinking = false;
-    _watchdogTimer?.cancel();
 
     _updateClock();
     if (tcType == 0) {
@@ -319,13 +312,13 @@ class PlayOrchestrator {
 
   void stop() {
     _clockTimer?.cancel();
-    _watchdogTimer?.cancel();
     _outputSubscription?.cancel();
+    engineManager.sendCommand('stop'); // ⚠️ ORA IL MOTORE SI SPEGNE DAVVERO!
   }
 
   void dispose() {
     _clockTimer?.cancel();
-    _watchdogTimer?.cancel();
     _outputSubscription?.cancel();
+    engineManager.sendCommand('stop');
   }
 }

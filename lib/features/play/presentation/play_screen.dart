@@ -48,11 +48,13 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     int baseTime,
   ) {
     String timeStr = "";
+    // ⚠️ LA MAGIA MATEMATICA: Usa l'arrotondamento per eccesso (ceil) per tutto!
+    // Se hai 1 millisecondo, mostrerà 1 secondo. Mostrerà 0 SOLO quando è uno zero assoluto e definitivo.
+    int secs = (timeMs / 1000).ceil();
+
     if (tcType == 1) {
-      int secs = (timeMs / 1000).ceil();
       timeStr = "${secs}s";
     } else {
-      int secs = timeMs ~/ 1000;
       timeStr =
           "${(secs ~/ 60).toString().padLeft(2, '0')}:${(secs % 60).toString().padLeft(2, '0')}";
     }
@@ -115,6 +117,49 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
 
     bool isWhiteBottom = state.userColor == PlayerColor.white;
 
+    // ⚠️ IL POP-UP ESPLICITO DI FINE PARTITA
+    ref.listen<PlayState>(playControllerProvider, (previous, next) {
+      if (previous != null &&
+          previous.isPlaying == true &&
+          next.isPlaying == false) {
+        // Se la partita è finita da sola o per tempo (escludendo l'interruzione manuale)
+        if (next.logMessage != "Partita interrotta." &&
+            next.logMessage != "Game interrupted.") {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF2b2b2b),
+              title: Text(
+                loc.finePartita,
+                style: const TextStyle(
+                  color: Colors.orangeAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              content: Text(
+                next.logMessage, // Qui c'è il verdetto esatto: Timeout, Patta, Matto
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                  child: Text(
+                    loc.chiudi1,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(loc.giocaControIlMotore),
@@ -123,7 +168,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
       ),
       body: Column(
         children: [
-          // 1. MESSAGGI DI STATO (Traduzione dinamica se in standby)
           Container(
             padding: const EdgeInsets.all(12),
             width: double.infinity,
@@ -140,7 +184,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
             ),
           ),
 
-          // OROLOGI
           if (state.isPlaying)
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -172,7 +215,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
               ),
             ),
 
-          // 2. SCACCHIERA DI GIOCO
           Expanded(
             child: Center(
               child: Padding(
@@ -220,7 +262,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
             ),
           ),
 
-          // 3. PANNELLO IMPOSTAZIONI E CONTROLLI
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
@@ -232,7 +273,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (!state.isPlaying) ...[
-                    // --- SELETTORE COLORE E MOTORE ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -279,7 +319,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     ),
                     const Divider(color: Colors.white24, height: 24),
 
-                    // --- OPZIONI POSIZIONE, LIVEBOOK, ECC ---
                     SwitchListTile(
                       title: Text(
                         loc.localeName == 'it'
@@ -331,7 +370,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
 
                     const Divider(color: Colors.white24, height: 24),
 
-                    // --- OPZIONI ELO (SOLO PER ALEXANDER) ---
                     if (state.selectedEngine == 'alexander') ...[
                       SwitchListTile(
                         title: Text(
@@ -371,7 +409,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                       const Divider(color: Colors.white24, height: 24),
                     ],
 
-                    // --- CONTROLLO TEMPO ---
                     Row(
                       children: [
                         Expanded(
@@ -485,7 +522,6 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // --- BOTTONE PRINCIPALE START / STOP ---
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -495,7 +531,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         } else {
                           ref
                               .read(playControllerProvider.notifier)
-                              .startGame(loc); // ⚠️ PASSA LOC QUI
+                              .startGame(loc);
                         }
                       },
                       icon: Icon(
