@@ -211,7 +211,9 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     state.whiteTime,
                     true,
                     state.tcType,
-                    state.baseTime,
+                    state.userColor == PlayerColor.white
+                        ? state.playerBaseTime
+                        : state.engineBaseTime,
                   ),
                   _buildPlayerBadge(
                     state.userColor == PlayerColor.black
@@ -220,7 +222,9 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                     state.blackTime,
                     false,
                     state.tcType,
-                    state.baseTime,
+                    state.userColor == PlayerColor.black
+                        ? state.playerBaseTime
+                        : state.engineBaseTime,
                   ),
                 ],
               ),
@@ -460,7 +464,19 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
 
+                    // ⚠️ SEZIONE TEMPI ASIMMETRICI SDOPPIATA IN UI
+                    Text(
+                      loc.localeName == 'it'
+                          ? "⏱️ TEMPO GIOCATORE (UMANO)"
+                          : "⏱️ PLAYER TIME (HUMAN)",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -469,12 +485,12 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                             Text(
                               state.tcType == 0 ? loc.minuti : loc.secondi,
                               style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
+                                color: Colors.white54,
+                                fontSize: 11,
                               ),
                             ),
                             DropdownButton<int>(
-                              value: state.baseTime,
+                              value: state.playerBaseTime,
                               dropdownColor: const Color(0xFF2b2b2b),
                               style: const TextStyle(
                                 color: Colors.white,
@@ -493,7 +509,7 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                                       .toList(),
                               onChanged: (v) => ref
                                   .read(playControllerProvider.notifier)
-                                  .setBaseTime(v!),
+                                  .setPlayerBaseTime(v!),
                             ),
                           ],
                         ),
@@ -503,12 +519,12 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                               Text(
                                 loc.incrementoS,
                                 style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
+                                  color: Colors.white54,
+                                  fontSize: 11,
                                 ),
                               ),
                               DropdownButton<int>(
-                                value: state.increment,
+                                value: state.playerIncrement,
                                 dropdownColor: const Color(0xFF2b2b2b),
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -524,7 +540,87 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
                                     .toList(),
                                 onChanged: (v) => ref
                                     .read(playControllerProvider.notifier)
-                                    .setIncrement(v!),
+                                    .setPlayerIncrement(v!),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      loc.localeName == 'it'
+                          ? "🤖 TEMPO MOTORE"
+                          : "🤖 ENGINE TIME",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              state.tcType == 0 ? loc.minuti : loc.secondi,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                            DropdownButton<int>(
+                              value: state.engineBaseTime,
+                              dropdownColor: const Color(0xFF2b2b2b),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              items:
+                                  (state.tcType == 0
+                                          ? [1, 2, 3, 5, 10, 15, 30]
+                                          : [1, 2, 3, 5, 10, 15])
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text("$e"),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (v) => ref
+                                  .read(playControllerProvider.notifier)
+                                  .setEngineBaseTime(v!),
+                            ),
+                          ],
+                        ),
+                        if (state.tcType == 0)
+                          Column(
+                            children: [
+                              Text(
+                                loc.incrementoS,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              DropdownButton<int>(
+                                value: state.engineIncrement,
+                                dropdownColor: const Color(0xFF2b2b2b),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                items: [0, 1, 2, 3, 5, 10, 15]
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text("$e"),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) => ref
+                                    .read(playControllerProvider.notifier)
+                                    .setEngineIncrement(v!),
                               ),
                             ],
                           ),

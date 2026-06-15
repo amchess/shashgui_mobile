@@ -15,8 +15,11 @@ class PlayOrchestrator {
   final bool useLivebook;
 
   final int tcType;
-  final int baseTimeMs;
-  final int incMs;
+  // ⚠️ TEMPI E INCREMENTI SEPARATI PER BIANCO E NERO
+  final int whiteBaseTimeMs;
+  final int whiteIncMs;
+  final int blackBaseTimeMs;
+  final int blackIncMs;
 
   int _wtime = 0;
   int _btime = 0;
@@ -37,13 +40,15 @@ class PlayOrchestrator {
     required this.onGameOver,
     required this.onClockUpdate,
     required this.loc,
+    required this.whiteBaseTimeMs,
+    required this.whiteIncMs,
+    required this.blackBaseTimeMs,
+    required this.blackIncMs,
     this.useLivebook = true,
     this.tcType = 1,
-    this.baseTimeMs = 3000,
-    this.incMs = 0,
   }) {
-    _wtime = baseTimeMs;
-    _btime = baseTimeMs;
+    _wtime = whiteBaseTimeMs;
+    _btime = blackBaseTimeMs;
   }
 
   String _getPosKey(String fen) => fen.split(' ').take(4).join(' ');
@@ -117,14 +122,16 @@ class PlayOrchestrator {
     _updateClock();
     bool wasWhite = boardController.getFen().split(' ')[1] == 'b';
     if (tcType == 0) {
+      // ⚠️ Applica l'incremento corretto in base al colore
       if (wasWhite) {
-        _wtime += incMs;
+        _wtime += whiteIncMs;
       } else {
-        _btime += incMs;
+        _btime += blackIncMs;
       }
     } else {
-      _wtime = baseTimeMs;
-      _btime = baseTimeMs;
+      // ⚠️ Ricarica i tempi base asimmetrici
+      _wtime = whiteBaseTimeMs;
+      _btime = blackBaseTimeMs;
     }
 
     onClockUpdate(_wtime, _btime);
@@ -185,10 +192,14 @@ class PlayOrchestrator {
     engineManager.sendCommand('position fen ${boardController.getFen()}');
 
     if (tcType == 1) {
-      engineManager.sendCommand('go movetime $baseTimeMs');
+      // ⚠️ TEMPO FISSO ASIMMETRICO: Invia il tempo specifico di chi tocca muovere
+      bool isWhiteTurn = boardController.getFen().split(' ')[1] == 'w';
+      int currentMoveTime = isWhiteTurn ? whiteBaseTimeMs : blackBaseTimeMs;
+      engineManager.sendCommand('go movetime $currentMoveTime');
     } else {
+      // ⚠️ TEMPO GLOBALE ASIMMETRICO
       engineManager.sendCommand(
-        'go wtime $_wtime btime $_btime winc $incMs binc $incMs',
+        'go wtime $_wtime btime $_btime winc $whiteIncMs binc $blackIncMs',
       );
     }
   }
@@ -249,14 +260,16 @@ class PlayOrchestrator {
 
     _updateClock();
     if (tcType == 0) {
+      // ⚠️ Applica l'incremento
       if (wasWhite) {
-        _wtime += incMs;
+        _wtime += whiteIncMs;
       } else {
-        _btime += incMs;
+        _btime += blackIncMs;
       }
     } else {
-      _wtime = baseTimeMs;
-      _btime = baseTimeMs;
+      // ⚠️ Ripristina il tempo base
+      _wtime = whiteBaseTimeMs;
+      _btime = blackBaseTimeMs;
     }
     onClockUpdate(_wtime, _btime);
 

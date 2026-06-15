@@ -18,8 +18,11 @@ class PlayState {
   final String logMessage;
 
   final int tcType;
-  final int baseTime;
-  final int increment;
+  // ⚠️ TEMPI SDOPPIATI
+  final int playerBaseTime;
+  final int playerIncrement;
+  final int engineBaseTime;
+  final int engineIncrement;
 
   final bool useLivebook;
   final bool limitStrength;
@@ -35,8 +38,10 @@ class PlayState {
     this.userColor = PlayerColor.white,
     this.logMessage = "Imposta la partita e premi Gioca",
     this.tcType = 1,
-    this.baseTime = 3,
-    this.increment = 0,
+    this.playerBaseTime = 3,
+    this.playerIncrement = 0,
+    this.engineBaseTime = 3,
+    this.engineIncrement = 0,
     this.useLivebook = true,
     this.limitStrength = false,
     this.eloValue = 1500,
@@ -51,8 +56,10 @@ class PlayState {
     PlayerColor? userColor,
     String? logMessage,
     int? tcType,
-    int? baseTime,
-    int? increment,
+    int? playerBaseTime,
+    int? playerIncrement,
+    int? engineBaseTime,
+    int? engineIncrement,
     bool? useLivebook,
     bool? limitStrength,
     double? eloValue,
@@ -66,8 +73,10 @@ class PlayState {
       userColor: userColor ?? this.userColor,
       logMessage: logMessage ?? this.logMessage,
       tcType: tcType ?? this.tcType,
-      baseTime: baseTime ?? this.baseTime,
-      increment: increment ?? this.increment,
+      playerBaseTime: playerBaseTime ?? this.playerBaseTime,
+      playerIncrement: playerIncrement ?? this.playerIncrement,
+      engineBaseTime: engineBaseTime ?? this.engineBaseTime,
+      engineIncrement: engineIncrement ?? this.engineIncrement,
       useLivebook: useLivebook ?? this.useLivebook,
       limitStrength: limitStrength ?? this.limitStrength,
       eloValue: eloValue ?? this.eloValue,
@@ -99,8 +108,10 @@ class PlayController extends StateNotifier<PlayState> {
     state = state.copyWith(
       selectedEngine: _prefs.getString('play_engine') ?? 'alexander',
       tcType: _prefs.getInt('play_tcType') ?? 1,
-      baseTime: _prefs.getInt('play_baseTime') ?? 3,
-      increment: _prefs.getInt('play_increment') ?? 0,
+      playerBaseTime: _prefs.getInt('play_playerBaseTime') ?? 3,
+      playerIncrement: _prefs.getInt('play_playerIncrement') ?? 0,
+      engineBaseTime: _prefs.getInt('play_engineBaseTime') ?? 3,
+      engineIncrement: _prefs.getInt('play_engineIncrement') ?? 0,
       useLivebook: _prefs.getBool('play_useLivebook') ?? true,
       limitStrength: _prefs.getBool('play_limitStrength') ?? false,
       eloValue: _prefs.getDouble('play_eloValue') ?? 1500.0,
@@ -120,19 +131,37 @@ class PlayController extends StateNotifier<PlayState> {
   void setTcType(int type) {
     _prefs.setInt('play_tcType', type);
     int newBaseTime = type == 0 ? 5 : 3;
-    _prefs.setInt('play_baseTime', newBaseTime);
-    _prefs.setInt('play_increment', 0);
-    state = state.copyWith(tcType: type, baseTime: newBaseTime, increment: 0);
+    _prefs.setInt('play_playerBaseTime', newBaseTime);
+    _prefs.setInt('play_engineBaseTime', newBaseTime);
+    _prefs.setInt('play_playerIncrement', 0);
+    _prefs.setInt('play_engineIncrement', 0);
+    state = state.copyWith(
+      tcType: type,
+      playerBaseTime: newBaseTime,
+      engineBaseTime: newBaseTime,
+      playerIncrement: 0,
+      engineIncrement: 0,
+    );
   }
 
-  void setBaseTime(int time) {
-    _prefs.setInt('play_baseTime', time);
-    state = state.copyWith(baseTime: time);
+  void setPlayerBaseTime(int time) {
+    _prefs.setInt('play_playerBaseTime', time);
+    state = state.copyWith(playerBaseTime: time);
   }
 
-  void setIncrement(int inc) {
-    _prefs.setInt('play_increment', inc);
-    state = state.copyWith(increment: inc);
+  void setPlayerIncrement(int inc) {
+    _prefs.setInt('play_playerIncrement', inc);
+    state = state.copyWith(playerIncrement: inc);
+  }
+
+  void setEngineBaseTime(int time) {
+    _prefs.setInt('play_engineBaseTime', time);
+    state = state.copyWith(engineBaseTime: time);
+  }
+
+  void setEngineIncrement(int inc) {
+    _prefs.setInt('play_engineIncrement', inc);
+    state = state.copyWith(engineIncrement: inc);
   }
 
   void toggleLivebook(bool val) {
@@ -157,15 +186,30 @@ class PlayController extends StateNotifier<PlayState> {
 
   Future<void> startGame(AppLocalizations loc) async {
     bool isIt = loc.localeName == 'it';
+
+    // ⚠️ CALCOLO ASIMMETRICO: Chi è il bianco? Chi è il nero?
+    bool isWhitePlayer = state.userColor == PlayerColor.white;
+    int whiteBase = isWhitePlayer ? state.playerBaseTime : state.engineBaseTime;
+    int whiteInc = isWhitePlayer
+        ? state.playerIncrement
+        : state.engineIncrement;
+    int blackBase = isWhitePlayer ? state.engineBaseTime : state.playerBaseTime;
+    int blackInc = isWhitePlayer
+        ? state.engineIncrement
+        : state.playerIncrement;
+
+    int whiteTimeMs = state.tcType == 0
+        ? whiteBase * 60 * 1000
+        : whiteBase * 1000;
+    int blackTimeMs = state.tcType == 0
+        ? blackBase * 60 * 1000
+        : blackBase * 1000;
+
     state = state.copyWith(
       isPlaying: true,
       logMessage: isIt ? "Avvio motore in corso..." : "Starting engine...",
-      whiteTime: state.tcType == 0
-          ? state.baseTime * 60 * 1000
-          : state.baseTime * 1000,
-      blackTime: state.tcType == 0
-          ? state.baseTime * 60 * 1000
-          : state.baseTime * 1000,
+      whiteTime: whiteTimeMs,
+      blackTime: blackTimeMs,
     );
 
     final boardCtrl = ref.read(playBoardProvider);
@@ -230,10 +274,10 @@ class PlayController extends StateNotifier<PlayState> {
       loc: loc,
       useLivebook: state.useLivebook,
       tcType: state.tcType,
-      baseTimeMs: state.tcType == 0
-          ? (state.baseTime * 60 * 1000)
-          : (state.baseTime * 1000),
-      incMs: state.increment * 1000,
+      whiteBaseTimeMs: whiteTimeMs,
+      whiteIncMs: state.tcType == 0 ? whiteInc * 1000 : 0,
+      blackBaseTimeMs: blackTimeMs,
+      blackIncMs: state.tcType == 0 ? blackInc * 1000 : 0,
     );
 
     _orchestrator!.startGame();
