@@ -56,7 +56,26 @@ void showShashGuiAboutDialog(BuildContext context) {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 5),
+
+            // ⚠️ NUOVO: INDIRIZZO EMAIL CON ICONA E TESTO SELEZIONABILE
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.email, color: Colors.white54, size: 14),
+                const SizedBox(width: 6),
+                SelectableText(
+                  "alphagambitlabs@gmail.com",
+                  style: const TextStyle(
+                    color: Colors.blueAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
+
             Text(
               loc.motoriIntegratiShashchessNnueA,
               textAlign: TextAlign.center,
