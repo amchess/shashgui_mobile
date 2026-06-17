@@ -37,19 +37,26 @@ class CrossedEvalOrchestrator {
   String? masterMove;
   ShashinZone? masterZone;
 
-  // --- VARIABILI ANALISI STATICA (EVAL) ---
+  // --- VARIABILI ANALISI STATICA (HCE CLASSICA) ---
   int? spaceWhite;
   int? spaceBlack;
   String? worstPieceWhite;
   String? worstPieceBlack;
-  String? worstPieceNnue;
-
-  // ⚠️ NUOVE VARIABILI PER ARRICCHIRE IL COACH
   String? centerType;
-  double? deltaK; // Packing density difference
-  double? deltaExpansion; // Center of Gravity difference
+  double? deltaK;
+  double? deltaExpansion;
   bool hasBishopPairWhite = false;
   bool hasBishopPairBlack = false;
+
+  // --- NUOVE VARIABILI XAI (SHASHCHESS COMPACT TRACE) ---
+  int? nnueWp;
+  String? nnueZone;
+  String? nnueWorstWhite;
+  String? nnueWorstBlack;
+  String? nnueBestOutpost;
+  String? nnueBlindspotW;
+  String? nnueBlindspotB;
+  int? nnueDelta;
 
   final Function(String) onLog;
   final Function(String) onReportReady;
@@ -96,17 +103,25 @@ class CrossedEvalOrchestrator {
     isWhiteToMove = fen.split(' ')[1] == 'w';
     _determineSchools(playerElo);
 
-    // Reset di tutte le variabili statiche
+    // Reset Variabili Statiche e XAI
     spaceWhite = null;
     spaceBlack = null;
     worstPieceWhite = null;
     worstPieceBlack = null;
-    worstPieceNnue = null;
     centerType = null;
     deltaK = null;
     deltaExpansion = null;
     hasBishopPairWhite = false;
     hasBishopPairBlack = false;
+
+    nnueWp = null;
+    nnueZone = null;
+    nnueWorstWhite = null;
+    nnueWorstBlack = null;
+    nnueBestOutpost = null;
+    nnueBlindspotW = null;
+    nnueBlindspotB = null;
+    nnueDelta = null;
 
     onLog("===========================================");
     onLog(loc.logQueryingOracles);
@@ -125,37 +140,40 @@ class CrossedEvalOrchestrator {
   }
 
   void _handleEngineOutput(String line) {
-    // --- LETTURA TRACCIA NEURALE (SHASHCHESS EVAL) ---
+    // -----------------------------------------------------------
+    // LETTURA TRACCIA NEURALE (SHASHCHESS EVAL)
+    // -----------------------------------------------------------
     if (currentState == CrossedState.masterStaticEval) {
-      String targetColor = isWhiteToMove ? "White" : "Black";
-      final match = RegExp(
-        "($targetColor) pieces \\(worst to best static activity\\):\\s*([A-Z]?)([a-h][1-8])\\((-?\\d+)\\)\\s*<-- Worst unit",
-      ).firstMatch(line);
-      if (match != null) {
-        String pieceChar = match.group(2)!;
-        String sq = match.group(3)!;
-        switch (pieceChar) {
-          case 'N':
-            worstPieceNnue = '${loc.pieceKnight} in $sq';
-            break;
-          case 'B':
-            worstPieceNnue = "${loc.pieceBishop} in $sq";
-            break;
-          case 'R':
-            worstPieceNnue = '${loc.pieceRook} in $sq';
-            break;
-          case 'Q':
-            worstPieceNnue = '${loc.pieceQueen} in $sq';
-            break;
-          case 'K':
-            worstPieceNnue = '${loc.pieceKing} in $sq';
-            break;
-          default:
-            worstPieceNnue = '${loc.piecePawn} in $sq';
+      // Parse del nuovo formato SHASHHERMES COMPACT TRACE
+      if (line.contains("WP_White=")) {
+        final parts = line.split('|').map((e) => e.trim()).toList();
+        for (var part in parts) {
+          if (part.startsWith('WP_White=')) {
+            nnueWp = int.tryParse(part.split('=')[1].replaceAll('%', ''));
+          }
+          if (part.startsWith('Zone=')) nnueZone = part.split('=')[1];
+          if (part.startsWith('WorstWhite=')) {
+            nnueWorstWhite = part.split('=')[1];
+          }
+          if (part.startsWith('WorstBlack=')) {
+            nnueWorstBlack = part.split('=')[1];
+          }
+          if (part.startsWith('BestOutpost=')) {
+            nnueBestOutpost = part.split('=')[1];
+          }
+          if (part.startsWith('BLINDSPOT_W=')) {
+            nnueBlindspotW = part.split('=')[1];
+          }
+          if (part.startsWith('BLINDSPOT_B=')) {
+            nnueBlindspotB = part.split('=')[1];
+          }
+          if (part.startsWith('NeuralDelta=')) {
+            nnueDelta = int.tryParse(part.split('=')[1].replaceAll('%', ''));
+          }
         }
       }
 
-      // ⚠️ FIX: Il marker finale infallibile per ShashChess!
+      // Marker di fine output del comando eval per ShashChess
       if (line.startsWith(
             "*** Note: Static activity analysis based on current piece placement ***",
           ) ||
@@ -166,9 +184,10 @@ class CrossedEvalOrchestrator {
       return;
     }
 
-    // --- LETTURA TRACCIA STATICA (ALEXANDER EVAL) ---
+    // -----------------------------------------------------------
+    // LETTURA TRACCIA STATICA (ALEXANDER EVAL)
+    // -----------------------------------------------------------
     if (currentState == CrossedState.staticEval) {
-      // 1. Spazio
       final spaceMatch = RegExp(
         r"Total Space: White (\d+) - Black (\d+)",
       ).firstMatch(line);
@@ -177,17 +196,14 @@ class CrossedEvalOrchestrator {
         spaceBlack = int.tryParse(spaceMatch.group(2)!);
       }
 
-      // 2. Tipo di Centro
       final centerMatch = RegExp(r"Center Type:\s*(.+)").firstMatch(line);
       if (centerMatch != null) centerType = centerMatch.group(1)!.trim();
 
-      // 3. Densità e Coordinazione (Knights/Deltak)
       final deltaKMatch = RegExp(
         r"deltak \(White - Black\):\s*(-?\d+\.\d+)",
       ).firstMatch(line);
       if (deltaKMatch != null) deltaK = double.tryParse(deltaKMatch.group(1)!);
 
-      // 4. Baricentro/Espansione
       final expMatch = RegExp(
         r"Delta Expansion \(White-Black\):\s*(-?\d+\.\d+)",
       ).firstMatch(line);
@@ -195,11 +211,9 @@ class CrossedEvalOrchestrator {
         deltaExpansion = double.tryParse(expMatch.group(1)!);
       }
 
-      // 5. Coppia Alfieri
       if (line.contains("White bishops: 2")) hasBishopPairWhite = true;
       if (line.contains("Black bishops: 2")) hasBishopPairBlack = true;
 
-      // 6. Pezzo peggiore (Makogonov)
       String translatePiece(String engPiece) {
         switch (engPiece.trim().toLowerCase()) {
           case 'pawn':
@@ -235,7 +249,6 @@ class CrossedEvalOrchestrator {
             "${translatePiece(makBlackMatch.group(1)!)} in ${makBlackMatch.group(2)!}";
       }
 
-      // ⚠️ FIX: Il marker finale infallibile per Alexander!
       if (line.startsWith("Best move:")) {
         currentState = CrossedState.baseEval;
         onLog(loc.logCalcThermodynamicZone);
@@ -244,7 +257,9 @@ class CrossedEvalOrchestrator {
       return;
     }
 
-    // --- LETTURA DINAMICA (WDL E MOSSE) ---
+    // -----------------------------------------------------------
+    // GESTIONE DINAMICA WDL E CALCOLO MOSSE
+    // -----------------------------------------------------------
     final wdlMatch = RegExp(r"wdl (\d+) (\d+) (\d+)").firstMatch(line);
     if (wdlMatch != null) {
       int w = int.parse(wdlMatch.group(1)!);
@@ -254,11 +269,12 @@ class CrossedEvalOrchestrator {
 
       if (currentState == CrossedState.baseEval) {
         baseZone = currentZ;
-      } else if (currentState == CrossedState.studentThinking) {
+      } else if (currentState == CrossedState.studentThinking)
+        // ignore: curly_braces_in_flow_control_structures
         studentZone = currentZ;
-      } else if (currentState == CrossedState.masterThinking) {
+      else if (currentState == CrossedState.masterThinking)
+        // ignore: curly_braces_in_flow_control_structures
         masterZone = currentZ;
-      }
     }
 
     if (line.startsWith("bestmove")) {
@@ -271,7 +287,6 @@ class CrossedEvalOrchestrator {
           onLog(
             "${loc.logStudentThinking1} $studentSchool ${loc.logStudentThinking2} $studentElo ${loc.logStudentThinking3}",
           );
-
           engineManager.sendCommand('position fen $currentFen');
           engineManager.sendCommand(
             'setoption name UCI_LimitStrength value true',
@@ -296,9 +311,6 @@ class CrossedEvalOrchestrator {
     if (masterElo >= 3500) {
       onLog(loc.logEngineSwap);
       engineManager.dispose();
-
-      // 1. Diamo al sistema operativo mezzo secondo per pulire davvero la RAM
-      // dal vecchio processo prima di lanciare la rete neurale pesante.
       await Future.delayed(const Duration(milliseconds: 500));
 
       await engineManager.initEngine('shashchess', [
@@ -312,15 +324,11 @@ class CrossedEvalOrchestrator {
       );
       onLog(loc.logShashReady);
 
-      // 2. ⚠️ IL FIX: Diciamo al motore di prepararsi a una nuova partita
-      // e aspettiamo un attimo che la tabella di trasposizione sia pulita.
       engineManager.sendCommand('ucinewgame');
       await Future.delayed(const Duration(milliseconds: 100));
 
       currentState = CrossedState.masterStaticEval;
       engineManager.sendCommand('position fen $currentFen');
-
-      // 3. Un altro micro-delay prima dell'eval per assicurarci che la FEN sia stata digerita
       await Future.delayed(const Duration(milliseconds: 50));
       engineManager.sendCommand('eval');
       return;
@@ -328,21 +336,17 @@ class CrossedEvalOrchestrator {
       engineManager.sendCommand('setoption name UCI_LimitStrength value true');
       engineManager.sendCommand('setoption name UCI_Elo value $masterElo');
       currentState = CrossedState.masterThinking;
-
       engineManager.sendCommand('ucinewgame');
       await Future.delayed(const Duration(milliseconds: 100));
-
       engineManager.sendCommand('position fen $currentFen');
       engineManager.sendCommand('go movetime $baseTimeMs');
     }
   }
 
-  // ⚠️ IL NUOVO MOTORE NLP (Natural Language Processing) COMPLETAMENTE BILINGUE
   String _generateStaticAnalysisText() {
     StringBuffer txt = StringBuffer();
-    bool isIt = loc.localeName == 'it'; // Rileva la lingua corrente
+    bool isIt = loc.localeName == 'it';
 
-    // 1. TIPO DI CENTRO
     if (centerType != null && centerType!.isNotEmpty) {
       txt.write(
         isIt
@@ -351,23 +355,24 @@ class CrossedEvalOrchestrator {
       );
     }
 
-    // 2. EQUILIBRI E SQUILIBRI DI SPAZIO
     if (spaceWhite != null && spaceBlack != null) {
       int diff = spaceWhite! - spaceBlack!;
       if (diff == 0) {
         txt.write("${loc.evalSpaceBalanced} ($spaceWhite - $spaceBlack). ");
-      } else if (diff >= 4) {
+      } else if (diff >= 4)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write("${loc.evalWhiteDominate} ");
-      } else if (diff >= 1) {
+      else if (diff >= 1)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write("${loc.evalWhiteSlightEdge} ");
-      } else if (diff <= -4) {
+      else if (diff <= -4)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write("${loc.evalBlackDominate} ");
-      } else {
+      else
+        // ignore: curly_braces_in_flow_control_structures
         txt.write("${loc.evalBlackSlightEdge} ");
-      }
     }
 
-    // 3. BARICENTRO ED ESPANSIONE
     if (deltaExpansion != null) {
       if (deltaExpansion!.abs() < 0.2) {
         txt.write(
@@ -375,22 +380,22 @@ class CrossedEvalOrchestrator {
               ? "Il baricentro dei due schieramenti è simmetrico. "
               : "The center of gravity is symmetrical. ",
         );
-      } else if (deltaExpansion! > 0.5) {
+      } else if (deltaExpansion! > 0.5)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write(
           isIt
               ? "Il Bianco è molto più espanso, tenendo i pezzi avanzati. "
               : "White is much more expanded. ",
         );
-      } else if (deltaExpansion! < -0.5) {
+      else if (deltaExpansion! < -0.5)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write(
           isIt
               ? "Il Nero ha un fattore di espansione superiore. "
               : "Black has a higher expansion factor. ",
         );
-      }
     }
 
-    // 4. DENSITÀ E COORDINAZIONE
     if (deltaK != null) {
       if (deltaK!.abs() <= 0.02) {
         txt.write(
@@ -398,22 +403,22 @@ class CrossedEvalOrchestrator {
               ? "La densità di imballaggio (coordinazione a corto raggio) è bilanciata. "
               : "The packing density is perfectly balanced. ",
         );
-      } else if (deltaK! > 0.05) {
+      } else if (deltaK! > 0.05)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write(
           isIt
               ? "Il Bianco ha pezzi a corto raggio meglio raggruppati. "
               : "White has better grouped short-range pieces. ",
         );
-      } else if (deltaK! < -0.05) {
+      else if (deltaK! < -0.05)
+        // ignore: curly_braces_in_flow_control_structures
         txt.write(
           isIt
               ? "Il Nero ha una struttura più densa e compatta. "
               : "Black has a more compact structure. ",
         );
-      }
     }
 
-    // 5. VANTAGGI MATERIALI STATICI
     if (hasBishopPairWhite && !hasBishopPairBlack) {
       txt.write(
         isIt
@@ -428,20 +433,33 @@ class CrossedEvalOrchestrator {
       );
     }
 
-    // 6. PRINCIPIO DI MAKOGONOV
     String? worst = isWhiteToMove ? worstPieceWhite : worstPieceBlack;
-    if (worst != null) {
-      txt.write("\n${loc.evalMakogonovWorst} **$worst**.");
-    }
+    if (worst != null) txt.write("\n${loc.evalMakogonovWorst} **$worst**.");
 
     return txt.isNotEmpty ? txt.toString().trim() : loc.evalComplex;
+  }
+
+  // Helper per tradurre nomi notazione PGN in umano ("Nf3" -> "Cavallo f3")
+  String _translatePieceNotation(String p, bool isIt) {
+    if (p.isEmpty) return "";
+    if (!isIt) return p;
+
+    if (p.startsWith('N')) return 'Cavallo ${p.substring(1)}';
+    if (p.startsWith('B')) return 'Alfiere ${p.substring(1)}';
+    if (p.startsWith('R')) return 'Torre ${p.substring(1)}';
+    if (p.startsWith('Q')) return 'Regina ${p.substring(1)}';
+    if (p.startsWith('K')) return 'Re ${p.substring(1)}';
+
+    if (RegExp(r'^[a-h][1-8]').hasMatch(p)) return 'Pedone $p';
+    return p;
   }
 
   void _finishAndReport() {
     currentState = CrossedState.idle;
     StringBuffer report = StringBuffer();
+    bool isIt = loc.localeName == 'it';
 
-    // 1. CLOUD
+    // 1. CLOUD LICHESS/DB
     report.writeln(loc.reportTitleCloud);
     if (cloudLichess != null &&
         cloudLichess!.moves.isNotEmpty &&
@@ -461,7 +479,7 @@ class CrossedEvalOrchestrator {
     }
     report.writeln("");
 
-    // 2. ANALISI PRE-MOSSA
+    // 2. ANALISI POSIZIONALE (HCE)
     report.writeln(loc.reportTitleStatic);
     report.writeln(
       "• ${loc.reportZone}: ${baseZone?.name ?? '-'} (${baseZone?.symbol ?? ''})",
@@ -487,10 +505,6 @@ class CrossedEvalOrchestrator {
     report.writeln(
       "• ${loc.reportExpectation}: ${masterZone?.name ?? '-'} (${masterZone?.wp.toStringAsFixed(1)}%)",
     );
-
-    if (worstPieceNnue != null) {
-      report.writeln("🔍 ${loc.reportNnueWorstPiece}: $worstPieceNnue");
-    }
     report.writeln("");
 
     // 5. VERDETTO E NAG
@@ -501,8 +515,6 @@ class CrossedEvalOrchestrator {
     } else {
       double sWp = studentZone?.wp ?? 50.0;
       double mWp = masterZone?.wp ?? 50.0;
-
-      // ⚠️ FIX: Usiamo la funzione importata anziché la copia locale!
       int zoneDrop = calculateZoneDrop(sWp, mWp);
 
       if (zoneDrop >= 3) {
@@ -530,27 +542,65 @@ class CrossedEvalOrchestrator {
       }
     }
 
-    // 6. VISIONE AVANZATA
-    if (masterElo >= 3500 &&
-        worstPieceNnue != null &&
-        studentMove != masterMove) {
-      String worstBase = isWhiteToMove
-          ? (worstPieceWhite ?? "")
-          : (worstPieceBlack ?? "");
+    // -----------------------------------------------------------
+    // 6. VISIONE PROFONDA (XAI Termodinamica & NNUE Abstractions)
+    // -----------------------------------------------------------
+    if (masterElo >= 3500 && studentMove != masterMove) {
+      report.writeln("");
+      report.writeln("=========================================");
+      report.writeln(
+        isIt
+            ? "🔬 VISIONE PROFONDA (Rete Neurale NNUE)"
+            : "🔬 DEEP VISION (NNUE Network)",
+      );
+      report.writeln("=========================================");
 
-      if (worstBase.isNotEmpty) {
-        report.writeln("");
-        report.writeln(loc.reportTitleAdvVision);
-
-        if (worstBase != worstPieceNnue) {
+      // A. Intuizione Astratta (Neural Delta)
+      if (nnueDelta != null && nnueDelta != 0) {
+        if (nnueDelta! > 5) {
           report.writeln(
-            "${loc.advVisionFixed1} $worstBase ${loc.advVisionFixed2} $worstPieceNnue.",
+            isIt
+                ? "🧠 INTUIZIONE ASTRATTA: La rete vede un forte compenso dinamico (+$nnueDelta% probabilità di vittoria) che va oltre il nudo valore dei pezzi."
+                : "🧠 ABSTRACT INTUITION: The network sees strong dynamic compensation (+$nnueDelta% WP) beyond raw material.",
           );
-        } else {
+        } else if (nnueDelta! < -5) {
           report.writeln(
-            "${loc.advVisionIgnored1} $worstBase, ${loc.advVisionIgnored2} $masterMove ${loc.advVisionIgnored3}",
+            isIt
+                ? "🧠 INTUIZIONE ASTRATTA: La pessima struttura o l'inattività penalizzano severamente la tua posizione ($nnueDelta% probabilità di vittoria) rispetto al valore nominale dei pezzi."
+                : "🧠 ABSTRACT INTUITION: Poor structure severely penalizes your pieces ($nnueDelta% WP) compared to raw material.",
           );
         }
+      }
+
+      // B. Avamposto Spaziale
+      if (nnueBestOutpost != null && nnueBestOutpost!.isNotEmpty) {
+        report.writeln(
+          isIt
+              ? "📍 GEOMETRIA: Eccellente avamposto latente individuato nella casa ${nnueBestOutpost!} (perfetto per manovrare un Cavallo)."
+              : "📍 GEOMETRY: Excellent latent outpost found on ${nnueBestOutpost!} (perfect for a Knight).",
+        );
+      }
+
+      // C. Pezzo Peggiore (Ablazione Spaziale)
+      String? myWorst = isWhiteToMove ? nnueWorstWhite : nnueWorstBlack;
+      if (myWorst != null && myWorst.isNotEmpty) {
+        String tPiece = _translatePieceNotation(myWorst, isIt);
+        report.writeln(
+          isIt
+              ? "📉 PEZZO CRITICO: Il $tPiece è attualmente il pezzo che contribuisce di meno. Cerca di migliorarne la posizione o scambialo."
+              : "📉 CRITICAL PIECE: $tPiece contributes the least. Try to improve its position or trade it.",
+        );
+      }
+
+      // D. Punto Cieco (Blindspot Difensivo)
+      String? myBlindspot = isWhiteToMove ? nnueBlindspotW : nnueBlindspotB;
+      if (myBlindspot != null && myBlindspot.isNotEmpty) {
+        String tBlind = _translatePieceNotation(myBlindspot, isIt);
+        report.writeln(
+          isIt
+              ? "⚠️ PUNTO CIECO DIFENSIVO: Paradossalmente, sacrificare o smettere di difendere il $tBlind migliorerebbe le probabilità di vittoria. Non fossilizzarti su di esso!"
+              : "⚠️ DEFENSIVE BLINDSPOT: Paradoxically, sacrificing or ignoring the defense of $tBlind improves win probability. Don't fixate on it!",
+        );
       }
     }
 

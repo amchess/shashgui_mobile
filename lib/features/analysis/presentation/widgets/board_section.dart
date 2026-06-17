@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chess_board/flutter_chess_board.dart'
-    hide
-        Color; // ⚠️ FIX: Nasconde il colore degli scacchi per usare quello di Flutter!
+import 'package:flutter_chess_board/flutter_chess_board.dart' hide Color;
+
+// ⚠️ NUOVI IMPORT PER IL RENDERING DELLA RETE NEURALE
+import '../../../../core/logic/shash_trace_parser.dart';
+import 'shash_board_overlay_painter.dart';
+
 import '../../domain/engine_controller.dart';
 import '../../domain/board_provider.dart';
 import '../../domain/notation_controller.dart';
@@ -16,8 +19,7 @@ class BoardSection extends ConsumerStatefulWidget {
 }
 
 class _BoardSectionState extends ConsumerState<BoardSection> {
-  bool _isWhiteBottom =
-      true; // Sostituisce PlayerColor.white per la nuova scacchiera
+  bool _isWhiteBottom = true;
   ChessBoardController? _boardControllerListener;
 
   @override
@@ -75,13 +77,14 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // ==========================================
-            // LA NUOVA SCACCHIERA CON FRECCIA ENGINE
+            // LA NUOVA SCACCHIERA CON MULTI-STRATO VISIVO
             // ==========================================
             SizedBox(
               width: boardSize,
               height: boardSize,
               child: Stack(
                 children: [
+                  // --- STRATO 1: LA SCACCHIERA INTERATTIVA ---
                   CustomChessBoard(
                     isWhiteBottom: _isWhiteBottom,
                     onUserMove: (uciMove) {
@@ -114,6 +117,25 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                     },
                   ),
 
+                  // --- STRATO 2: OVERLAY INTELLIGENZA ARTIFICIALE (HEATMAP E SINERGIE) ---
+                  if (engineState.isRunning &&
+                      engineState.outputLines.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        // Permette i tap sulla scacchiera sottostante
+                        child: CustomPaint(
+                          painter: ShashBoardOverlayPainter(
+                            // Uniamo le righe di log in un singolo blocco testuale per il parser
+                            trace: ShashTraceParser.parse(
+                              engineState.outputLines.join('\n'),
+                            ),
+                            isWhitePerspective: _isWhiteBottom,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // --- STRATO 3: FRECCE TATTICHE (Mossa e Minacce) ---
                   // Disegna PRIMA la minaccia (Rossa Opaca), ALTRIMENTI l'analisi normale
                   if (threatMoveUci.length >= 4)
                     IgnorePointer(
@@ -122,7 +144,9 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                         painter: EngineArrowPainter(
                           threatMoveUci,
                           _isWhiteBottom,
-                          Colors.red.withValues(alpha: 0.95), // ROSSO INTENSO!
+                          Colors.red.withValues(
+                            alpha: 0.95,
+                          ), // ⚠️ FIX: Usiamo withValues invece di withOpacity!
                         ),
                       ),
                     )
@@ -135,14 +159,19 @@ class _BoardSectionState extends ConsumerState<BoardSection> {
                           _isWhiteBottom,
                           Colors.redAccent.withValues(
                             alpha: 0.5,
-                          ), // TRASPARENTE
+                          ), // ⚠️ FIX: Usiamo withValues invece di withOpacity!
                         ),
                       ),
                     ),
                 ],
               ),
             ),
+
             const SizedBox(height: 8),
+
+            // ==========================================
+            // PANNELLO DI CONTROLLO (Navigazione e Flip)
+            // ==========================================
             Container(
               width: boardSize,
               decoration: BoxDecoration(

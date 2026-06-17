@@ -62,7 +62,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configuraParametri => 'Configure Parameters';
 
   @override
-  String get giocaControIlMotore => 'Play against the Engine';
+  String get giocaControIlMotore => 'Play against Engine';
 
   @override
   String get autoplayMotoreVsMotore => 'Autoplay (Engine vs Engine)';
@@ -74,7 +74,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get valutazioneIncrociata => 'Crossed Evaluation';
 
   @override
-  String get accendi => 'Power On';
+  String get accendi => 'Turn On';
 
   @override
   String get copia => 'COPY';
@@ -84,7 +84,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get incollaUnLinkLichessUnFenOUnPg =>
-      'Paste a Lichess Link, a FEN, or a full PGN...';
+      'Paste a Lichess Link, FEN or entire PGN...';
 
   @override
   String get annulla => 'Cancel';
@@ -117,23 +117,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pgnCopiatoNegliAppunti => 'PGN copied to clipboard! 📋';
 
   @override
-  String get diramazioneRilevata => 'Branch detected';
+  String get diramazioneRilevata => 'Branching detected';
 
   @override
   String get esisteGiUnaContinuazionePerQue =>
-      'A continuation for this position already exists. What do you want to do?';
+      'A continuation already exists for this position. What do you want to do?';
 
   @override
   String get nuovaLineaPrincipale => 'New Main Line';
 
   @override
-  String get aggiungiComeVariante => 'Add as Variant';
+  String get aggiungiComeVariante => 'Add as Variation';
 
   @override
-  String get sovrascriviTutto => 'Overwrite all';
+  String get sovrascriviTutto => 'Overwrite everything';
 
   @override
-  String get annullaMossa => 'Cancel move';
+  String get annullaMossa => 'Undo move';
 
   @override
   String get erroreLaScacchieraNonHaPotutoV =>
@@ -143,7 +143,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get impostazioniSfida => 'Challenge Settings';
 
   @override
-  String get giochiCol => 'Play as:';
+  String get giochiCol => 'You play as:';
 
   @override
   String get bianco => 'White';
@@ -193,8 +193,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tornaAlLaboratorio => 'BACK TO LABORATORY';
 
   @override
-  String get nessunaOpzioneTrovataOCaricame =>
-      'No options found or loading in progress...';
+  String get nessunaOpzioneTrovataOCaricame => 'No options found or loading...';
 
   @override
   String get impossibileAnalizzareLeMinacce =>
@@ -202,7 +201,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nessunaMinacciaAllaMossaInizia =>
-      'No threats at the initial move!';
+      'No threats on the initial move!';
 
   @override
   String get impostazioniAnalisi => 'Analysis Settings';
@@ -212,7 +211,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ilTempoRaddoppierAutomaticamen =>
-      'The time will double automatically at each iteration of Shashin\'s Theory.';
+      'The time will automatically double at each iteration of Shashin Theory.';
 
   @override
   String get avviaAnalisi => 'START ANALYSIS';
@@ -294,7 +293,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selezionaPezzo => 'Select Piece:';
 
   @override
-  String get svuota => 'Clear';
+  String get svuota => 'Clear Board';
 
   @override
   String get iniziale => 'Starting';
@@ -317,7 +316,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutDesc =>
-      'Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic trait extraction.';
+      'Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic traits extraction.';
 
   @override
   String get readManualBtn => 'READ USER MANUAL';
@@ -326,7 +325,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeBtn => 'CLOSE';
 
   @override
-  String get schoolBeginner => 'Beginners';
+  String get schoolBeginner => 'Beginner';
 
   @override
   String get schoolIntermediate => 'Intermediate';
@@ -341,7 +340,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get schoolExpert => 'Expert';
 
   @override
-  String get schoolSuperhumanNNUE => 'Superhuman (NNUE)';
+  String get schoolSuperhumanNNUE => 'Super-Human (NNUE)';
 
   @override
   String get logQueryingOracles =>
@@ -352,7 +351,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logSemanticScan =>
-      '📍 [Coach] Semantic scan of the position (Makogonov/Space)...';
+      '📍 [Coach] Positional semantic scan (Makogonov/Space)...';
 
   @override
   String get pieceKnight => 'the Knight';
@@ -377,56 +376,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logCalcThermodynamicZone =>
-      '📍 [Coach] Calculating Thermodynamic Zone...';
+      '📍 [Coach] Calculating Initial Thermodynamic Zone...';
 
   @override
-  String get logStudentThinking1 => '🧑‍🎓 The Student (School';
+  String get logStudentThinking1 => '🧑‍🎓 The Student (School:';
 
   @override
-  String get logStudentThinking2 => '- Elo';
+  String get logStudentThinking2 => '- Elo:';
 
   @override
-  String get logStudentThinking3 => ') is formulating a plan...';
+  String get logStudentThinking3 => ') is planning the move...';
 
   @override
-  String get logPrepMaster1 => '🧙‍♂️ Preparing the Master (School';
+  String get logPrepMaster1 => '🧙‍♂️ Preparing Master (School:';
 
   @override
   String get logPrepMaster2 => ')...';
 
   @override
   String get logEngineSwap =>
-      '🚀 Engine swap in progress: Shutting down Alexander -> Starting ShashChess...';
+      '🚀 Engine shift in progress: Shutting down Alexander -> Booting ShashChess...';
 
   @override
-  String get logShashReady => '✅ ShashChess ready at maximum strength.';
+  String get logShashReady =>
+      '✅ ShashChess is ready at full superhuman strength.';
 
   @override
   String get evalWhiteDominate =>
       'White enjoys clear territorial dominance, granting great freedom of maneuver.\n';
 
   @override
-  String get evalWhiteSlightEdge =>
-      'White possesses a slight space advantage.\n';
+  String get evalWhiteSlightEdge => 'White enjoys a slight spatial edge.\n';
 
   @override
   String get evalBlackDominate =>
-      'Black has gained a strong space advantage, suffocating White\'s pieces.\n';
+      'Black has captured a massive spatial advantage, suffocating White\'s pieces.\n';
 
   @override
   String get evalBlackSlightEdge =>
-      'Black holds slightly superior territorial control.\n';
+      'Black maintains a slight superior territorial control.\n';
 
   @override
   String get evalSpaceBalanced =>
-      'Space management on the board is perfectly balanced.\n';
+      'Space management on the board is in perfect balance.\n';
 
   @override
   String get evalMakogonovWorst =>
       'According to Makogonov\'s principle, the piece in most urgent need of reactivation is';
 
   @override
-  String get evalComplex => 'Complex positional evaluation.';
+  String get evalComplex => 'Complex positional layout.';
 
   @override
   String get reportTitleCloud => '🌐 CLOUD EVALUATIONS:';
@@ -435,7 +434,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportLichessHumans => 'Lichess (Humans)';
 
   @override
-  String get reportNoMoves => 'No predominant move';
+  String get reportNoMoves => 'No predominant moves found';
 
   @override
   String get reportChessDbNeural => 'ChessDB (Neural)';
@@ -447,7 +446,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportZone => 'Zone';
 
   @override
-  String get reportTitleStudent1 => '🧑‍🎓 YOUR IDEA (School';
+  String get reportTitleStudent1 => '🧑‍🎓 YOUR IDEA (School:';
 
   @override
   String get reportTitleStudent2 => '):';
@@ -459,7 +458,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportExpectation => 'Expectation';
 
   @override
-  String get reportTitleMaster1 => '🧙‍♂️ THE MASTER\'s IDEA (School';
+  String get reportTitleMaster1 => '🧙‍♂️ THE MASTER\'s IDEA (School:';
 
   @override
   String get reportTitleMaster2 => '):';
@@ -475,42 +474,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nagExcellentDesc =>
-      'You found the same move as the Master. You are playing at a level above your category, respecting the positional canons extracted in the static analysis.';
+      'You found the exact same move as the Master. You are playing above your category\'s average, respecting the positional guidelines from the static scan.';
 
   @override
-  String get nagBlunderTitle => '❌ NAG: ?? (Blunder)';
+  String get nagBlunderTitle => '❌ SEVERE BLUNDER';
 
   @override
   String get nagBlunderDesc1 =>
-      'Your idea yields a lethal advantage, collapsing the position by';
+      'Your idea drops vital advantage, collapsing the setup by';
 
   @override
   String get nagBlunderDesc2 =>
-      'Zones. The Master suggests a different path to save the position.';
+      'Zones. The Master strongly suggests a different approach to save the game.';
 
   @override
-  String get nagMistakeTitle => '⚠️ NAG: ? (Mistake)';
+  String get nagMistakeTitle => '⚠️ POSITIONAL MISTAKE';
 
   @override
   String get nagMistakeDesc1 =>
-      'A positional or tactical oversight. The position drops by';
+      'A positional or tactical oversight. The evaluation drops by';
 
   @override
   String get nagMistakeDesc2 =>
-      'Zones compared to the potential maximized by the Master.';
+      'Zones compared to the peak performance optimized by the Master.';
 
   @override
-  String get nagInaccuracyTitle => '🤔 NAG: ?! (Inaccuracy)';
+  String get nagInaccuracyTitle => '📉 INACCURACY';
 
   @override
   String get nagInaccuracyDesc =>
-      'Your idea is playable, but you lose a Thermodynamic Zone compared to the Master\'s move.';
+      'Your idea is playable, but you drop one Thermodynamic Zone compared to the Master\'s line.';
 
   @override
-  String get nagInterestingTitle => '👌 NAG: !? (Interesting)';
+  String get nagInterestingTitle => '🤔 SMART / ALTERNATIVE MOVE';
 
   @override
-  String get nagInterestingDescDiff1 => 'The Master\'s move';
+  String get nagInterestingDescDiff1 => 'The Master\'s choice';
 
   @override
   String get nagInterestingDescDiff2 =>
@@ -522,7 +521,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nagInterestingDescClose =>
-      'A very valid idea! You are close to the Master\'s evaluation and keep the Thermodynamic Zone intact.';
+      'Very solid idea! You are extremely close to the Master\'s evaluation and preserve the current Thermodynamic Zone.';
 
   @override
   String get reportTitleAdvVision => '👁️ MASTER\'s ADVANCED VISION:';
@@ -538,10 +537,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get advVisionIgnored2 =>
-      'indicating a tactical attack or a dynamic sacrifice (the move';
+      'pointing towards a tactical surge or a dynamic sacrifice (the move';
 
   @override
-  String get advVisionIgnored3 => 'guarantees peak activity).';
+  String get advVisionIgnored3 => 'secures peak initiative).';
 
   @override
   String get logEvalComplete => '✅ Crossed evaluation complete.';
@@ -556,7 +555,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modalitaGiocoInArrivo => 'Game Mode (Coming Soon)';
 
   @override
-  String get impostaEGioca => 'Set up the game and press Play';
+  String get impostaEGioca => 'Setup the position and press Play';
 
   @override
   String get minuti => 'Minutes:';
@@ -569,90 +568,90 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get premiumIntroDesc =>
-      'Upgrading to the Premium version unlocks access to high-performance Cloud clusters. Deep analysis, massive PGN database processing, and heuristic data mining will no longer drain your smartphone battery, offering you the same professional tools as the legendary Desktop version.';
+      'Upgrading to Premium unlocks access to high-performance Cloud compute clusters. Deep analysis, massive PGN database parsing, and heuristic data-mining will no longer drain your smartphone\'s battery, offering you the identical professional environment of the legendary Desktop version.';
 
   @override
   String get featureBeautyTitle => 'ChessBeauty Analyzer™';
 
   @override
-  String get featureBeautySub => 'Aesthetic and Qualimetric Evaluation';
+  String get featureBeautySub => 'Aesthetic and qualimetric evaluation';
 
   @override
   String get featureBeautyDesc =>
-      'Calculates the mathematical \'Beauty Score\' of an entire game. The algorithm detects spectacular sacrifices, announced mates, and chess paradoxes, based on the famous Le Lionnais Canons.';
+      'Calculates the mathematical \'Beauty Rating\' of a complete chess game. The algorithm automatically detects spectacular sacrifices, announced mates, and positional paradoxes based on the famous aesthetic canons of François Le Lionnais.';
 
   @override
   String get featureNuggetsTitle => 'Nuggets Explorer';
 
   @override
-  String get featureNuggetsSub => 'Thermodynamic Data-mining';
+  String get featureNuggetsSub => 'Thermodynamic data-mining';
 
   @override
   String get featureNuggetsDesc =>
-      'Scans immense databases to automatically extract \'Nuggets\': critical positions where human Win Probability diverges asymmetrically from that of the Neural Network.';
+      'Scans massive game archives to automatically extract \'Nuggets\': critical positions where human Win Probability dramatically and symmetrically diverges from the Neural Network\'s evaluation.';
 
   @override
   String get featureXaiTitle => 'XAI Divergence Dossier';
 
   @override
-  String get featureXaiSub => 'Explainable AI & Reporting';
+  String get featureXaiSub => 'Explainable AI & Detailed Reporting';
 
   @override
   String get featureXaiDesc =>
-      'Generates visual reports in PDF/HTML format. The system maps your accuracy by comparing it with World Champions, identifying your calculation flaws in different zones.';
+      'Generates rich visual reports in PDF/HTML formats. The system maps your analytical accuracy, cross-referencing it with World Champions to identify your blind spots across different balance zones.';
 
   @override
   String get featureAvatarTitle => 'Avatar & Player Card';
 
   @override
-  String get featureAvatarSub => 'Algorithmic Profiling';
+  String get featureAvatarSub => 'Algorithmic opponent profiling';
 
   @override
   String get featureAvatarDesc =>
-      'Analyze your next opponent\'s playing style. ShashGUI will profile their weaknesses, assigning a psychological Avatar and showing charts of their vulnerabilities.';
+      'Analyze your upcoming opponent\'s exact chess playstyle. ShashGUI profiles their historic strategic flaws, maps vulnerabilities via charts, and assigns a psychological profile Avatar.';
 
   @override
   String get featureIdeaTitle => 'ShashIDEA Lab';
 
   @override
-  String get featureIdeaSub => 'Polyglot Repertoire Building';
+  String get featureIdeaSub => 'Polyglot book building suite';
 
   @override
   String get featureIdeaDesc =>
-      'A true drag&drop opening laboratory. Build your interactive tree and automatically compile it into binary format (.bin) to train your personal engines.';
+      'A complete drag-and-drop opening sandbox. Build your interactive opening repertoire tree and compile it instantly into native binary (.bin) format to train your local engine instances.';
 
   @override
   String get featureLearningTitle => 'Traits & R-Learning';
 
   @override
-  String get featureLearningSub => 'Machine Learning and .ptr Files';
+  String get featureLearningSub => 'Machine Learning and .ptr engines';
 
   @override
   String get featureLearningDesc =>
-      'Extract dominant traits (space, bishop pair, outposts) and force the engine to play by exactly simulating your playing style via .exp and .ptr files.';
+      'Extract your dominant traits (space, bishop pair, active outposts) and force the neural engine to play while simulating your precise signature style via customized .exp and .ptr weight maps.';
 
   @override
-  String get featureBatchTitle => 'Automated Batch Analysis';
+  String get featureBatchTitle => 'Automated Batch Analyzer';
 
   @override
-  String get featureBatchSub => 'Massive Overnight Processing';
+  String get featureBatchSub => 'Massive overnight calculation';
 
   @override
   String get featureBatchDesc =>
-      'Process thousands of games automatically: you will find them all annotated with PV variations, tactical NAGs, and natural language (NLG) comments.';
+      'Processes thousands of games automatically while you sleep: you\'ll wake up to find them annotated with PV variations, tactical NAGs, and automated Natural Language Generation (NLG) prose.';
 
   @override
   String get featureSqlTitle => 'ShashQL & DB Manager';
 
   @override
-  String get featureSqlSub => 'Chess Query Language';
+  String get featureSqlSub => 'Chess-specific Query Language';
 
   @override
   String get featureSqlDesc =>
-      'Revolutionary database search engine. Use complex SQL queries to filter games by pattern: \'Show me all games in Tal Zone with density K > 0.5\'.';
+      'A revolutionary database lookup system. Use regular SQL-like expressions to filter games by delicate positional states: \'Show all games in Tal Zone with packing density K > 0.5\'.';
 
   @override
-  String get shashinIdea => '💡 Simple strategic Idea';
+  String get shashinIdea => '💡 Simple strategic idea';
 
   @override
   String get threatMild => '⚠️ Mild Threat';
@@ -662,4 +661,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get threatSevere => '💀 SEVERE THREAT!';
+
+  @override
+  String get nnueKeystone => '🌟 Positional Keystone';
+
+  @override
+  String get nnueKeystoneDesc =>
+      'This piece is critical: the neural network indicates that losing it would drastically crash your winning probabilities.';
+
+  @override
+  String get nnueBlindspot => '⚠️ Positional Blindspot';
+
+  @override
+  String get nnueBlindspotDesc =>
+      'Positional paradox: this piece is cluttering your development. Counter-intuitively, if it weren\'t on the board, your position would improve.';
+
+  @override
+  String get nnueLatentOutpost => '🎯 Ideal Outpost';
+
+  @override
+  String nnueLatentOutpostDesc(String square) {
+    return 'The square $square is a golden outpost. If you manage to anchor a Knight there, your positional advantage will skyrocket.';
+  }
+
+  @override
+  String get nnueSynergy => '🤝 Lethal Synergy';
+
+  @override
+  String nnueSynergyDesc(String piece1, String piece2) {
+    return 'Excellent coordination between $piece1 and $piece2. Operating together, they forge offensive potential greater than the sum of their individual parts.';
+  }
+
+  @override
+  String get nnueRedundancy => '🛑 Redundant Pieces';
+
+  @override
+  String nnueRedundancyDesc(String piece1, String piece2) {
+    return 'Watch out: $piece1 and $piece2 are stepping on each other\'s toes, reducing the overall effectiveness of your setup.';
+  }
+
+  @override
+  String get nnueStructuralEdge => '🧠 Deep Structural Edge';
+
+  @override
+  String get nnueStructuralEdgeDesc =>
+      'Beyond raw material, the neural network \'sees\' structural patterns and deep compensation that overturn the classical evaluation.';
+
+  @override
+  String get nnueHighVolatility => '🌪️ Chaotic Position';
+
+  @override
+  String get nnueHighVolatilityDesc =>
+      'The balance between wins and losses is on a razor\'s edge. Sharp tactics and exact calculation are far more critical here than long-term strategic plans.';
+
+  @override
+  String get nnueCentralTension => '🎯 Central Structural Tension';
+
+  @override
+  String nnueCentralTensionDesc(String push) {
+    return 'The neural network highlights that the real strategic battle revolves around the central pawn chain (hindered by the c6 pawn). The crucial $push push would dismantle the opponent\'s coordination and open vital maneuvering space.';
+  }
 }

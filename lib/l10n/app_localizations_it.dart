@@ -196,7 +196,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get nessunaOpzioneTrovataOCaricame =>
-      'Nessuna opzione trovata o caricamento in corso...';
+      'Nessuna opzione trouvata o caricamento in corso...';
 
   @override
   String get impossibileAnalizzareLeMinacce =>
@@ -319,7 +319,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get aboutDesc =>
-      'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.';
+      'Interfaccia grafica avanzata per l\'analisi posizionale a due fases, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.';
 
   @override
   String get readManualBtn => 'LEGGI IL MANUALE UTENTE';
@@ -480,7 +480,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell\'analisi statica.';
 
   @override
-  String get nagBlunderTitle => '❌ NAG: ?? (Grave Errore)';
+  String get nagBlunderTitle => '❌ GRAVE ERRORE';
 
   @override
   String get nagBlunderDesc1 =>
@@ -491,7 +491,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Zone. Il Maestro suggerisce una via diversa per salvare la posizione.';
 
   @override
-  String get nagMistakeTitle => '⚠️ NAG: ? (Errore)';
+  String get nagMistakeTitle => '⚠️ ERRORE POSIZIONALE';
 
   @override
   String get nagMistakeDesc1 =>
@@ -502,14 +502,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Zone rispetto al potenziale massimizzato dal Maestro.';
 
   @override
-  String get nagInaccuracyTitle => '🤔 NAG: ?! (Imprecisione)';
+  String get nagInaccuracyTitle => '📉 IMPRECISIONE';
 
   @override
   String get nagInaccuracyDesc =>
       'La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.';
 
   @override
-  String get nagInterestingTitle => '👌 NAG: !? (Interessante)';
+  String get nagInterestingTitle => '🤔 MOSSA INTERESSANTE / ALTERNATIVA';
 
   @override
   String get nagInterestingDescDiff1 => 'La mossa del Maestro';
@@ -665,4 +665,64 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get threatSevere => '💀 MINACCIA GRAVE!';
+
+  @override
+  String get nnueKeystone => '🌟 Pilastro della posizione';
+
+  @override
+  String get nnueKeystoneDesc =>
+      'Questo pezzo è fondamentale: la rete neurale indica che la sua perdita farebbe crollare drasticamente le tue probabilità di vittoria.';
+
+  @override
+  String get nnueBlindspot => '⚠️ Punto Cieco';
+
+  @override
+  String get nnueBlindspotDesc =>
+      'Paradosso posizionale: questo pezzo sta intralciando la tua posizione. Paradossalmente, se non ci fosse, la tua posizione migliorerebbe.';
+
+  @override
+  String get nnueLatentOutpost => '🎯 Avamposto Ideale';
+
+  @override
+  String nnueLatentOutpostDesc(String square) {
+    return 'La casa $square è un avamposto d\'oro. Se riuscissi a piazzarci un Cavallo, il tuo vantaggio aumenterebbe esponenzialmente.';
+  }
+
+  @override
+  String get nnueSynergy => '🤝 Sinergia Letale';
+
+  @override
+  String nnueSynergyDesc(String piece1, String piece2) {
+    return 'Eccellente coordinazione tra $piece1 e $piece2. Insieme generano un potenziale offensivo superiore alla somma dei singoli pezzi.';
+  }
+
+  @override
+  String get nnueRedundancy => '🛑 Pezzi Ridondanti';
+
+  @override
+  String nnueRedundancyDesc(String piece1, String piece2) {
+    return 'Attenzione: $piece1 e $piece2 si stanno pestando i piedi a vicenda, riducendo l\'efficacia del tuo schieramento.';
+  }
+
+  @override
+  String get nnueStructuralEdge => '🧠 Vantaggio Strutturale Invisibile';
+
+  @override
+  String get nnueStructuralEdgeDesc =>
+      'Nonostante il materiale, la rete neurale \'vede\' pattern strutturali e compensazioni profonde che ribaltano la valutazione classica.';
+
+  @override
+  String get nnueHighVolatility => '🌪️ Posizione Caotica';
+
+  @override
+  String get nnueHighVolatilityDesc =>
+      'Il bilancio tra vittorie e sconfitte è sul filo del rasoio. La tattica e il calcolo preciso qui sono più importanti dei piani a lungo termine.';
+
+  @override
+  String get nnueCentralTension => '🎯 Tensione Strutturale al Centro';
+
+  @override
+  String nnueCentralTensionDesc(String push) {
+    return 'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale $push scardinerebbe la coordinazione avversaria liberando spazio di manovra.';
+  }
 }

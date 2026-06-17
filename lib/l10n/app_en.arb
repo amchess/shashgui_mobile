@@ -34,7 +34,7 @@
   "@spegniIlMotorePerModificareIPa": {},
   "configuraParametri": "Configure Parameters",
   "@configuraParametri": {},
-  "giocaControIlMotore": "Play against the Engine",
+  "giocaControIlMotore": "Play against Engine",
   "@giocaControIlMotore": {},
   "autoplayMotoreVsMotore": "Autoplay (Engine vs Engine)",
   "@autoplayMotoreVsMotore": {},
@@ -42,13 +42,13 @@
   "@rilevaMinacce": {},
   "valutazioneIncrociata": "Crossed Evaluation",
   "@valutazioneIncrociata": {},
-  "accendi": "Power On",
+  "accendi": "Turn On",
   "@accendi": {},
   "copia": "COPY",
   "@copia": {},
   "importaTestoLichess": "Import Text / Lichess",
   "@importaTestoLichess": {},
-  "incollaUnLinkLichessUnFenOUnPg": "Paste a Lichess Link, a FEN, or a full PGN...",
+  "incollaUnLinkLichessUnFenOUnPg": "Paste a Lichess Link, FEN or entire PGN...",
   "@incollaUnLinkLichessUnFenOUnPg": {},
   "annulla": "Cancel",
   "@annulla": {},
@@ -70,23 +70,23 @@
   "@copiaPgnInMemoria": {},
   "pgnCopiatoNegliAppunti": "PGN copied to clipboard! 📋",
   "@pgnCopiatoNegliAppunti": {},
-  "diramazioneRilevata": "Branch detected",
+  "diramazioneRilevata": "Branching detected",
   "@diramazioneRilevata": {},
-  "esisteGiUnaContinuazionePerQue": "A continuation for this position already exists. What do you want to do?",
+  "esisteGiUnaContinuazionePerQue": "A continuation already exists for this position. What do you want to do?",
   "@esisteGiUnaContinuazionePerQue": {},
   "nuovaLineaPrincipale": "New Main Line",
   "@nuovaLineaPrincipale": {},
-  "aggiungiComeVariante": "Add as Variant",
+  "aggiungiComeVariante": "Add as Variation",
   "@aggiungiComeVariante": {},
-  "sovrascriviTutto": "Overwrite all",
+  "sovrascriviTutto": "Overwrite everything",
   "@sovrascriviTutto": {},
-  "annullaMossa": "Cancel move",
+  "annullaMossa": "Undo move",
   "@annullaMossa": {},
   "erroreLaScacchieraNonHaPotutoV": "Error: The board could not validate the FEN!",
   "@erroreLaScacchieraNonHaPotutoV": {},
   "impostazioniSfida": "Challenge Settings",
   "@impostazioniSfida": {},
-  "giochiCol": "Play as:",
+  "giochiCol": "You play as:",
   "@giochiCol": {},
   "bianco": "White",
   "@bianco": {},
@@ -118,17 +118,17 @@
   "@finePartita": {},
   "tornaAlLaboratorio": "BACK TO LABORATORY",
   "@tornaAlLaboratorio": {},
-  "nessunaOpzioneTrovataOCaricame": "No options found or loading in progress...",
+  "nessunaOpzioneTrovataOCaricame": "No options found or loading...",
   "@nessunaOpzioneTrovataOCaricame": {},
   "impossibileAnalizzareLeMinacce": "Cannot analyze threats while in check!",
   "@impossibileAnalizzareLeMinacce": {},
-  "nessunaMinacciaAllaMossaInizia": "No threats at the initial move!",
+  "nessunaMinacciaAllaMossaInizia": "No threats on the initial move!",
   "@nessunaMinacciaAllaMossaInizia": {},
   "impostazioniAnalisi": "Analysis Settings",
   "@impostazioniAnalisi": {},
   "tempoInizialeT1PerMossa": "Initial time (T1) per move:",
   "@tempoInizialeT1PerMossa": {},
-  "ilTempoRaddoppierAutomaticamen": "The time will double automatically at each iteration of Shashin's Theory.",
+  "ilTempoRaddoppierAutomaticamen": "The time will automatically double at each iteration of Shashin Theory.",
   "@ilTempoRaddoppierAutomaticamen": {},
   "avviaAnalisi": "START ANALYSIS",
   "@avviaAnalisi": {},
@@ -180,7 +180,7 @@
   "@editorPosizione": {},
   "selezionaPezzo": "Select Piece:",
   "@selezionaPezzo": {},
-  "svuota": "Clear",
+  "svuota": "Clear Board",
   "@svuota": {},
   "iniziale": "Starting",
   "@iniziale": {},
@@ -194,13 +194,13 @@
   "@aboutDev": {},
   "aboutEngines": "Integrated Engines: ShashChess (NNUE) & Alexander (HCE)",
   "@aboutEngines": {},
-  "aboutDesc": "Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic trait extraction.",
+  "aboutDesc": "Advanced graphical interface for two-phase positional analysis, chess data processing, and dynamic traits extraction.",
   "@aboutDesc": {},
   "readManualBtn": "READ USER MANUAL",
   "@readManualBtn": {},
   "closeBtn": "CLOSE",
   "@closeBtn": {},
-  "schoolBeginner": "Beginners",
+  "schoolBeginner": "Beginner",
   "@schoolBeginner": {},
   "schoolIntermediate": "Intermediate",
   "@schoolIntermediate": {},
@@ -210,13 +210,13 @@
   "@schoolExpertHCE": {},
   "schoolExpert": "Expert",
   "@schoolExpert": {},
-  "schoolSuperhumanNNUE": "Superhuman (NNUE)",
+  "schoolSuperhumanNNUE": "Super-Human (NNUE)",
   "@schoolSuperhumanNNUE": {},
   "logQueryingOracles": "🌐 [Coach] Querying Cloud Oracles (Lichess/ChessDB)...",
   "@logQueryingOracles": {},
   "logCloudError": "⚠️ Cloud Error:",
   "@logCloudError": {},
-  "logSemanticScan": "📍 [Coach] Semantic scan of the position (Makogonov/Space)...",
+  "logSemanticScan": "📍 [Coach] Positional semantic scan (Makogonov/Space)...",
   "@logSemanticScan": {},
   "pieceKnight": "the Knight",
   "@pieceKnight": {},
@@ -232,41 +232,41 @@
   "@piecePawn": {},
   "pieceGeneric": "the piece",
   "@pieceGeneric": {},
-  "logCalcThermodynamicZone": "📍 [Coach] Calculating Thermodynamic Zone...",
+  "logCalcThermodynamicZone": "📍 [Coach] Calculating Initial Thermodynamic Zone...",
   "@logCalcThermodynamicZone": {},
-  "logStudentThinking1": "🧑‍🎓 The Student (School",
+  "logStudentThinking1": "🧑‍🎓 The Student (School:",
   "@logStudentThinking1": {},
-  "logStudentThinking2": "- Elo",
+  "logStudentThinking2": "- Elo:",
   "@logStudentThinking2": {},
-  "logStudentThinking3": ") is formulating a plan...",
+  "logStudentThinking3": ") is planning the move...",
   "@logStudentThinking3": {},
-  "logPrepMaster1": "🧙‍♂️ Preparing the Master (School",
+  "logPrepMaster1": "🧙‍♂️ Preparing Master (School:",
   "@logPrepMaster1": {},
   "logPrepMaster2": ")...",
   "@logPrepMaster2": {},
-  "logEngineSwap": "🚀 Engine swap in progress: Shutting down Alexander -> Starting ShashChess...",
+  "logEngineSwap": "🚀 Engine shift in progress: Shutting down Alexander -> Booting ShashChess...",
   "@logEngineSwap": {},
-  "logShashReady": "✅ ShashChess ready at maximum strength.",
+  "logShashReady": "✅ ShashChess is ready at full superhuman strength.",
   "@logShashReady": {},
   "evalWhiteDominate": "White enjoys clear territorial dominance, granting great freedom of maneuver.\n",
   "@evalWhiteDominate": {},
-  "evalWhiteSlightEdge": "White possesses a slight space advantage.\n",
+  "evalWhiteSlightEdge": "White enjoys a slight spatial edge.\n",
   "@evalWhiteSlightEdge": {},
-  "evalBlackDominate": "Black has gained a strong space advantage, suffocating White's pieces.\n",
+  "evalBlackDominate": "Black has captured a massive spatial advantage, suffocating White's pieces.\n",
   "@evalBlackDominate": {},
-  "evalBlackSlightEdge": "Black holds slightly superior territorial control.\n",
+  "evalBlackSlightEdge": "Black maintains a slight superior territorial control.\n",
   "@evalBlackSlightEdge": {},
-  "evalSpaceBalanced": "Space management on the board is perfectly balanced.\n",
+  "evalSpaceBalanced": "Space management on the board is in perfect balance.\n",
   "@evalSpaceBalanced": {},
   "evalMakogonovWorst": "According to Makogonov's principle, the piece in most urgent need of reactivation is",
   "@evalMakogonovWorst": {},
-  "evalComplex": "Complex positional evaluation.",
+  "evalComplex": "Complex positional layout.",
   "@evalComplex": {},
   "reportTitleCloud": "🌐 CLOUD EVALUATIONS:",
   "@reportTitleCloud": {},
   "reportLichessHumans": "Lichess (Humans)",
   "@reportLichessHumans": {},
-  "reportNoMoves": "No predominant move",
+  "reportNoMoves": "No predominant moves found",
   "@reportNoMoves": {},
   "reportChessDbNeural": "ChessDB (Neural)",
   "@reportChessDbNeural": {},
@@ -274,7 +274,7 @@
   "@reportTitleStatic": {},
   "reportZone": "Zone",
   "@reportZone": {},
-  "reportTitleStudent1": "🧑‍🎓 YOUR IDEA (School",
+  "reportTitleStudent1": "🧑‍🎓 YOUR IDEA (School:",
   "@reportTitleStudent1": {},
   "reportTitleStudent2": "):",
   "@reportTitleStudent2": {},
@@ -282,7 +282,7 @@
   "@reportChosenMove": {},
   "reportExpectation": "Expectation",
   "@reportExpectation": {},
-  "reportTitleMaster1": "🧙‍♂️ THE MASTER's IDEA (School",
+  "reportTitleMaster1": "🧙‍♂️ THE MASTER's IDEA (School:",
   "@reportTitleMaster1": {},
   "reportTitleMaster2": "):",
   "@reportTitleMaster2": {},
@@ -292,33 +292,33 @@
   "@reportTitleVerdict": {},
   "nagExcellentTitle": "🌟 EXCELLENT!",
   "@nagExcellentTitle": {},
-  "nagExcellentDesc": "You found the same move as the Master. You are playing at a level above your category, respecting the positional canons extracted in the static analysis.",
+  "nagExcellentDesc": "You found the exact same move as the Master. You are playing above your category's average, respecting the positional guidelines from the static scan.",
   "@nagExcellentDesc": {},
-  "nagBlunderTitle": "❌ NAG: ?? (Blunder)",
+  "nagBlunderTitle": "❌ SEVERE BLUNDER",
   "@nagBlunderTitle": {},
-  "nagBlunderDesc1": "Your idea yields a lethal advantage, collapsing the position by",
+  "nagBlunderDesc1": "Your idea drops vital advantage, collapsing the setup by",
   "@nagBlunderDesc1": {},
-  "nagBlunderDesc2": "Zones. The Master suggests a different path to save the position.",
+  "nagBlunderDesc2": "Zones. The Master strongly suggests a different approach to save the game.",
   "@nagBlunderDesc2": {},
-  "nagMistakeTitle": "⚠️ NAG: ? (Mistake)",
+  "nagMistakeTitle": "⚠️ POSITIONAL MISTAKE",
   "@nagMistakeTitle": {},
-  "nagMistakeDesc1": "A positional or tactical oversight. The position drops by",
+  "nagMistakeDesc1": "A positional or tactical oversight. The evaluation drops by",
   "@nagMistakeDesc1": {},
-  "nagMistakeDesc2": "Zones compared to the potential maximized by the Master.",
+  "nagMistakeDesc2": "Zones compared to the peak performance optimized by the Master.",
   "@nagMistakeDesc2": {},
-  "nagInaccuracyTitle": "🤔 NAG: ?! (Inaccuracy)",
+  "nagInaccuracyTitle": "📉 INACCURACY",
   "@nagInaccuracyTitle": {},
-  "nagInaccuracyDesc": "Your idea is playable, but you lose a Thermodynamic Zone compared to the Master's move.",
+  "nagInaccuracyDesc": "Your idea is playable, but you drop one Thermodynamic Zone compared to the Master's line.",
   "@nagInaccuracyDesc": {},
-  "nagInterestingTitle": "👌 NAG: !? (Interesting)",
+  "nagInterestingTitle": "🤔 SMART / ALTERNATIVE MOVE",
   "@nagInterestingTitle": {},
-  "nagInterestingDescDiff1": "The Master's move",
+  "nagInterestingDescDiff1": "The Master's choice",
   "@nagInterestingDescDiff1": {},
   "nagInterestingDescDiff2": "squeezes out more advantage, but your idea maintains the same Zone",
   "@nagInterestingDescDiff2": {},
   "nagInterestingDescDiff3": "It is wise to play the plan you understand best.",
   "@nagInterestingDescDiff3": {},
-  "nagInterestingDescClose": "A very valid idea! You are close to the Master's evaluation and keep the Thermodynamic Zone intact.",
+  "nagInterestingDescClose": "Very solid idea! You are extremely close to the Master's evaluation and preserve the current Thermodynamic Zone.",
   "@nagInterestingDescClose": {},
   "reportTitleAdvVision": "👁️ MASTER's ADVANCED VISION:",
   "@reportTitleAdvVision": {},
@@ -328,9 +328,9 @@
   "@advVisionFixed2": {},
   "advVisionIgnored1": "The Master ignores the passivity of",
   "@advVisionIgnored1": {},
-  "advVisionIgnored2": "indicating a tactical attack or a dynamic sacrifice (the move",
+  "advVisionIgnored2": "pointing towards a tactical surge or a dynamic sacrifice (the move",
   "@advVisionIgnored2": {},
-  "advVisionIgnored3": "guarantees peak activity).",
+  "advVisionIgnored3": "secures peak initiative).",
   "@advVisionIgnored3": {},
   "logEvalComplete": "✅ Crossed evaluation complete.",
   "@logEvalComplete": {},
@@ -340,129 +340,226 @@
   "@informazioniSuShashGui": {},
   "modalitaGiocoInArrivo": "Game Mode (Coming Soon)",
   "@modalitaGiocoInArrivo": {},
-  "impostaEGioca": "Set up the game and press Play",
+  "impostaEGioca": "Setup the position and press Play",
+  "@impostaEGioca": {},
   "minuti": "Minutes:",
   "@minuti": {},
   "secondi": "Seconds:",
   "@secondi": {},
   "scopriFunzioniDesktop": "DISCOVER DESKTOP FEATURES",
   "@scopriFunzioniDesktop": {
-    "description": "Button text in settings to open the premium showcase"
+    "description": "Button text in settings to view premium feature highlights"
   },
-  "premiumIntroDesc": "Upgrading to the Premium version unlocks access to high-performance Cloud clusters. Deep analysis, massive PGN database processing, and heuristic data mining will no longer drain your smartphone battery, offering you the same professional tools as the legendary Desktop version.",
+  "premiumIntroDesc": "Upgrading to Premium unlocks access to high-performance Cloud compute clusters. Deep analysis, massive PGN database parsing, and heuristic data-mining will no longer drain your smartphone's battery, offering you the identical professional environment of the legendary Desktop version.",
   "@premiumIntroDesc": {
-    "description": "Detailed introduction to cloud premium features"
+    "description": "Detailed introduction to premium cloud benefits"
   },
   "featureBeautyTitle": "ChessBeauty Analyzer™",
   "@featureBeautyTitle": {
-    "description": "ChessBeauty feature title"
+    "description": "Title for ChessBeauty feature"
   },
-  "featureBeautySub": "Aesthetic and Qualimetric Evaluation",
+  "featureBeautySub": "Aesthetic and qualimetric evaluation",
   "@featureBeautySub": {
-    "description": "ChessBeauty feature subtitle"
+    "description": "Subtitle for ChessBeauty feature"
   },
-  "featureBeautyDesc": "Calculates the mathematical 'Beauty Score' of an entire game. The algorithm detects spectacular sacrifices, announced mates, and chess paradoxes, based on the famous Le Lionnais Canons.",
+  "featureBeautyDesc": "Calculates the mathematical 'Beauty Rating' of a complete chess game. The algorithm automatically detects spectacular sacrifices, announced mates, and positional paradoxes based on the famous aesthetic canons of François Le Lionnais.",
   "@featureBeautyDesc": {
-    "description": "ChessBeauty feature description"
+    "description": "Description for ChessBeauty feature"
   },
   "featureNuggetsTitle": "Nuggets Explorer",
   "@featureNuggetsTitle": {
-    "description": "Nuggets feature title"
+    "description": "Title for Nuggets feature"
   },
-  "featureNuggetsSub": "Thermodynamic Data-mining",
+  "featureNuggetsSub": "Thermodynamic data-mining",
   "@featureNuggetsSub": {
-    "description": "Nuggets feature subtitle"
+    "description": "Subtitle for Nuggets feature"
   },
-  "featureNuggetsDesc": "Scans immense databases to automatically extract 'Nuggets': critical positions where human Win Probability diverges asymmetrically from that of the Neural Network.",
+  "featureNuggetsDesc": "Scans massive game archives to automatically extract 'Nuggets': critical positions where human Win Probability dramatically and symmetrically diverges from the Neural Network's evaluation.",
   "@featureNuggetsDesc": {
-    "description": "Nuggets feature description"
+    "description": "Description for Nuggets feature"
   },
   "featureXaiTitle": "XAI Divergence Dossier",
   "@featureXaiTitle": {
-    "description": "XAI feature title"
+    "description": "Title for XAI feature"
   },
-  "featureXaiSub": "Explainable AI & Reporting",
+  "featureXaiSub": "Explainable AI & Detailed Reporting",
   "@featureXaiSub": {
-    "description": "XAI feature subtitle"
+    "description": "Subtitle for XAI feature"
   },
-  "featureXaiDesc": "Generates visual reports in PDF/HTML format. The system maps your accuracy by comparing it with World Champions, identifying your calculation flaws in different zones.",
+  "featureXaiDesc": "Generates rich visual reports in PDF/HTML formats. The system maps your analytical accuracy, cross-referencing it with World Champions to identify your blind spots across different balance zones.",
   "@featureXaiDesc": {
-    "description": "XAI feature description"
+    "description": "Description for XAI feature"
   },
   "featureAvatarTitle": "Avatar & Player Card",
   "@featureAvatarTitle": {
-    "description": "Avatar feature title"
+    "description": "Title for Avatar feature"
   },
-  "featureAvatarSub": "Algorithmic Profiling",
+  "featureAvatarSub": "Algorithmic opponent profiling",
   "@featureAvatarSub": {
-    "description": "Avatar feature subtitle"
+    "description": "Subtitle for Avatar feature"
   },
-  "featureAvatarDesc": "Analyze your next opponent's playing style. ShashGUI will profile their weaknesses, assigning a psychological Avatar and showing charts of their vulnerabilities.",
+  "featureAvatarDesc": "Analyze your upcoming opponent's exact chess playstyle. ShashGUI profiles their historic strategic flaws, maps vulnerabilities via charts, and assigns a psychological profile Avatar.",
   "@featureAvatarDesc": {
-    "description": "Avatar feature description"
+    "description": "Description for Avatar feature"
   },
   "featureIdeaTitle": "ShashIDEA Lab",
   "@featureIdeaTitle": {
-    "description": "ShashIDEA feature title"
+    "description": "Title for ShashIDEA feature"
   },
-  "featureIdeaSub": "Polyglot Repertoire Building",
+  "featureIdeaSub": "Polyglot book building suite",
   "@featureIdeaSub": {
-    "description": "ShashIDEA feature subtitle"
+    "description": "Subtitle for ShashIDEA feature"
   },
-  "featureIdeaDesc": "A true drag&drop opening laboratory. Build your interactive tree and automatically compile it into binary format (.bin) to train your personal engines.",
+  "featureIdeaDesc": "A complete drag-and-drop opening sandbox. Build your interactive opening repertoire tree and compile it instantly into native binary (.bin) format to train your local engine instances.",
   "@featureIdeaDesc": {
-    "description": "ShashIDEA feature description"
+    "description": "Description for ShashIDEA feature"
   },
   "featureLearningTitle": "Traits & R-Learning",
   "@featureLearningTitle": {
-    "description": "Learning feature title"
+    "description": "Title for Learning feature"
   },
-  "featureLearningSub": "Machine Learning and .ptr Files",
+  "featureLearningSub": "Machine Learning and .ptr engines",
   "@featureLearningSub": {
-    "description": "Learning feature subtitle"
+    "description": "Subtitle for Learning feature"
   },
-  "featureLearningDesc": "Extract dominant traits (space, bishop pair, outposts) and force the engine to play by exactly simulating your playing style via .exp and .ptr files.",
+  "featureLearningDesc": "Extract your dominant traits (space, bishop pair, active outposts) and force the neural engine to play while simulating your precise signature style via customized .exp and .ptr weight maps.",
   "@featureLearningDesc": {
-    "description": "Learning feature description"
+    "description": "Description for Learning feature"
   },
-  "featureBatchTitle": "Automated Batch Analysis",
+  "featureBatchTitle": "Automated Batch Analyzer",
   "@featureBatchTitle": {
-    "description": "Batch feature title"
+    "description": "Title for Batch feature"
   },
-  "featureBatchSub": "Massive Overnight Processing",
+  "featureBatchSub": "Massive overnight calculation",
   "@featureBatchSub": {
-    "description": "Batch feature subtitle"
+    "description": "Subtitle for Batch feature"
   },
-  "featureBatchDesc": "Process thousands of games automatically: you will find them all annotated with PV variations, tactical NAGs, and natural language (NLG) comments.",
+  "featureBatchDesc": "Processes thousands of games automatically while you sleep: you'll wake up to find them annotated with PV variations, tactical NAGs, and automated Natural Language Generation (NLG) prose.",
   "@featureBatchDesc": {
-    "description": "Batch feature description"
+    "description": "Description for Batch feature"
   },
   "featureSqlTitle": "ShashQL & DB Manager",
   "@featureSqlTitle": {
-    "description": "SQL feature title"
+    "description": "Title for SQL feature"
   },
-  "featureSqlSub": "Chess Query Language",
+  "featureSqlSub": "Chess-specific Query Language",
   "@featureSqlSub": {
-    "description": "SQL feature subtitle"
+    "description": "Subtitle for SQL feature"
   },
-  "featureSqlDesc": "Revolutionary database search engine. Use complex SQL queries to filter games by pattern: 'Show me all games in Tal Zone with density K > 0.5'.",
+  "featureSqlDesc": "A revolutionary database lookup system. Use regular SQL-like expressions to filter games by delicate positional states: 'Show all games in Tal Zone with packing density K > 0.5'.",
   "@featureSqlDesc": {
-    "description": "SQL feature description"
+    "description": "Description for SQL feature"
   },
-  "shashinIdea": "💡 Simple strategic Idea",
+  "shashinIdea": "💡 Simple strategic idea",
   "@shashinIdea": {
-    "description": "Message for a move that maintains the thermodynamic zone"
+    "description": "Message for a move that does not alter the thermodynamic zone"
   },
   "threatMild": "⚠️ Mild Threat",
   "@threatMild": {
-    "description": "Message for 1 zone drop"
+    "description": "Message for a drop of 1 zone"
   },
   "threatModerate": "🔥 Moderate Threat",
   "@threatModerate": {
-    "description": "Message for 2 zones drop"
+    "description": "Message for a drop of 2 zones"
   },
   "threatSevere": "💀 SEVERE THREAT!",
   "@threatSevere": {
-    "description": "Message for 3 or more zones drop"
+    "description": "Message for a drop of 3 or more zones"
+  },
+  "nnueKeystone": "🌟 Positional Keystone",
+  "@nnueKeystone": {
+    "description": "Title for NNUE keystone piece analysis"
+  },
+  "nnueKeystoneDesc": "This piece is critical: the neural network indicates that losing it would drastically crash your winning probabilities.",
+  "@nnueKeystoneDesc": {
+    "description": "Description of the keystone piece's strategic impact"
+  },
+  "nnueBlindspot": "⚠️ Positional Blindspot",
+  "@nnueBlindspot": {
+    "description": "Title for positional blindspot"
+  },
+  "nnueBlindspotDesc": "Positional paradox: this piece is cluttering your development. Counter-intuitively, if it weren't on the board, your position would improve.",
+  "@nnueBlindspotDesc": {
+    "description": "Description of the blindspot piece effect"
+  },
+  "nnueLatentOutpost": "🎯 Ideal Outpost",
+  "@nnueLatentOutpost": {
+    "description": "Title for latent outpost"
+  },
+  "nnueLatentOutpostDesc": "The square {square} is a golden outpost. If you manage to anchor a Knight there, your positional advantage will skyrocket.",
+  "@nnueLatentOutpostDesc": {
+    "description": "Description of the outpost with square parameter",
+    "placeholders": {
+      "square": {
+        "type": "String",
+        "example": "d5"
+      }
+    }
+  },
+  "nnueSynergy": "🤝 Lethal Synergy",
+  "@nnueSynergy": {
+    "description": "Title for piece synergy"
+  },
+  "nnueSynergyDesc": "Excellent coordination between {piece1} and {piece2}. Operating together, they forge offensive potential greater than the sum of their individual parts.",
+  "@nnueSynergyDesc": {
+    "description": "Description of synergy with piece parameters",
+    "placeholders": {
+      "piece1": {
+        "type": "String",
+        "example": "Bishop on c4"
+      },
+      "piece2": {
+        "type": "String",
+        "example": "Queen on f3"
+      }
+    }
+  },
+  "nnueRedundancy": "🛑 Redundant Pieces",
+  "@nnueRedundancy": {
+    "description": "Title for piece redundancy"
+  },
+  "nnueRedundancyDesc": "Watch out: {piece1} and {piece2} are stepping on each other's toes, reducing the overall effectiveness of your setup.",
+  "@nnueRedundancyDesc": {
+    "description": "Description of redundancy with piece parameters",
+    "placeholders": {
+      "piece1": {
+        "type": "String",
+        "example": "Rook on e1"
+      },
+      "piece2": {
+        "type": "String",
+        "example": "Rook on e2"
+      }
+    }
+  },
+  "nnueStructuralEdge": "🧠 Deep Structural Edge",
+  "@nnueStructuralEdge": {
+    "description": "Title for structural advantage (Neural Delta)"
+  },
+  "nnueStructuralEdgeDesc": "Beyond raw material, the neural network 'sees' structural patterns and deep compensation that overturn the classical evaluation.",
+  "@nnueStructuralEdgeDesc": {
+    "description": "Description of the structural advantage"
+  },
+  "nnueHighVolatility": "🌪️ Chaotic Position",
+  "@nnueHighVolatility": {
+    "description": "Title for high WDL volatility"
+  },
+  "nnueHighVolatilityDesc": "The balance between wins and losses is on a razor's edge. Sharp tactics and exact calculation are far more critical here than long-term strategic plans.",
+  "@nnueHighVolatilityDesc": {
+    "description": "Description of high volatility state"
+  },
+  "nnueCentralTension": "🎯 Central Structural Tension",
+  "@nnueCentralTension": {
+    "description": "Title for central tension analysis"
+  },
+  "nnueCentralTensionDesc": "The neural network highlights that the real strategic battle revolves around the central pawn chain (hindered by the c6 pawn). The crucial {push} push would dismantle the opponent's coordination and open vital maneuvering space.",
+  "@nnueCentralTensionDesc": {
+    "description": "Dynamic analysis of central breakthrough pawn pushes",
+    "placeholders": {
+      "push": {
+        "type": "String",
+        "example": "d4-d5"
+      }
+    }
   }
 }

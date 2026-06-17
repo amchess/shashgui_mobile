@@ -455,7 +455,7 @@ abstract class AppLocalizations {
   /// No description provided for @nessunaOpzioneTrovataOCaricame.
   ///
   /// In it, this message translates to:
-  /// **'Nessuna opzione trovata o caricamento in corso...'**
+  /// **'Nessuna opzione trouvata o caricamento in corso...'**
   String get nessunaOpzioneTrovataOCaricame;
 
   /// No description provided for @impossibileAnalizzareLeMinacce.
@@ -683,7 +683,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDesc.
   ///
   /// In it, this message translates to:
-  /// **'Interfaccia grafica avanzata per l\'analisi posizionale a due fasi, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.'**
+  /// **'Interfaccia grafica avanzata per l\'analisi posizionale a due fases, l\'elaborazione di dati scacchistici e l\'estrazione di tratti dinamici.'**
   String get aboutDesc;
 
   /// No description provided for @readManualBtn.
@@ -983,7 +983,7 @@ abstract class AppLocalizations {
   /// No description provided for @nagBlunderTitle.
   ///
   /// In it, this message translates to:
-  /// **'❌ NAG: ?? (Grave Errore)'**
+  /// **'❌ GRAVE ERRORE'**
   String get nagBlunderTitle;
 
   /// No description provided for @nagBlunderDesc1.
@@ -1001,7 +1001,7 @@ abstract class AppLocalizations {
   /// No description provided for @nagMistakeTitle.
   ///
   /// In it, this message translates to:
-  /// **'⚠️ NAG: ? (Errore)'**
+  /// **'⚠️ ERRORE POSIZIONALE'**
   String get nagMistakeTitle;
 
   /// No description provided for @nagMistakeDesc1.
@@ -1019,7 +1019,7 @@ abstract class AppLocalizations {
   /// No description provided for @nagInaccuracyTitle.
   ///
   /// In it, this message translates to:
-  /// **'🤔 NAG: ?! (Imprecisione)'**
+  /// **'📉 IMPRECISIONE'**
   String get nagInaccuracyTitle;
 
   /// No description provided for @nagInaccuracyDesc.
@@ -1031,7 +1031,7 @@ abstract class AppLocalizations {
   /// No description provided for @nagInterestingTitle.
   ///
   /// In it, this message translates to:
-  /// **'👌 NAG: !? (Interessante)'**
+  /// **'🤔 MOSSA INTERESSANTE / ALTERNATIVA'**
   String get nagInterestingTitle;
 
   /// No description provided for @nagInterestingDescDiff1.
@@ -1315,6 +1315,102 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'💀 MINACCIA GRAVE!'**
   String get threatSevere;
+
+  /// Titolo per l'analisi del pezzo chiave NNUE
+  ///
+  /// In it, this message translates to:
+  /// **'🌟 Pilastro della posizione'**
+  String get nnueKeystone;
+
+  /// Descrizione dell'effetto del pezzo chiave
+  ///
+  /// In it, this message translates to:
+  /// **'Questo pezzo è fondamentale: la rete neurale indica che la sua perdita farebbe crollare drasticamente le tue probabilità di vittoria.'**
+  String get nnueKeystoneDesc;
+
+  /// Titolo per il punto cieco posizionale
+  ///
+  /// In it, this message translates to:
+  /// **'⚠️ Punto Cieco'**
+  String get nnueBlindspot;
+
+  /// Descrizione del punto cieco
+  ///
+  /// In it, this message translates to:
+  /// **'Paradosso posizionale: questo pezzo sta intralciando la tua posizione. Paradossalmente, se non ci fosse, la tua posizione migliorerebbe.'**
+  String get nnueBlindspotDesc;
+
+  /// Titolo per l'avamposto latente
+  ///
+  /// In it, this message translates to:
+  /// **'🎯 Avamposto Ideale'**
+  String get nnueLatentOutpost;
+
+  /// Descrizione dell'avamposto con parametro casa
+  ///
+  /// In it, this message translates to:
+  /// **'La casa {square} è un avamposto d\'oro. Se riuscissi a piazzarci un Cavallo, il tuo vantaggio aumenterebbe esponenzialmente.'**
+  String nnueLatentOutpostDesc(String square);
+
+  /// Titolo per la sinergia tra pezzi
+  ///
+  /// In it, this message translates to:
+  /// **'🤝 Sinergia Letale'**
+  String get nnueSynergy;
+
+  /// Descrizione della sinergia con parametri pezzi
+  ///
+  /// In it, this message translates to:
+  /// **'Eccellente coordinazione tra {piece1} e {piece2}. Insieme generano un potenziale offensivo superiore alla somma dei singoli pezzi.'**
+  String nnueSynergyDesc(String piece1, String piece2);
+
+  /// Titolo per la ridondanza dei pezzi
+  ///
+  /// In it, this message translates to:
+  /// **'🛑 Pezzi Ridondanti'**
+  String get nnueRedundancy;
+
+  /// Descrizione della ridondanza con parametri
+  ///
+  /// In it, this message translates to:
+  /// **'Attenzione: {piece1} e {piece2} si stanno pestando i piedi a vicenda, riducendo l\'efficacia del tuo schieramento.'**
+  String nnueRedundancyDesc(String piece1, String piece2);
+
+  /// Titolo per il vantaggio strutturale (Neural Delta)
+  ///
+  /// In it, this message translates to:
+  /// **'🧠 Vantaggio Strutturale Invisibile'**
+  String get nnueStructuralEdge;
+
+  /// Descrizione del vantaggio strutturale
+  ///
+  /// In it, this message translates to:
+  /// **'Nonostante il materiale, la rete neurale \'vede\' pattern strutturali e compensazioni profonde che ribaltano la valutazione classica.'**
+  String get nnueStructuralEdgeDesc;
+
+  /// Titolo per l'alta volatilità WDL
+  ///
+  /// In it, this message translates to:
+  /// **'🌪️ Posizione Caotica'**
+  String get nnueHighVolatility;
+
+  /// Descrizione dell'alta volatilità
+  ///
+  /// In it, this message translates to:
+  /// **'Il bilancio tra vittorie e sconfitte è sul filo del rasoio. La tattica e il calcolo preciso qui sono più importanti dei piani a lungo termine.'**
+  String get nnueHighVolatilityDesc;
+
+  /// Titolo per l'analisi della tensione centrale
+  ///
+  /// In it, this message translates to:
+  /// **'🎯 Tensione Strutturale al Centro'**
+  String get nnueCentralTension;
+
+  /// Analisi dinamica delle spinte di rottura centrali
+  ///
+  /// In it, this message translates to:
+  /// **'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale {push} scardinerebbe la coordinazione avversaria liberando spazio di manovra.'**
+  String nnueCentralTensionDesc(String push);
 }
 
 class _AppLocalizationsDelegate

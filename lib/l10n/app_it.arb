@@ -118,7 +118,7 @@
   "@finePartita": {},
   "tornaAlLaboratorio": "TORNA AL LABORATORIO",
   "@tornaAlLaboratorio": {},
-  "nessunaOpzioneTrovataOCaricame": "Nessuna opzione trovata o caricamento in corso...",
+  "nessunaOpzioneTrovataOCaricame": "Nessuna opzione trouvata o caricamento in corso...",
   "@nessunaOpzioneTrovataOCaricame": {},
   "impossibileAnalizzareLeMinacce": "Impossibile analizzare le minacce sotto scacco!",
   "@impossibileAnalizzareLeMinacce": {},
@@ -194,7 +194,7 @@
   "@aboutDev": {},
   "aboutEngines": "Motori Integrati: ShashChess (NNUE) & Alexander (HCE)",
   "@aboutEngines": {},
-  "aboutDesc": "Interfaccia grafica avanzata per l'analisi posizionale a due fasi, l'elaborazione di dati scacchistici e l'estrazione di tratti dinamici.",
+  "aboutDesc": "Interfaccia grafica avanzata per l'analisi posizionale a due fases, l'elaborazione di dati scacchistici e l'estrazione di tratti dinamici.",
   "@aboutDesc": {},
   "readManualBtn": "LEGGI IL MANUALE UTENTE",
   "@readManualBtn": {},
@@ -294,23 +294,23 @@
   "@nagExcellentTitle": {},
   "nagExcellentDesc": "Hai trovato la stessa mossa del Maestro. Stai giocando a un livello superiore alla tua categoria, rispettando i canoni posizionali estratti nell'analisi statica.",
   "@nagExcellentDesc": {},
-  "nagBlunderTitle": "❌ NAG: ?? (Grave Errore)",
+  "nagBlunderTitle": "❌ GRAVE ERRORE",
   "@nagBlunderTitle": {},
   "nagBlunderDesc1": "La tua idea cede un vantaggio letale facendo crollare la posizione di",
   "@nagBlunderDesc1": {},
   "nagBlunderDesc2": "Zone. Il Maestro suggerisce una via diversa per salvare la posizione.",
   "@nagBlunderDesc2": {},
-  "nagMistakeTitle": "⚠️ NAG: ? (Errore)",
+  "nagMistakeTitle": "⚠️ ERRORE POSIZIONALE",
   "@nagMistakeTitle": {},
   "nagMistakeDesc1": "Una svista posizionale o tattica. La posizione scende di",
   "@nagMistakeDesc1": {},
   "nagMistakeDesc2": "Zone rispetto al potenziale massimizzato dal Maestro.",
   "@nagMistakeDesc2": {},
-  "nagInaccuracyTitle": "🤔 NAG: ?! (Imprecisione)",
+  "nagInaccuracyTitle": "📉 IMPRECISIONE",
   "@nagInaccuracyTitle": {},
   "nagInaccuracyDesc": "La tua idea è giocabile, ma perdi una Zona Termodinamica rispetto alla mossa del Maestro.",
   "@nagInaccuracyDesc": {},
-  "nagInterestingTitle": "👌 NAG: !? (Interessante)",
+  "nagInterestingTitle": "🤔 MOSSA INTERESSANTE / ALTERNATIVA",
   "@nagInterestingTitle": {},
   "nagInterestingDescDiff1": "La mossa del Maestro",
   "@nagInterestingDescDiff1": {},
@@ -465,5 +465,101 @@
   "threatSevere": "💀 MINACCIA GRAVE!",
   "@threatSevere": {
     "description": "Messaggio per un calo di 3 o più zone"
+  },
+  "nnueKeystone": "🌟 Pilastro della posizione",
+  "@nnueKeystone": {
+    "description": "Titolo per l'analisi del pezzo chiave NNUE"
+  },
+  "nnueKeystoneDesc": "Questo pezzo è fondamentale: la rete neurale indica che la sua perdita farebbe crollare drasticamente le tue probabilità di vittoria.",
+  "@nnueKeystoneDesc": {
+    "description": "Descrizione dell'effetto del pezzo chiave"
+  },
+  "nnueBlindspot": "⚠️ Punto Cieco",
+  "@nnueBlindspot": {
+    "description": "Titolo per il punto cieco posizionale"
+  },
+  "nnueBlindspotDesc": "Paradosso posizionale: questo pezzo sta intralciando la tua posizione. Paradossalmente, se non ci fosse, la tua posizione migliorerebbe.",
+  "@nnueBlindspotDesc": {
+    "description": "Descrizione del punto cieco"
+  },
+  "nnueLatentOutpost": "🎯 Avamposto Ideale",
+  "@nnueLatentOutpost": {
+    "description": "Titolo per l'avamposto latente"
+  },
+  "nnueLatentOutpostDesc": "La casa {square} è un avamposto d'oro. Se riuscissi a piazzarci un Cavallo, il tuo vantaggio aumenterebbe esponenzialmente.",
+  "@nnueLatentOutpostDesc": {
+    "description": "Descrizione dell'avamposto con parametro casa",
+    "placeholders": {
+      "square": {
+        "type": "String",
+        "example": "d5"
+      }
+    }
+  },
+  "nnueSynergy": "🤝 Sinergia Letale",
+  "@nnueSynergy": {
+    "description": "Titolo per la sinergia tra pezzi"
+  },
+  "nnueSynergyDesc": "Eccellente coordinazione tra {piece1} e {piece2}. Insieme generano un potenziale offensivo superiore alla somma dei singoli pezzi.",
+  "@nnueSynergyDesc": {
+    "description": "Descrizione della sinergia con parametri pezzi",
+    "placeholders": {
+      "piece1": {
+        "type": "String",
+        "example": "Alfiere in c4"
+      },
+      "piece2": {
+        "type": "String",
+        "example": "Donna in f3"
+      }
+    }
+  },
+  "nnueRedundancy": "🛑 Pezzi Ridondanti",
+  "@nnueRedundancy": {
+    "description": "Titolo per la ridondanza dei pezzi"
+  },
+  "nnueRedundancyDesc": "Attenzione: {piece1} e {piece2} si stanno pestando i piedi a vicenda, riducendo l'efficacia del tuo schieramento.",
+  "@nnueRedundancyDesc": {
+    "description": "Descrizione della ridondanza con parametri",
+    "placeholders": {
+      "piece1": {
+        "type": "String",
+        "example": "Torre in e1"
+      },
+      "piece2": {
+        "type": "String",
+        "example": "Torre in e2"
+      }
+    }
+  },
+  "nnueStructuralEdge": "🧠 Vantaggio Strutturale Invisibile",
+  "@nnueStructuralEdge": {
+    "description": "Titolo per il vantaggio strutturale (Neural Delta)"
+  },
+  "nnueStructuralEdgeDesc": "Nonostante il materiale, la rete neurale 'vede' pattern strutturali e compensazioni profonde che ribaltano la valutazione classica.",
+  "@nnueStructuralEdgeDesc": {
+    "description": "Descrizione del vantaggio strutturale"
+  },
+  "nnueHighVolatility": "🌪️ Posizione Caotica",
+  "@nnueHighVolatility": {
+    "description": "Titolo per l'alta volatilità WDL"
+  },
+  "nnueHighVolatilityDesc": "Il bilancio tra vittorie e sconfitte è sul filo del rasoio. La tattica e il calcolo preciso qui sono più importanti dei piani a lungo termine.",
+  "@nnueHighVolatilityDesc": {
+    "description": "Descrizione dell'alta volatilità"
+  },
+  "nnueCentralTension": "🎯 Tensione Strutturale al Centro",
+  "@nnueCentralTension": {
+    "description": "Titolo per l'analisi della tensione centrale"
+  },
+  "nnueCentralTensionDesc": "La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale {push} scardinerebbe la coordinazione avversaria liberando spazio di manovra.",
+  "@nnueCentralTensionDesc": {
+    "description": "Analisi dinamica delle spinte di rottura centrali",
+    "placeholders": {
+      "push": {
+        "type": "String",
+        "example": "d4-d5"
+      }
+    }
   }
 }
