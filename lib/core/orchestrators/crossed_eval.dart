@@ -146,12 +146,17 @@ class CrossedEvalOrchestrator {
     if (currentState == CrossedState.masterStaticEval) {
       // Parse del nuovo formato SHASHHERMES COMPACT TRACE
       if (line.contains("WP_White=")) {
+        // 🔍 STAMPA TRACCIA GREZZA: Monitoriamo esattamente cosa invia il motore in tempo reale
+        print("🔍 MOTORE INVIA TRACCIA: $line");
+
         final parts = line.split('|').map((e) => e.trim()).toList();
         for (var part in parts) {
           if (part.startsWith('WP_White=')) {
             nnueWp = int.tryParse(part.split('=')[1].replaceAll('%', ''));
           }
-          if (part.startsWith('Zone=')) nnueZone = part.split('=')[1];
+          if (part.startsWith('Zone=')) {
+            nnueZone = part.split('=')[1];
+          }
           if (part.startsWith('WorstWhite=')) {
             nnueWorstWhite = part.split('=')[1];
           }
@@ -160,6 +165,7 @@ class CrossedEvalOrchestrator {
           }
           if (part.startsWith('BestOutpost=')) {
             nnueBestOutpost = part.split('=')[1];
+            print("🤖 PARSER OUTPOST: Estratto valore -> $nnueBestOutpost");
           }
           if (part.startsWith('BLINDSPOT_W=')) {
             nnueBlindspotW = part.split('=')[1];
@@ -197,12 +203,16 @@ class CrossedEvalOrchestrator {
       }
 
       final centerMatch = RegExp(r"Center Type:\s*(.+)").firstMatch(line);
-      if (centerMatch != null) centerType = centerMatch.group(1)!.trim();
+      if (centerMatch != null) {
+        centerType = centerMatch.group(1)!.trim();
+      }
 
       final deltaKMatch = RegExp(
         r"deltak \(White - Black\):\s*(-?\d+\.\d+)",
       ).firstMatch(line);
-      if (deltaKMatch != null) deltaK = double.tryParse(deltaKMatch.group(1)!);
+      if (deltaKMatch != null) {
+        deltaK = double.tryParse(deltaKMatch.group(1)!);
+      }
 
       final expMatch = RegExp(
         r"Delta Expansion \(White-Black\):\s*(-?\d+\.\d+)",
@@ -211,8 +221,12 @@ class CrossedEvalOrchestrator {
         deltaExpansion = double.tryParse(expMatch.group(1)!);
       }
 
-      if (line.contains("White bishops: 2")) hasBishopPairWhite = true;
-      if (line.contains("Black bishops: 2")) hasBishopPairBlack = true;
+      if (line.contains("White bishops: 2")) {
+        hasBishopPairWhite = true;
+      }
+      if (line.contains("Black bishops: 2")) {
+        hasBishopPairBlack = true;
+      }
 
       String translatePiece(String engPiece) {
         switch (engPiece.trim().toLowerCase()) {
@@ -269,12 +283,11 @@ class CrossedEvalOrchestrator {
 
       if (currentState == CrossedState.baseEval) {
         baseZone = currentZ;
-      } else if (currentState == CrossedState.studentThinking)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (currentState == CrossedState.studentThinking) {
         studentZone = currentZ;
-      else if (currentState == CrossedState.masterThinking)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (currentState == CrossedState.masterThinking) {
         masterZone = currentZ;
+      }
     }
 
     if (line.startsWith("bestmove")) {
@@ -359,18 +372,15 @@ class CrossedEvalOrchestrator {
       int diff = spaceWhite! - spaceBlack!;
       if (diff == 0) {
         txt.write("${loc.evalSpaceBalanced} ($spaceWhite - $spaceBlack). ");
-      } else if (diff >= 4)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (diff >= 4) {
         txt.write("${loc.evalWhiteDominate} ");
-      else if (diff >= 1)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (diff >= 1) {
         txt.write("${loc.evalWhiteSlightEdge} ");
-      else if (diff <= -4)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (diff <= -4) {
         txt.write("${loc.evalBlackDominate} ");
-      else
-        // ignore: curly_braces_in_flow_control_structures
+      } else {
         txt.write("${loc.evalBlackSlightEdge} ");
+      }
     }
 
     if (deltaExpansion != null) {
@@ -380,20 +390,19 @@ class CrossedEvalOrchestrator {
               ? "Il baricentro dei due schieramenti è simmetrico. "
               : "The center of gravity is symmetrical. ",
         );
-      } else if (deltaExpansion! > 0.5)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (deltaExpansion! > 0.5) {
         txt.write(
           isIt
               ? "Il Bianco è molto più espanso, tenendo i pezzi avanzati. "
               : "White is much more expanded. ",
         );
-      else if (deltaExpansion! < -0.5)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (deltaExpansion! < -0.5) {
         txt.write(
           isIt
               ? "Il Nero ha un fattore di espansione superiore. "
               : "Black has a higher expansion factor. ",
         );
+      }
     }
 
     if (deltaK != null) {
@@ -403,20 +412,19 @@ class CrossedEvalOrchestrator {
               ? "La densità di imballaggio (coordinazione a corto raggio) è bilanciata. "
               : "The packing density is perfectly balanced. ",
         );
-      } else if (deltaK! > 0.05)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (deltaK! > 0.05) {
         txt.write(
           isIt
               ? "Il Bianco ha pezzi a corto raggio meglio raggruppati. "
               : "White has better grouped short-range pieces. ",
         );
-      else if (deltaK! < -0.05)
-        // ignore: curly_braces_in_flow_control_structures
+      } else if (deltaK! < -0.05) {
         txt.write(
           isIt
               ? "Il Nero ha una struttura più densa e compatta. "
               : "Black has a more compact structure. ",
         );
+      }
     }
 
     if (hasBishopPairWhite && !hasBishopPairBlack) {
@@ -452,6 +460,52 @@ class CrossedEvalOrchestrator {
 
     if (RegExp(r'^[a-h][1-8]').hasMatch(p)) return 'Pedone $p';
     return p;
+  }
+
+  /// Genera il testo geometrico corretto isolando la casa tramite Regex
+  /// e verificando se si tratta di un vero avamposto, di uno snodo o di un rinforzo retroguardia.
+  String _buildGeometryText(String rawString, bool isIt) {
+    // 🔍 FIX BLINDATO: Usiamo una Regex per trovare la casa (es. "e1", "d5") ovunque sia
+    final match = RegExp(r'([a-h])([1-8])').firstMatch(rawString);
+    if (match == null) return "";
+
+    final file = match.group(1)!;
+    final rankStr = match.group(2)!;
+    final int rank = int.parse(rankStr);
+    final square = "$file$rank";
+
+    // Estraiamo la porzione dell'impatto percentuale es. "(+28%)"
+    String impact = "";
+    if (rawString.contains('(')) {
+      impact = rawString.substring(rawString.indexOf('('));
+    }
+
+    // ⚠️ FILTRO DI SICUREZZA PER LE TRAVERSE 1 E 8 (Retroguardia/Bordi della scacchiera)
+    // Non possono scacchisticamente essere definiti avamposti o nodi di manovra dinamica avanzata.
+    if (rank == 1 || rank == 8) {
+      return isIt
+          ? "🛡️ RINFORZO DIFENSIVO: La casa $square $impact è una base nevralgica per blindare le retrovie."
+          : "🛡️ DEFENSIVE REINFORCEMENT: Square $square $impact is a key node to secure the back ranks.";
+    }
+
+    bool isTrueOutpost = false;
+    if (isWhiteToMove) {
+      // Per il Bianco, un vero avamposto si trova nelle linee avanzate (4^, 5^, 6^, 7^ traversa)
+      isTrueOutpost = (rank >= 4 && rank <= 7);
+    } else {
+      // Per il Nero, si trova nelle sue linee avanzate (2^, 3^, 4^, 5^ traversa)
+      isTrueOutpost = (rank >= 2 && rank <= 5);
+    }
+
+    if (isTrueOutpost) {
+      return isIt
+          ? "📍 GEOMETRIA: Eccellente avamposto latente individuato nella casa $square $impact (ideale per manovrare un Cavallo)."
+          : "📍 GEOMETRY: Excellent latent outpost found on $square $impact (perfect for a Knight).";
+    } else {
+      return isIt
+          ? "📍 GEOMETRIA: Cruciale snodo di manovra e coordinazione individuato in $square $impact."
+          : "📍 GEOMETRY: Crucial maneuver/coordination node found on $square $impact.";
+    }
   }
 
   void _finishAndReport() {
@@ -572,13 +626,9 @@ class CrossedEvalOrchestrator {
         }
       }
 
-      // B. Avamposto Spaziale
+      // B. Avamposto Spaziale / Snodo Coordinazione (Filtro geometrico applicato)
       if (nnueBestOutpost != null && nnueBestOutpost!.isNotEmpty) {
-        report.writeln(
-          isIt
-              ? "📍 GEOMETRIA: Eccellente avamposto latente individuato nella casa ${nnueBestOutpost!} (perfetto per manovrare un Cavallo)."
-              : "📍 GEOMETRY: Excellent latent outpost found on ${nnueBestOutpost!} (perfect for a Knight).",
-        );
+        report.writeln(_buildGeometryText(nnueBestOutpost!, isIt));
       }
 
       // C. Pezzo Peggiore (Ablazione Spaziale)
