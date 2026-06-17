@@ -140,8 +140,8 @@ class EngineControls extends ConsumerWidget {
           // 1. Diamo un feedback visivo immediato all'utente
           if (!context.mounted) return; // ⚠️ FIX LINTER
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Elaborazione PGN in background in corso..."),
+            SnackBar(
+              content: Text(loc.elaborazionePgnBg),
               duration: Duration(seconds: 1),
             ),
           );
@@ -237,7 +237,7 @@ class EngineControls extends ConsumerWidget {
                   if (text.contains('lichess.org')) {
                     try {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Download da Lichess...")),
+                        SnackBar(content: Text(loc.downloadLichess)),
                       );
                       final pgn = await ImportExportService().fetchLichessGame(
                         text,
@@ -416,16 +416,13 @@ class EngineControls extends ConsumerWidget {
                           .orangeAccent // Colore quando la minaccia è visibile
                     : Colors.redAccent, // Colore di default
                 label: engineState.threatMoveUci.isNotEmpty
-                    ? "Analisi" // Etichetta quando la minaccia è visibile
+                    ? loc
+                          .analisi // Etichetta quando la minaccia è visibile
                     : loc.rilevaMinacce, // Etichetta di default
                 onPressed: () {
                   if (!engineState.isRunning) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "Accendi il motore per usare questa funzione.",
-                        ),
-                      ),
+                      SnackBar(content: Text(loc.accendiMotorePerFunzione)),
                     );
                     return;
                   }
@@ -461,8 +458,8 @@ class EngineControls extends ConsumerWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Scansione minacce in corso..."),
+                      SnackBar(
+                        content: Text(loc.scansioneMinacce),
                         duration: Duration(seconds: 1),
                       ),
                     );
@@ -498,7 +495,7 @@ class EngineControls extends ConsumerWidget {
                 color: autoplayState.isPlaying
                     ? Colors.redAccent
                     : Colors.purpleAccent,
-                label: autoplayState.isPlaying ? "Ferma" : "Torneo",
+                label: autoplayState.isPlaying ? loc.ferma : loc.torneo,
                 onPressed: () {
                   if (autoplayState.isPlaying) {
                     ref.read(autoplayControllerProvider.notifier).stopMatch();
@@ -521,7 +518,7 @@ class EngineControls extends ConsumerWidget {
               _buildControlButton(
                 icon: Icons.copy,
                 color: Colors.cyanAccent, // Un colore diverso per spiccare
-                label: "Copia",
+                label: loc.copiaMenu,
                 onPressed: () {
                   // Genera il PGN della partita attualmente sulla scacchiera
                   final currentPgn = boardController.game.pgn();
@@ -535,7 +532,7 @@ class EngineControls extends ConsumerWidget {
               _buildControlButton(
                 icon: Icons.share,
                 color: Colors.yellowAccent,
-                label: "Condividi",
+                label: loc.condividiMenu,
                 onPressed: () {
                   final currentPgn = boardController.game.pgn();
                   ImportExportService.exportPgn(currentPgn);

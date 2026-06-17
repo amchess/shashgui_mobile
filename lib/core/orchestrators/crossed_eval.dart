@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../engine/engine_manager.dart';
 import '../logic/shashin_logic.dart';
@@ -147,7 +148,7 @@ class CrossedEvalOrchestrator {
       // Parse del nuovo formato SHASHHERMES COMPACT TRACE
       if (line.contains("WP_White=")) {
         // 🔍 STAMPA TRACCIA GREZZA: Monitoriamo esattamente cosa invia il motore in tempo reale
-        print("🔍 MOTORE INVIA TRACCIA: $line");
+        debugPrint("🔍 MOTORE INVIA TRACCIA: $line");
 
         final parts = line.split('|').map((e) => e.trim()).toList();
         for (var part in parts) {
@@ -165,7 +166,9 @@ class CrossedEvalOrchestrator {
           }
           if (part.startsWith('BestOutpost=')) {
             nnueBestOutpost = part.split('=')[1];
-            print("🤖 PARSER OUTPOST: Estratto valore -> $nnueBestOutpost");
+            debugPrint(
+              "🤖 PARSER OUTPOST: Estratto valore -> $nnueBestOutpost",
+            );
           }
           if (part.startsWith('BLINDSPOT_W=')) {
             nnueBlindspotW = part.split('=')[1];

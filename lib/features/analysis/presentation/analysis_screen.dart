@@ -47,15 +47,15 @@ class AnalysisScreen extends ConsumerWidget {
                   ),
                   const Divider(color: Colors.white24, height: 20),
                   Text(
-                    "Vittorie Bianco: ${next.scoreWhite}",
+                    "${loc.vittorieBianco} ${next.scoreWhite}",
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   Text(
-                    "Vittorie Nero: ${next.scoreBlack}",
+                    "${loc.vittorieNero} ${next.scoreBlack}",
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   Text(
-                    "Patte: ${next.draws}",
+                    "${loc.patte} ${next.draws}",
                     style: const TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ],
@@ -81,9 +81,10 @@ class AnalysisScreen extends ConsumerWidget {
                       debugPrint("Errore esportazione: $e");
                     }
                   },
-                  child: const Text(
-                    "CONDIVIDI PGN",
-                    style: TextStyle(color: Colors.greenAccent),
+                  child: Text(
+                    // Prima era const Text("CONDIVIDI PGN" ...
+                    loc.condividiPgn,
+                    style: const TextStyle(color: Colors.greenAccent),
                   ),
                 ),
                 ElevatedButton(

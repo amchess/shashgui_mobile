@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/logic/shash_trace_models.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class NeuralDeltaWidget extends StatelessWidget {
   final AdvancedShashTrace trace;
@@ -8,6 +9,7 @@ class NeuralDeltaWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -21,8 +23,8 @@ class NeuralDeltaWidget extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "Comprensione Globale Rete:",
+              Text(
+                loc.comprensioneGlobaleRete,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -50,9 +52,9 @@ class NeuralDeltaWidget extends StatelessWidget {
                     flex: trace.materialPsqtWp.round(),
                     child: Container(
                       color: Colors.grey.shade400,
-                      child: const Center(
+                      child: Center(
                         child: Text(
-                          "Materiale",
+                          loc.materiale,
                           style: TextStyle(
                             fontSize: 9,
                             color: Colors.black,
@@ -98,7 +100,7 @@ class NeuralDeltaWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "Nota: La rete calcola un incremento strutturale del ${trace.structuralDeltaWp.toStringAsFixed(0)}% "
+            "${loc.notaIncrementoStrutturale} ${trace.structuralDeltaWp.toStringAsFixed(0)}% "
             "dovuto a geometrie di pattern e coordinazione non spiegabili dal solo conteggio dei pezzi.",
             style: TextStyle(
               color: Colors.grey.shade400,

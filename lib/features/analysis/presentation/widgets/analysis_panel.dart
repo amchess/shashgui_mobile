@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/engine_controller.dart';
 import '../../domain/autoplay_controller.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class AnalysisPanel extends ConsumerWidget {
   const AnalysisPanel({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context)!;
     final engineState = ref.watch(engineControllerProvider);
     final autoplayState = ref.watch(autoplayControllerProvider);
 
@@ -17,9 +19,7 @@ class AnalysisPanel extends ConsumerWidget {
 
     final statusMsg = isAutoplay
         ? autoplayState.currentLog
-        : (engineState.isRunning
-              ? "⚙️ Analisi in corso..."
-              : "Motore in standby");
+        : (engineState.isRunning ? loc.analisiInCorso : loc.motoreInStandby);
 
     return Container(
       padding: const EdgeInsets.all(12),

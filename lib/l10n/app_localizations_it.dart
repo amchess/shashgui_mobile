@@ -725,4 +725,94 @@ class AppLocalizationsIt extends AppLocalizations {
   String nnueCentralTensionDesc(String push) {
     return 'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale $push scardinerebbe la coordinazione avversaria liberando spazio di manovra.';
   }
+
+  @override
+  String get analisiInCorso => '⚙️ Analisi in corso...';
+
+  @override
+  String get motoreInStandby => 'Motore in standby';
+
+  @override
+  String get torneo => 'Torneo';
+
+  @override
+  String get ferma => 'Ferma';
+
+  @override
+  String get copiaMenu => 'Copia';
+
+  @override
+  String get condividiMenu => 'Condividi';
+
+  @override
+  String get analisi => 'Analisi';
+
+  @override
+  String get accendiMotorePerFunzione =>
+      'Accendi il motore per usare questa funzione.';
+
+  @override
+  String get scansioneMinacce => 'Scansione minacce in corso...';
+
+  @override
+  String get elaborazionePgnBg => 'Elaborazione PGN in background in corso...';
+
+  @override
+  String get downloadLichess => 'Download da Lichess...';
+
+  @override
+  String get torneoConcluso => '🏆 Torneo Concluso!';
+
+  @override
+  String get vittorieBianco => 'Vittorie Bianco:';
+
+  @override
+  String get vittorieNero => 'Vittorie Nero:';
+
+  @override
+  String get patte => 'Patte:';
+
+  @override
+  String get condividiPgn => 'CONDIVIDI PGN';
+
+  @override
+  String get posizioneInizialeColori => 'POSIZIONE INIZIALE E COLORI';
+
+  @override
+  String get iniziaDaScacchieraVisibile =>
+      'Inizia dalla scacchiera visibile dietro al menu.';
+
+  @override
+  String get andataRitorno => 'Andata e Ritorno';
+
+  @override
+  String get invertiMotoriRound => 'Inverti i motori ad ogni nuovo round.';
+
+  @override
+  String get numeroPartiteGauntlet => 'NUMERO DI PARTITE (GAUNTLET)';
+
+  @override
+  String get coachElaborazione => 'Coach in elaborazione...';
+
+  @override
+  String get coachAttesa => 'Coach in attesa...';
+
+  @override
+  String get minimizzaGioca => 'Minimizza e Gioca';
+
+  @override
+  String get eloAllievo => 'Elo dell\'Allievo:';
+
+  @override
+  String get tempoRiflessione => 'Tempo di riflessione:';
+
+  @override
+  String get comprensioneGlobaleRete => 'Comprensione Globale Rete:';
+
+  @override
+  String get materiale => 'Materiale';
+
+  @override
+  String get notaIncrementoStrutturale =>
+      'Nota: La rete calcola un incremento strutturale del...';
 }

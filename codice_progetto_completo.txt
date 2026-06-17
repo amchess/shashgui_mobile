@@ -5012,15 +5012,15 @@ class AnalysisScreen extends ConsumerWidget {
                   ),
                   const Divider(color: Colors.white24, height: 20),
                   Text(
-                    "Vittorie Bianco: ${next.scoreWhite}",
+                    "${loc.vittorieBianco} ${next.scoreWhite}",
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   Text(
-                    "Vittorie Nero: ${next.scoreBlack}",
+                    "${loc.vittorieNero} ${next.scoreBlack}",
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   Text(
-                    "Patte: ${next.draws}",
+                    "${loc.patte} ${next.draws}",
                     style: const TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ],
@@ -5046,9 +5046,10 @@ class AnalysisScreen extends ConsumerWidget {
                       debugPrint("Errore esportazione: $e");
                     }
                   },
-                  child: const Text(
-                    "CONDIVIDI PGN",
-                    style: TextStyle(color: Colors.greenAccent),
+                  child: Text(
+                    // Prima era const Text("CONDIVIDI PGN" ...
+                    loc.condividiPgn,
+                    style: const TextStyle(color: Colors.greenAccent),
                   ),
                 ),
                 ElevatedButton(
@@ -5122,12 +5123,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/engine_controller.dart';
 import '../../domain/autoplay_controller.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class AnalysisPanel extends ConsumerWidget {
   const AnalysisPanel({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context)!;
     final engineState = ref.watch(engineControllerProvider);
     final autoplayState = ref.watch(autoplayControllerProvider);
 
@@ -5137,9 +5140,7 @@ class AnalysisPanel extends ConsumerWidget {
 
     final statusMsg = isAutoplay
         ? autoplayState.currentLog
-        : (engineState.isRunning
-              ? "⚙️ Analisi in corso..."
-              : "Motore in standby");
+        : (engineState.isRunning ? loc.analisiInCorso : loc.motoreInStandby);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -5912,7 +5913,7 @@ class AutoplayModal extends ConsumerWidget {
             // POSIZIONE E COLORI
             const Divider(color: Colors.white24, height: 32),
             Text(
-              "POSIZIONE INIZIALE E COLORI",
+              loc.posizioneInizialeColori,
               style: TextStyle(
                 color: Colors.blueAccent[100],
                 fontWeight: FontWeight.bold,
@@ -5925,8 +5926,8 @@ class AutoplayModal extends ConsumerWidget {
                 "Usa la posizione corrente",
                 style: TextStyle(fontSize: 12, color: Colors.white),
               ),
-              subtitle: const Text(
-                "Inizia dalla scacchiera visibile dietro al menu.",
+              subtitle: Text(
+                loc.iniziaDaScacchieraVisibile,
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
               value: state.useCurrentPosition,
@@ -5937,12 +5938,12 @@ class AutoplayModal extends ConsumerWidget {
                   .setUseCurrentPosition(v),
             ),
             SwitchListTile(
-              title: const Text(
-                "Andata e Ritorno",
+              title: Text(
+                loc.andataRitorno,
                 style: TextStyle(fontSize: 12, color: Colors.white),
               ),
               subtitle: const Text(
-                "Inverti i motori ad ogni nuovo round.",
+                loc.invertiMotoriRound,
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
               value: state.reverseColors,
@@ -5955,7 +5956,7 @@ class AutoplayModal extends ConsumerWidget {
 
             const Divider(color: Colors.white24, height: 32),
             Text(
-              "NUMERO DI PARTITE (GAUNTLET)",
+              loc.numeroPartiteGauntlet,
               style: TextStyle(
                 color: Colors.purpleAccent[100],
                 fontWeight: FontWeight.bold,
@@ -6429,9 +6430,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  _isRunning
-                      ? "Coach in elaborazione..."
-                      : "Coach in attesa...",
+                  _isRunning ? loc.coachInElaborazione : loc.coachAttesa,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -6505,7 +6504,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
           // FASE 1: IMPOSTAZIONI
           if (!_isRunning && !_isFinished) ...[
             Text(
-              "Elo dell'Allievo: ${_elo.toInt()}",
+              "${loc.eloAllievo} ${_elo.toInt()}",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
@@ -6522,9 +6521,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
             const SizedBox(height: 20),
-
             Text(
-              "Tempo di riflessione: ${_timeSec.toInt()} s",
+              "${loc.tempoRiflessione} ${_timeSec.toInt()} s",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
@@ -6584,7 +6582,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             ElevatedButton.icon(
               onPressed: () => setState(() => _isMinimized = true),
               icon: const Icon(Icons.expand_more),
-              label: const Text("Minimizza e Gioca"),
+              label: Text(loc.minimizzaGioca),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueGrey[800],
                 foregroundColor: Colors.white,
@@ -6786,7 +6784,7 @@ class EngineControls extends ConsumerWidget {
           if (!context.mounted) return; // ⚠️ FIX LINTER
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Elaborazione PGN in background in corso..."),
+              content: Text(loc.elaborazionePgnBg),
               duration: Duration(seconds: 1),
             ),
           );
@@ -6882,7 +6880,7 @@ class EngineControls extends ConsumerWidget {
                   if (text.contains('lichess.org')) {
                     try {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Download da Lichess...")),
+                        const SnackBar(content: Text(loc.downloadLichess)),
                       );
                       final pgn = await ImportExportService().fetchLichessGame(
                         text,
@@ -7061,15 +7059,14 @@ class EngineControls extends ConsumerWidget {
                           .orangeAccent // Colore quando la minaccia è visibile
                     : Colors.redAccent, // Colore di default
                 label: engineState.threatMoveUci.isNotEmpty
-                    ? "Analisi" // Etichetta quando la minaccia è visibile
+                    ? loc
+                          .analisi // Etichetta quando la minaccia è visibile
                     : loc.rilevaMinacce, // Etichetta di default
                 onPressed: () {
                   if (!engineState.isRunning) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text(
-                          "Accendi il motore per usare questa funzione.",
-                        ),
+                        content: Text(loc.accendiMotorePerFunzione),
                       ),
                     );
                     return;
@@ -7107,7 +7104,7 @@ class EngineControls extends ConsumerWidget {
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("Scansione minacce in corso..."),
+                        content: Text(loc.scansioneMinacce),
                         duration: Duration(seconds: 1),
                       ),
                     );
@@ -7143,7 +7140,7 @@ class EngineControls extends ConsumerWidget {
                 color: autoplayState.isPlaying
                     ? Colors.redAccent
                     : Colors.purpleAccent,
-                label: autoplayState.isPlaying ? "Ferma" : "Torneo",
+                label: autoplayState.isPlaying ? loc.ferma : loc.torneo,
                 onPressed: () {
                   if (autoplayState.isPlaying) {
                     ref.read(autoplayControllerProvider.notifier).stopMatch();
@@ -7166,7 +7163,7 @@ class EngineControls extends ConsumerWidget {
               _buildControlButton(
                 icon: Icons.copy,
                 color: Colors.cyanAccent, // Un colore diverso per spiccare
-                label: "Copia",
+                label: loc.copiaMenu,
                 onPressed: () {
                   // Genera il PGN della partita attualmente sulla scacchiera
                   final currentPgn = boardController.game.pgn();
@@ -7180,7 +7177,7 @@ class EngineControls extends ConsumerWidget {
               _buildControlButton(
                 icon: Icons.share,
                 color: Colors.yellowAccent,
-                label: "Condividi",
+                label: loc.condividiMenu,
                 onPressed: () {
                   final currentPgn = boardController.game.pgn();
                   ImportExportService.exportPgn(currentPgn);
@@ -7485,6 +7482,7 @@ FILE: lib\features\analysis\presentation\widgets\neural_delta_widget.dart
 
 import 'package:flutter/material.dart';
 import '../../../../core/logic/shash_trace_models.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class NeuralDeltaWidget extends StatelessWidget {
   final AdvancedShashTrace trace;
@@ -7493,6 +7491,7 @@ class NeuralDeltaWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -7507,7 +7506,7 @@ class NeuralDeltaWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                "Comprensione Globale Rete:",
+                loc.comprensioneGlobaleRete,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -7537,7 +7536,7 @@ class NeuralDeltaWidget extends StatelessWidget {
                       color: Colors.grey.shade400,
                       child: const Center(
                         child: Text(
-                          "Materiale",
+                          loc.materiale,
                           style: TextStyle(
                             fontSize: 9,
                             color: Colors.black,
@@ -7583,7 +7582,7 @@ class NeuralDeltaWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "Nota: La rete calcola un incremento strutturale del ${trace.structuralDeltaWp.toStringAsFixed(0)}% "
+            "${loc.notaIncrementoStrutturale} ${trace.structuralDeltaWp.toStringAsFixed(0)}% "
             "dovuto a geometrie di pattern e coordinazione non spiegabili dal solo conteggio dei pezzi.",
             style: TextStyle(
               color: Colors.grey.shade400,
@@ -11760,6 +11759,180 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale {push} scardinerebbe la coordinazione avversaria liberando spazio di manovra.'**
   String nnueCentralTensionDesc(String push);
+
+  /// No description provided for @analisiInCorso.
+  ///
+  /// In it, this message translates to:
+  /// **'⚙️ Analisi in corso...'**
+  String get analisiInCorso;
+
+  /// No description provided for @motoreInStandby.
+  ///
+  /// In it, this message translates to:
+  /// **'Motore in standby'**
+  String get motoreInStandby;
+
+  /// No description provided for @torneo.
+  ///
+  /// In it, this message translates to:
+  /// **'Torneo'**
+  String get torneo;
+
+  /// No description provided for @ferma.
+  ///
+  /// In it, this message translates to:
+  /// **'Ferma'**
+  String get ferma;
+
+  /// No description provided for @copiaMenu.
+  ///
+  /// In it, this message translates to:
+  /// **'Copia'**
+  String get copiaMenu;
+
+  /// No description provided for @condividiMenu.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi'**
+  String get condividiMenu;
+
+  /// No description provided for @analisi.
+  ///
+  /// In it, this message translates to:
+  /// **'Analisi'**
+  String get analisi;
+
+  /// No description provided for @accendiMotorePerFunzione.
+  ///
+  /// In it, this message translates to:
+  /// **'Accendi il motore per usare questa funzione.'**
+  String get accendiMotorePerFunzione;
+
+  /// No description provided for @scansioneMinacce.
+  ///
+  /// In it, this message translates to:
+  /// **'Scansione minacce in corso...'**
+  String get scansioneMinacce;
+
+  /// No description provided for @elaborazionePgnBg.
+  ///
+  /// In it, this message translates to:
+  /// **'Elaborazione PGN in background in corso...'**
+  String get elaborazionePgnBg;
+
+  /// No description provided for @downloadLichess.
+  ///
+  /// In it, this message translates to:
+  /// **'Download da Lichess...'**
+  String get downloadLichess;
+
+  /// No description provided for @torneoConcluso.
+  ///
+  /// In it, this message translates to:
+  /// **'🏆 Torneo Concluso!'**
+  String get torneoConcluso;
+
+  /// No description provided for @vittorieBianco.
+  ///
+  /// In it, this message translates to:
+  /// **'Vittorie Bianco:'**
+  String get vittorieBianco;
+
+  /// No description provided for @vittorieNero.
+  ///
+  /// In it, this message translates to:
+  /// **'Vittorie Nero:'**
+  String get vittorieNero;
+
+  /// No description provided for @patte.
+  ///
+  /// In it, this message translates to:
+  /// **'Patte:'**
+  String get patte;
+
+  /// No description provided for @condividiPgn.
+  ///
+  /// In it, this message translates to:
+  /// **'CONDIVIDI PGN'**
+  String get condividiPgn;
+
+  /// No description provided for @posizioneInizialeColori.
+  ///
+  /// In it, this message translates to:
+  /// **'POSIZIONE INIZIALE E COLORI'**
+  String get posizioneInizialeColori;
+
+  /// No description provided for @iniziaDaScacchieraVisibile.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia dalla scacchiera visibile dietro al menu.'**
+  String get iniziaDaScacchieraVisibile;
+
+  /// No description provided for @andataRitorno.
+  ///
+  /// In it, this message translates to:
+  /// **'Andata e Ritorno'**
+  String get andataRitorno;
+
+  /// No description provided for @invertiMotoriRound.
+  ///
+  /// In it, this message translates to:
+  /// **'Inverti i motori ad ogni nuovo round.'**
+  String get invertiMotoriRound;
+
+  /// No description provided for @numeroPartiteGauntlet.
+  ///
+  /// In it, this message translates to:
+  /// **'NUMERO DI PARTITE (GAUNTLET)'**
+  String get numeroPartiteGauntlet;
+
+  /// No description provided for @coachElaborazione.
+  ///
+  /// In it, this message translates to:
+  /// **'Coach in elaborazione...'**
+  String get coachElaborazione;
+
+  /// No description provided for @coachAttesa.
+  ///
+  /// In it, this message translates to:
+  /// **'Coach in attesa...'**
+  String get coachAttesa;
+
+  /// No description provided for @minimizzaGioca.
+  ///
+  /// In it, this message translates to:
+  /// **'Minimizza e Gioca'**
+  String get minimizzaGioca;
+
+  /// No description provided for @eloAllievo.
+  ///
+  /// In it, this message translates to:
+  /// **'Elo dell\'Allievo:'**
+  String get eloAllievo;
+
+  /// No description provided for @tempoRiflessione.
+  ///
+  /// In it, this message translates to:
+  /// **'Tempo di riflessione:'**
+  String get tempoRiflessione;
+
+  /// No description provided for @comprensioneGlobaleRete.
+  ///
+  /// In it, this message translates to:
+  /// **'Comprensione Globale Rete:'**
+  String get comprensioneGlobaleRete;
+
+  /// No description provided for @materiale.
+  ///
+  /// In it, this message translates to:
+  /// **'Materiale'**
+  String get materiale;
+
+  /// No description provided for @notaIncrementoStrutturale.
+  ///
+  /// In it, this message translates to:
+  /// **'Nota: La rete calcola un incremento strutturale del...'**
+  String get notaIncrementoStrutturale;
 }
 
 class _AppLocalizationsDelegate
@@ -12525,6 +12698,96 @@ class AppLocalizationsEn extends AppLocalizations {
   String nnueCentralTensionDesc(String push) {
     return 'The neural network highlights that the real strategic battle revolves around the central pawn chain (hindered by the c6 pawn). The crucial $push push would dismantle the opponent\'s coordination and open vital maneuvering space.';
   }
+
+  @override
+  String get analisiInCorso => '⚙️ Analysis in progress...';
+
+  @override
+  String get motoreInStandby => 'Engine on standby';
+
+  @override
+  String get torneo => 'Tournament';
+
+  @override
+  String get ferma => 'Stop';
+
+  @override
+  String get copiaMenu => 'Copy';
+
+  @override
+  String get condividiMenu => 'Share';
+
+  @override
+  String get analisi => 'Analysis';
+
+  @override
+  String get accendiMotorePerFunzione =>
+      'Turn on the engine to use this feature.';
+
+  @override
+  String get scansioneMinacce => 'Scanning threats...';
+
+  @override
+  String get elaborazionePgnBg => 'Processing PGN in background...';
+
+  @override
+  String get downloadLichess => 'Downloading from Lichess...';
+
+  @override
+  String get torneoConcluso => '🏆 Tournament Finished!';
+
+  @override
+  String get vittorieBianco => 'White Wins:';
+
+  @override
+  String get vittorieNero => 'Black Wins:';
+
+  @override
+  String get patte => 'Draws:';
+
+  @override
+  String get condividiPgn => 'SHARE PGN';
+
+  @override
+  String get posizioneInizialeColori => 'STARTING POSITION & COLORS';
+
+  @override
+  String get iniziaDaScacchieraVisibile =>
+      'Start from the board visible behind the menu.';
+
+  @override
+  String get andataRitorno => 'Round Trip';
+
+  @override
+  String get invertiMotoriRound => 'Swap engines every new round.';
+
+  @override
+  String get numeroPartiteGauntlet => 'NUMBER OF GAMES (GAUNTLET)';
+
+  @override
+  String get coachElaborazione => 'Coach is thinking...';
+
+  @override
+  String get coachAttesa => 'Coach on standby...';
+
+  @override
+  String get minimizzaGioca => 'Minimize & Play';
+
+  @override
+  String get eloAllievo => 'Student\'s Elo:';
+
+  @override
+  String get tempoRiflessione => 'Thinking time:';
+
+  @override
+  String get comprensioneGlobaleRete => 'Global Network Understanding:';
+
+  @override
+  String get materiale => 'Material';
+
+  @override
+  String get notaIncrementoStrutturale =>
+      'Note: The network calculates a structural increment of...';
 }
 
 
@@ -13260,6 +13523,96 @@ class AppLocalizationsIt extends AppLocalizations {
   String nnueCentralTensionDesc(String push) {
     return 'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale $push scardinerebbe la coordinazione avversaria liberando spazio di manovra.';
   }
+
+  @override
+  String get analisiInCorso => '⚙️ Analisi in corso...';
+
+  @override
+  String get motoreInStandby => 'Motore in standby';
+
+  @override
+  String get torneo => 'Torneo';
+
+  @override
+  String get ferma => 'Ferma';
+
+  @override
+  String get copiaMenu => 'Copia';
+
+  @override
+  String get condividiMenu => 'Condividi';
+
+  @override
+  String get analisi => 'Analisi';
+
+  @override
+  String get accendiMotorePerFunzione =>
+      'Accendi il motore per usare questa funzione.';
+
+  @override
+  String get scansioneMinacce => 'Scansione minacce in corso...';
+
+  @override
+  String get elaborazionePgnBg => 'Elaborazione PGN in background in corso...';
+
+  @override
+  String get downloadLichess => 'Download da Lichess...';
+
+  @override
+  String get torneoConcluso => '🏆 Torneo Concluso!';
+
+  @override
+  String get vittorieBianco => 'Vittorie Bianco:';
+
+  @override
+  String get vittorieNero => 'Vittorie Nero:';
+
+  @override
+  String get patte => 'Patte:';
+
+  @override
+  String get condividiPgn => 'CONDIVIDI PGN';
+
+  @override
+  String get posizioneInizialeColori => 'POSIZIONE INIZIALE E COLORI';
+
+  @override
+  String get iniziaDaScacchieraVisibile =>
+      'Inizia dalla scacchiera visibile dietro al menu.';
+
+  @override
+  String get andataRitorno => 'Andata e Ritorno';
+
+  @override
+  String get invertiMotoriRound => 'Inverti i motori ad ogni nuovo round.';
+
+  @override
+  String get numeroPartiteGauntlet => 'NUMERO DI PARTITE (GAUNTLET)';
+
+  @override
+  String get coachElaborazione => 'Coach in elaborazione...';
+
+  @override
+  String get coachAttesa => 'Coach in attesa...';
+
+  @override
+  String get minimizzaGioca => 'Minimizza e Gioca';
+
+  @override
+  String get eloAllievo => 'Elo dell\'Allievo:';
+
+  @override
+  String get tempoRiflessione => 'Tempo di riflessione:';
+
+  @override
+  String get comprensioneGlobaleRete => 'Comprensione Globale Rete:';
+
+  @override
+  String get materiale => 'Materiale';
+
+  @override
+  String get notaIncrementoStrutturale =>
+      'Nota: La rete calcola un incremento strutturale del...';
 }
 
 

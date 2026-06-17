@@ -721,4 +721,94 @@ class AppLocalizationsEn extends AppLocalizations {
   String nnueCentralTensionDesc(String push) {
     return 'The neural network highlights that the real strategic battle revolves around the central pawn chain (hindered by the c6 pawn). The crucial $push push would dismantle the opponent\'s coordination and open vital maneuvering space.';
   }
+
+  @override
+  String get analisiInCorso => '⚙️ Analysis in progress...';
+
+  @override
+  String get motoreInStandby => 'Engine on standby';
+
+  @override
+  String get torneo => 'Tournament';
+
+  @override
+  String get ferma => 'Stop';
+
+  @override
+  String get copiaMenu => 'Copy';
+
+  @override
+  String get condividiMenu => 'Share';
+
+  @override
+  String get analisi => 'Analysis';
+
+  @override
+  String get accendiMotorePerFunzione =>
+      'Turn on the engine to use this feature.';
+
+  @override
+  String get scansioneMinacce => 'Scanning threats...';
+
+  @override
+  String get elaborazionePgnBg => 'Processing PGN in background...';
+
+  @override
+  String get downloadLichess => 'Downloading from Lichess...';
+
+  @override
+  String get torneoConcluso => '🏆 Tournament Finished!';
+
+  @override
+  String get vittorieBianco => 'White Wins:';
+
+  @override
+  String get vittorieNero => 'Black Wins:';
+
+  @override
+  String get patte => 'Draws:';
+
+  @override
+  String get condividiPgn => 'SHARE PGN';
+
+  @override
+  String get posizioneInizialeColori => 'STARTING POSITION & COLORS';
+
+  @override
+  String get iniziaDaScacchieraVisibile =>
+      'Start from the board visible behind the menu.';
+
+  @override
+  String get andataRitorno => 'Round Trip';
+
+  @override
+  String get invertiMotoriRound => 'Swap engines every new round.';
+
+  @override
+  String get numeroPartiteGauntlet => 'NUMBER OF GAMES (GAUNTLET)';
+
+  @override
+  String get coachElaborazione => 'Coach is thinking...';
+
+  @override
+  String get coachAttesa => 'Coach on standby...';
+
+  @override
+  String get minimizzaGioca => 'Minimize & Play';
+
+  @override
+  String get eloAllievo => 'Student\'s Elo:';
+
+  @override
+  String get tempoRiflessione => 'Thinking time:';
+
+  @override
+  String get comprensioneGlobaleRete => 'Global Network Understanding:';
+
+  @override
+  String get materiale => 'Material';
+
+  @override
+  String get notaIncrementoStrutturale =>
+      'Note: The network calculates a structural increment of...';
 }

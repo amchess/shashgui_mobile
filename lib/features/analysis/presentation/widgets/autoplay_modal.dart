@@ -325,7 +325,7 @@ class AutoplayModal extends ConsumerWidget {
             // POSIZIONE E COLORI
             const Divider(color: Colors.white24, height: 32),
             Text(
-              "POSIZIONE INIZIALE E COLORI",
+              loc.posizioneInizialeColori,
               style: TextStyle(
                 color: Colors.blueAccent[100],
                 fontWeight: FontWeight.bold,
@@ -338,8 +338,8 @@ class AutoplayModal extends ConsumerWidget {
                 "Usa la posizione corrente",
                 style: TextStyle(fontSize: 12, color: Colors.white),
               ),
-              subtitle: const Text(
-                "Inizia dalla scacchiera visibile dietro al menu.",
+              subtitle: Text(
+                loc.iniziaDaScacchieraVisibile,
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
               value: state.useCurrentPosition,
@@ -350,12 +350,12 @@ class AutoplayModal extends ConsumerWidget {
                   .setUseCurrentPosition(v),
             ),
             SwitchListTile(
-              title: const Text(
-                "Andata e Ritorno",
+              title: Text(
+                loc.andataRitorno,
                 style: TextStyle(fontSize: 12, color: Colors.white),
               ),
-              subtitle: const Text(
-                "Inverti i motori ad ogni nuovo round.",
+              subtitle: Text(
+                loc.invertiMotoriRound,
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
               value: state.reverseColors,
@@ -368,7 +368,7 @@ class AutoplayModal extends ConsumerWidget {
 
             const Divider(color: Colors.white24, height: 32),
             Text(
-              "NUMERO DI PARTITE (GAUNTLET)",
+              loc.numeroPartiteGauntlet,
               style: TextStyle(
                 color: Colors.purpleAccent[100],
                 fontWeight: FontWeight.bold,

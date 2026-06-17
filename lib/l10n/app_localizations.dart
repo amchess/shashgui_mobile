@@ -1411,6 +1411,180 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'La rete neurale evidenzia che la vera battaglia strategica si combatte sulla catena pedonale al centro (frenata dal pedone c6). La spinta cruciale {push} scardinerebbe la coordinazione avversaria liberando spazio di manovra.'**
   String nnueCentralTensionDesc(String push);
+
+  /// No description provided for @analisiInCorso.
+  ///
+  /// In it, this message translates to:
+  /// **'⚙️ Analisi in corso...'**
+  String get analisiInCorso;
+
+  /// No description provided for @motoreInStandby.
+  ///
+  /// In it, this message translates to:
+  /// **'Motore in standby'**
+  String get motoreInStandby;
+
+  /// No description provided for @torneo.
+  ///
+  /// In it, this message translates to:
+  /// **'Torneo'**
+  String get torneo;
+
+  /// No description provided for @ferma.
+  ///
+  /// In it, this message translates to:
+  /// **'Ferma'**
+  String get ferma;
+
+  /// No description provided for @copiaMenu.
+  ///
+  /// In it, this message translates to:
+  /// **'Copia'**
+  String get copiaMenu;
+
+  /// No description provided for @condividiMenu.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi'**
+  String get condividiMenu;
+
+  /// No description provided for @analisi.
+  ///
+  /// In it, this message translates to:
+  /// **'Analisi'**
+  String get analisi;
+
+  /// No description provided for @accendiMotorePerFunzione.
+  ///
+  /// In it, this message translates to:
+  /// **'Accendi il motore per usare questa funzione.'**
+  String get accendiMotorePerFunzione;
+
+  /// No description provided for @scansioneMinacce.
+  ///
+  /// In it, this message translates to:
+  /// **'Scansione minacce in corso...'**
+  String get scansioneMinacce;
+
+  /// No description provided for @elaborazionePgnBg.
+  ///
+  /// In it, this message translates to:
+  /// **'Elaborazione PGN in background in corso...'**
+  String get elaborazionePgnBg;
+
+  /// No description provided for @downloadLichess.
+  ///
+  /// In it, this message translates to:
+  /// **'Download da Lichess...'**
+  String get downloadLichess;
+
+  /// No description provided for @torneoConcluso.
+  ///
+  /// In it, this message translates to:
+  /// **'🏆 Torneo Concluso!'**
+  String get torneoConcluso;
+
+  /// No description provided for @vittorieBianco.
+  ///
+  /// In it, this message translates to:
+  /// **'Vittorie Bianco:'**
+  String get vittorieBianco;
+
+  /// No description provided for @vittorieNero.
+  ///
+  /// In it, this message translates to:
+  /// **'Vittorie Nero:'**
+  String get vittorieNero;
+
+  /// No description provided for @patte.
+  ///
+  /// In it, this message translates to:
+  /// **'Patte:'**
+  String get patte;
+
+  /// No description provided for @condividiPgn.
+  ///
+  /// In it, this message translates to:
+  /// **'CONDIVIDI PGN'**
+  String get condividiPgn;
+
+  /// No description provided for @posizioneInizialeColori.
+  ///
+  /// In it, this message translates to:
+  /// **'POSIZIONE INIZIALE E COLORI'**
+  String get posizioneInizialeColori;
+
+  /// No description provided for @iniziaDaScacchieraVisibile.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia dalla scacchiera visibile dietro al menu.'**
+  String get iniziaDaScacchieraVisibile;
+
+  /// No description provided for @andataRitorno.
+  ///
+  /// In it, this message translates to:
+  /// **'Andata e Ritorno'**
+  String get andataRitorno;
+
+  /// No description provided for @invertiMotoriRound.
+  ///
+  /// In it, this message translates to:
+  /// **'Inverti i motori ad ogni nuovo round.'**
+  String get invertiMotoriRound;
+
+  /// No description provided for @numeroPartiteGauntlet.
+  ///
+  /// In it, this message translates to:
+  /// **'NUMERO DI PARTITE (GAUNTLET)'**
+  String get numeroPartiteGauntlet;
+
+  /// No description provided for @coachElaborazione.
+  ///
+  /// In it, this message translates to:
+  /// **'Coach in elaborazione...'**
+  String get coachElaborazione;
+
+  /// No description provided for @coachAttesa.
+  ///
+  /// In it, this message translates to:
+  /// **'Coach in attesa...'**
+  String get coachAttesa;
+
+  /// No description provided for @minimizzaGioca.
+  ///
+  /// In it, this message translates to:
+  /// **'Minimizza e Gioca'**
+  String get minimizzaGioca;
+
+  /// No description provided for @eloAllievo.
+  ///
+  /// In it, this message translates to:
+  /// **'Elo dell\'Allievo:'**
+  String get eloAllievo;
+
+  /// No description provided for @tempoRiflessione.
+  ///
+  /// In it, this message translates to:
+  /// **'Tempo di riflessione:'**
+  String get tempoRiflessione;
+
+  /// No description provided for @comprensioneGlobaleRete.
+  ///
+  /// In it, this message translates to:
+  /// **'Comprensione Globale Rete:'**
+  String get comprensioneGlobaleRete;
+
+  /// No description provided for @materiale.
+  ///
+  /// In it, this message translates to:
+  /// **'Materiale'**
+  String get materiale;
+
+  /// No description provided for @notaIncrementoStrutturale.
+  ///
+  /// In it, this message translates to:
+  /// **'Nota: La rete calcola un incremento strutturale del...'**
+  String get notaIncrementoStrutturale;
 }
 
 class _AppLocalizationsDelegate

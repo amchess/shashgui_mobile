@@ -134,9 +134,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  _isRunning
-                      ? "Coach in elaborazione..."
-                      : "Coach in attesa...",
+                  _isRunning ? loc.coachElaborazione : loc.coachAttesa,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -210,7 +208,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
           // FASE 1: IMPOSTAZIONI
           if (!_isRunning && !_isFinished) ...[
             Text(
-              "Elo dell'Allievo: ${_elo.toInt()}",
+              "${loc.eloAllievo} ${_elo.toInt()}",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
@@ -227,9 +225,8 @@ class _CoachModalState extends ConsumerState<CoachModal> {
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
             const SizedBox(height: 20),
-
             Text(
-              "Tempo di riflessione: ${_timeSec.toInt()} s",
+              "${loc.tempoRiflessione} ${_timeSec.toInt()} s",
               style: const TextStyle(color: Colors.white),
             ),
             Slider(
@@ -289,7 +286,7 @@ class _CoachModalState extends ConsumerState<CoachModal> {
             ElevatedButton.icon(
               onPressed: () => setState(() => _isMinimized = true),
               icon: const Icon(Icons.expand_more),
-              label: const Text("Minimizza e Gioca"),
+              label: Text(loc.minimizzaGioca),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueGrey[800],
                 foregroundColor: Colors.white,
